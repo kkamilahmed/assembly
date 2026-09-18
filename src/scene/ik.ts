@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SHOULDER_Y } from './constants';
 
 /** Cubic smoothstep, 0 at t≤0 and 1 at t≥1. Duration-based (not the
  *  asymptotic `damp`), so a gliding car / sweeping arm actually *settles*
@@ -51,7 +52,7 @@ export function solveTwoBoneIK(
   targetLocal: THREE.Vector3,
   upperLen: number,
   forearmLen: number,
-  shoulderHeight = 0.7,
+  shoulderHeight = SHOULDER_Y,
 ): TwoBoneSolution {
   // Shoulder-relative target: lift off the ground origin by shoulderHeight.
   const sx = targetLocal.x;

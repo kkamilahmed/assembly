@@ -22,8 +22,27 @@ export const REWORK_STOP_X = LINE_END_X + STATION_SPACING * 0.7;
 export const REWORK_SIDING_Z = 3.6;
 export const DESPAWN_X = LINE_END_X + STATION_SPACING * 3;
 
+/** The "shipped today" bay: finished cars parked in a row on the aisle side
+ *  of the line, nearest the camera. See SHIPPED_BAY_SLOTS in
+ *  streaming/lineConfig.ts for why they park rather than despawn. */
+export const SHIPPED_BAY_Z = 7.4;
+export const SHIPPED_BAY_SPACING = 5.0;
+/** Right-to-left, newest nearest the end of the line. Anchored so all
+ *  SHIPPED_BAY_SLOTS land inside the settle camera's horizontal framing —
+ *  a bay car that parks off the edge of frame is evidence nobody can see. */
+export const shippedBayX = (slot: number) => LINE_END_X - 0.5 - slot * SHIPPED_BAY_SPACING;
+
 // Robot placement: stands behind the belt (−Z) and reaches forward over it.
 export const ROBOT_Z = -2.8;
+
+/** Height of the shoulder joint above the floor, i.e. the top of the
+ *  pedestal. Single source of truth: the IK solver works in a
+ *  shoulder-relative frame and RobotArm positions the shoulder group, and
+ *  the two MUST agree or every arm silently aims at a point offset
+ *  vertically from the one it was given. This was a bare 0.7 written twice,
+ *  once as a default parameter in scene/ik.ts and once as a literal in
+ *  RobotArm.tsx, with nothing tying them together. */
+export const SHOULDER_Y = 0.95;
 
 export const CONVEYOR_Y = 0.5; // belt surface height
 export const CONVEYOR_WIDTH = 2.6;

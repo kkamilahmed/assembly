@@ -1,11 +1,15 @@
 import { useStore } from '@/state/store';
 
 const SHORTCUTS: Array<[string, string]> = [
+  ['1 – 4', 'Stage keynote act 1-4'],
+  ['P', 'Presenter cue card'],
+  ['C', 'Recalibrate WELD-01'],
   ['←', 'Back to fleet overview'],
-  ['D', 'Trigger the weld-drift scenario'],
+  ['D', 'Inject the weld-drift fault now'],
   ['R', 'Reset the simulation'],
   ['Space', 'Pause / resume'],
-  ['Q', 'Toggle live vision QC'],
+  ['Q', 'Switch inspection mode (every weld / 1 in 7)'],
+  ['I', 'Open incident replay'],
   ['Esc', 'Close this overlay'],
   ['?', 'Toggle this overlay'],
 ];
@@ -18,7 +22,7 @@ export function ShortcutOverlay() {
 
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/20" onClick={() => setOpen(false)}>
-      <div className="animate-fade-in w-80 rounded-xl bg-[var(--surface)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="animate-fade-in w-96 rounded-xl bg-[var(--surface)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 text-sm font-semibold">Keyboard shortcuts</div>
         <dl className="flex flex-col gap-2">
           {SHORTCUTS.map(([key, desc]) => (

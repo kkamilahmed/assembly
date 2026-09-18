@@ -1,20 +1,29 @@
 import { v4 as uuidv4 } from 'uuid';
+import { random, resetRandom } from '@/presenter/rng';
 import type { DriftAnalyzer } from './DriftAnalyzer';
-import { EXIT_STATION_INDEX, ROBOT_IDS, STATION_CYCLE_MS, type RobotId } from './lineConfig';
+import {
+  EXIT_STATION_INDEX,
+  ROBOT_IDS,
+  STATION_CYCLE_MS,
+  WELD_PROCESS_SIGMA_MM,
+  type RobotId,
+} from './lineConfig';
 
 export interface CarProducerConfig {
   paused: boolean;
   /** Per-robot signed deviation bias, mm — the mechanical "true" drift.
    * The story director ramps this up/down for the problem robot. */
   robotBiasMm: Record<RobotId, number>;
-  /** Baseline per-weld noise, mm (independent of bias). */
+  /** Baseline per-weld process variation (1 sigma, mm), independent of
+   * bias. See WELD_PROCESS_SIGMA_MM for why it's tight relative to the
+   * spec limit. */
   noiseMm: number;
 }
 
 const DEFAULT_CONFIG: CarProducerConfig = {
   paused: false,
   robotBiasMm: Object.fromEntries(ROBOT_IDS.map((id) => [id, 0])) as unknown as Record<RobotId, number>,
-  noiseMm: 0.28,
+  noiseMm: WELD_PROCESS_SIGMA_MM,
 };
 
 /** The one station that actually measures/QCs a weld this phase — see the
@@ -29,9 +38,11 @@ export type CarSidingListener = (carId: string, timestamp: number) => void;
 export type CarExitListener = (carId: string, timestamp: number) => void;
 export type PauseShiftListener = (deltaMs: number) => void;
 
+/** Box-Muller. Draws from the seedable stream, not Math.random, so a run is
+ *  reproducible — see presenter/rng.ts. */
 function gaussian(mean: number, stddev: number): number {
-  const u = 1 - Math.random();
-  const v = Math.random();
+  const u = 1 - random();
+  const v = random();
   const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   return mean + z * stddev;
 }
@@ -83,6 +94,18 @@ export class CarProducer {
   }
 
   reset() {
+    resetRandom();
+    // Zero the mechanical drift too. This used to reset the conveyor and
+    // the counters but leave `robotBiasMm` wherever the interrupted ramp
+    // had pushed it, because the bias is written from outside (the story
+    // director) and nothing here owned clearing it. Resetting mid-incident
+    // therefore produced a "fresh" line whose robot was still physically
+    // misaligned: the trend jumped straight back above the control limit
+    // from a standing start, and the incident timeline reported crossings
+    // at negative offsets — before the fault it was measuring had begun.
+    this.config.robotBiasMm = Object.fromEntries(
+      ROBOT_IDS.map((id) => [id, 0]),
+    ) as unknown as Record<RobotId, number>;
     this.slots = new Array(EXIT_STATION_INDEX + 1).fill(null);
     this.flaggedCarIds.clear();
     this.pausedAt = null;

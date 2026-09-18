@@ -2,8 +2,8 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useStore } from '@/state/store';
-import { EXIT_STATION_INDEX, ROBOT_IDS, SIDING_STATION_INDEX } from '@/streaming/lineConfig';
-import { CAR_LENGTH, COLORS, CONVEYOR_Y, DESPAWN_X, LINE_START_X, REWORK_SIDING_Z, REWORK_STOP_X, ROBOT_X, SNAP_TRANSITION_MS, WHEEL_RADIUS } from './constants';
+import { EXIT_STATION_INDEX, ROBOT_IDS, SIDING_STATION_INDEX, shippedBaySlot } from '@/streaming/lineConfig';
+import { CAR_LENGTH, COLORS, CONVEYOR_Y, DESPAWN_X, LINE_START_X, REWORK_SIDING_Z, REWORK_STOP_X, ROBOT_X, SHIPPED_BAY_Z, shippedBayX, SNAP_TRANSITION_MS, WHEEL_RADIUS } from './constants';
 import {
   isWheelMounted,
   PAINT_SWEEP_FRONT,
@@ -14,6 +14,7 @@ import {
   WHEEL_ORDER,
 } from './stationTargets';
 import { fitObject3D, useFerrariModel } from './models';
+import { CarTag } from './CarTag';
 
 interface PaintUniforms {
   uPaintX: { value: number };
@@ -37,6 +38,8 @@ function paletteColorFor(carId: string): string {
 /** World (x, z) a car sits at for a given walking-beam `stationIndex`. */
 function targetFor(stationIndex: number): [number, number] {
   if (stationIndex === SIDING_STATION_INDEX) return [REWORK_STOP_X, REWORK_SIDING_Z];
+  const bay = shippedBaySlot(stationIndex);
+  if (bay !== null) return [shippedBayX(bay), SHIPPED_BAY_Z];
   if (stationIndex === EXIT_STATION_INDEX) return [DESPAWN_X, 0];
   return [ROBOT_X[ROBOT_IDS[stationIndex]], 0];
 }
@@ -317,8 +320,9 @@ export function CarShell({ carId }: { carId: string }) {
       if (isWheelMounted(ph)) {
         for (const w of wheels) w.visible = true;
       }
-    } else if (station === EXIT_STATION_INDEX) {
-      // Off the line, riding on its own wheels.
+    } else if (station === EXIT_STATION_INDEX || shippedBaySlot(station) !== null) {
+      // Off the line and finished — riding on its own wheels, whether
+      // heading for the exit or parked in the shipped bay.
       for (const w of wheels) w.visible = true;
     } else {
       // Pre-wheel stations: wheels not yet mounted.
@@ -329,12 +333,11 @@ export function CarShell({ carId }: { carId: string }) {
   return (
     <group ref={groupRef} position={[LINE_START_X, CONVEYOR_Y, 0]}>
       <primitive object={body} />
-      {car?.flaggedRobotId && (
-        <mesh position={[0.3, 1.5, 0]}>
-          <coneGeometry args={[0.2, 0.45, 4]} />
-          <meshStandardMaterial color={COLORS.critical} emissive={COLORS.critical} emissiveIntensity={0.8} />
-        </mesh>
-      )}
+      {/* The car's own verdict, floating with it down the line. Replaces a
+          small red cone that only ever appeared on cars QC had already
+          caught — which meant the cars that shipped bad, the ones the whole
+          demo is about, were the only ones with no marker at all. */}
+      <CarTag verdict={car?.verdict ?? 'none'} y={1.55} shipped={shippedBaySlot(car?.stationIndex ?? 0) !== null} />
     </group>
   );
 }

@@ -4,7 +4,7 @@ import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '@/state/store';
 import { ROBOT_IDS, WORK_MS, type RobotId } from '@/streaming/lineConfig';
-import { COLORS, CONVEYOR_Y, ROBOT_X, ROBOT_Z, SNAP_TRANSITION_MS, STATUS_COLOR } from './constants';
+import { COLORS, CONVEYOR_Y, ROBOT_X, ROBOT_Z, SHOULDER_Y, SNAP_TRANSITION_MS, STATUS_COLOR } from './constants';
 import { solveTwoBoneIK, smoothstep, triangleEnvelope } from './ik';
 import {
   carFrameToRobotLocal,
@@ -62,25 +62,42 @@ export interface MachineSpec {
 const ARM_YELLOW = '#f5c400';
 const PEDESTAL_DARK = '#2a2d33';
 
+// ---- Machine sizing ----
+// These were about a third too small for the line they stand on. Two
+// separate problems, one of which was functional rather than cosmetic:
+//
+// 1. Reach. PANEL-01 had upper 1.5 + fore 1.25 = 2.75m, i.e. a 2.70m
+//    effective max reach, against a placement target ~2.86m away across the
+//    belt (the robots stand 2.8m back at ROBOT_Z). Every frame of that
+//    station's choreography was hitting solveTwoBoneIK's reach clamp, so
+//    the arm aimed at a point short of where it had been told to go and
+//    spent the dwell straining at full extension instead of working.
+// 2. Proportion. A real body-shop weld robot (KUKA KR 210 class) is a
+//    ~0.75m-diameter base under a ~3m machine with chunky 0.5m-section
+//    castings. Slender 0.34m links on a 0.42m pedestal next to a 4.6m car
+//    read as a desk toy standing next to a vehicle.
+//
+// Lengths now clear their targets with real headroom, and the sections are
+// proportioned like load-bearing castings rather than tubes.
 const MACHINES: Record<RobotId, MachineSpec> = {
   // ABB-style: box links, gripper, installs the body shell.
   'PANEL-01': {
     brand: 'ABB', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#3a6ea5',
-    linkShape: 'box', upperArmLen: 1.5, forearmLen: 1.25, linkWidth: 0.34,
+    linkShape: 'box', upperArmLen: 1.95, forearmLen: 1.6, linkWidth: 0.5,
     endEffector: 'gripper', baseYaw: 0.12, upperTilt: 0.42, foreTilt: -1.25,
     job: 'panel', pulseMs: 420,
   },
   // KUKA-style: box links, C-frame spot-weld gun. 3 seam darts per car.
   'WELD-01': {
     brand: 'KUKA', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#2fb574',
-    linkShape: 'box', upperArmLen: 1.65, forearmLen: 1.1, linkWidth: 0.4,
+    linkShape: 'box', upperArmLen: 2.05, forearmLen: 1.5, linkWidth: 0.56,
     endEffector: 'spot', baseYaw: 0.36, upperTilt: 0.3, foreTilt: -1.1,
     job: 'weld', pulseMs: 260,
   },
   // FANUC-style: cylindrical links, spray gun, sweeps front-to-back.
   'PAINT-01': {
     brand: 'FANUC', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#2fb574',
-    linkShape: 'cyl', upperArmLen: 1.4, forearmLen: 1.3, linkWidth: 0.3,
+    linkShape: 'cyl', upperArmLen: 1.8, forearmLen: 1.62, linkWidth: 0.42,
     endEffector: 'spray', baseYaw: -0.36, upperTilt: 0.5, foreTilt: -1.35,
     job: 'paint', pulseMs: 560,
   },
@@ -88,8 +105,13 @@ const MACHINES: Record<RobotId, MachineSpec> = {
   // wheel — see RobotArm's `wheelCorner` prop).
   'WHEEL-01': {
     brand: 'YASKAWA', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#e8a82c',
-    linkShape: 'box', upperArmLen: 1.85, forearmLen: 1.4, linkWidth: 0.36,
-    endEffector: 'gripper', baseYaw: 0, upperTilt: 0.18, foreTilt: -0.7,
+    linkShape: 'box', upperArmLen: 2.0, forearmLen: 1.55, linkWidth: 0.48,
+    // Parked folded forward over its own hub rather than stood upright. At
+    // the old 0.18/-0.7 the longer links left both near-side wheel machines
+    // standing almost vertical in the foreground, crossing each other in an
+    // X — a pose no wheel-mount robot rests in, and the most visually
+    // dominant thing in the settle shot.
+    endEffector: 'gripper', baseYaw: 0, upperTilt: 0.62, foreTilt: -1.5,
     job: 'wheel', pulseMs: 480,
   },
 };
@@ -233,9 +255,11 @@ function EndEffector({
 function AndonLight({ status }: { status: 'healthy' | 'warning' | 'critical' }) {
   const levels: Array<'critical' | 'warning' | 'healthy'> = ['critical', 'warning', 'healthy'];
   const poleHeight = 0.8;
-  const mountOffset = 0.3; // on the pedestal's top rim (radius ≈0.42-0.44)
+  // On the pedestal's top rim. Derived from the rim radius rather than a
+  // literal, which is what let it drift once the pedestal grew.
+  const mountOffset = 0.4;
   return (
-    <group position={[mountOffset, 0.7, mountOffset]}>
+    <group position={[mountOffset, SHOULDER_Y, mountOffset]}>
       <mesh castShadow>
         <cylinderGeometry args={[0.075, 0.09, 0.07, 12]} />
         <meshStandardMaterial color={COLORS.robotBase} metalness={0.5} roughness={0.4} />
@@ -283,16 +307,21 @@ function WheelProp({ held = false }: { held?: boolean }) {
 function Pedestal({ spec }: { spec: MachineSpec }) {
   return (
     <group>
-      <mesh position={[0, 0.35, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.42, 0.5, 0.7, 24]} />
+      {/* Every offset here is expressed against SHOULDER_Y rather than
+          hardcoded, so the pedestal always spans floor to shoulder. These
+          were literals tuned for a 0.7m pedestal — raising the shoulder
+          left the cone sunk through the floor and ending short of the
+          joint it is supposed to be carrying. */}
+      <mesh position={[0, SHOULDER_Y / 2, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.55, 0.68, SHOULDER_Y, 24]} />
         <meshStandardMaterial color={spec.baseColor} metalness={0.4} roughness={0.5} envMapIntensity={0.8} />
       </mesh>
-      <mesh position={[0, 0.42, 0]}>
-        <cylinderGeometry args={[0.44, 0.44, 0.14, 24]} />
+      <mesh position={[0, SHOULDER_Y - 0.1, 0]}>
+        <cylinderGeometry args={[0.58, 0.58, 0.16, 24]} />
         <meshStandardMaterial color={spec.accent} metalness={0.3} roughness={0.5} emissive={spec.accent} emissiveIntensity={0.15} />
       </mesh>
-      <mesh position={[0, 0.2, 0.46]}>
-        <boxGeometry args={[0.42, 0.1, 0.02]} />
+      <mesh position={[0, SHOULDER_Y * 0.34, 0.6]}>
+        <boxGeometry args={[0.46, 0.11, 0.02]} />
         <meshStandardMaterial color={spec.accent} metalness={0.5} roughness={0.4} emissive={spec.accent} emissiveIntensity={0.25} />
       </mesh>
     </group>
@@ -627,15 +656,15 @@ export function RobotArm({
     >
       <Pedestal spec={spec} />
 
-      <group ref={baseRef} position={[0, 0.7, 0]}>
-        <Joint radius={0.26} color={spec.linkColor} />
+      <group ref={baseRef} position={[0, SHOULDER_Y, 0]}>
+        <Joint radius={0.34} color={spec.linkColor} />
         <group ref={shoulderRef} rotation={[spec.upperTilt, 0, 0]}>
           <Link spec={spec} length={spec.upperArmLen} />
           <group ref={forearmRef} position={[0, spec.upperArmLen, 0]}>
-            <Joint radius={0.22} color={spec.linkColor} />
+            <Joint radius={0.3} color={spec.linkColor} />
             <Link spec={spec} length={spec.forearmLen} />
             <group position={[0, spec.forearmLen, 0]}>
-              <Joint radius={0.16} color={spec.linkColor} />
+              <Joint radius={0.22} color={spec.linkColor} />
               <group ref={toolRef}>
                 <EndEffector
                   kind={spec.endEffector}

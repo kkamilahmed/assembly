@@ -5,6 +5,7 @@ import type {
   RobotWindowStatsEvent,
   WeldEvent,
 } from './types';
+import { scaleMs } from '@/presenter/presenterConfig';
 import {
   CRITICAL_TREND_MM,
   MIN_TREND_SAMPLES,
@@ -34,6 +35,12 @@ export interface DriftAnalyzerConfig {
   /** When disabled, inspect only 1 weld out of every N (periodic manual
    * sampling instead of continuous vision tracking). */
   sampleEveryN: number;
+  /** Line paused. A trailing window is defined by wall-clock age, so a
+   * paused line would otherwise keep ageing its own samples out and decay
+   * the trend to zero while nothing is actually happening — the operator
+   * pauses to look at something and watches the incident evaporate. While
+   * paused the window is frozen intact and no rollup is emitted. */
+  paused: boolean;
 }
 
 const DEFAULT_CONFIG: DriftAnalyzerConfig = {
@@ -43,7 +50,15 @@ const DEFAULT_CONFIG: DriftAnalyzerConfig = {
   criticalTrendMm: CRITICAL_TREND_MM,
   windowMs: TREND_WINDOW_MS,
   sampleEveryN: SAMPLE_EVERY_N,
+  paused: false,
 };
+
+/** Below this the fit is indistinguishable from a flat process wobbling,
+ * and dividing by it produces a nonsense ETA measured in hours. */
+const MIN_PROJECTABLE_SLOPE = 0.004; // mm/sec
+/** An ETA further out than this is true but useless — clamp rather than
+ * render "breach in 47 minutes" next to a live alert. */
+const MAX_PROJECTION_MS = 5 * 60_000;
 
 interface WindowEntry {
   timestamp: number;
@@ -85,7 +100,9 @@ export class DriftAnalyzer {
 
   start() {
     if (this.windowIntervalId !== null) return;
-    this.windowIntervalId = window.setInterval(() => this.evaluateWindow(), 2000);
+    // Rollup cadence scales too, so a sped-up run still gets the same
+    // number of trend samples per incident and the chart keeps its shape.
+    this.windowIntervalId = window.setInterval(() => this.evaluateWindow(), scaleMs(2000));
   }
 
   stop() {
@@ -163,7 +180,27 @@ export class DriftAnalyzer {
     this.qcListeners.forEach((l) => l(event));
   }
 
+  /** Least-squares slope of |deviation| against time across the window,
+   * in mm/sec. Needs a spread of samples to mean anything, so it reports 0
+   * rather than a wild number off a degenerate fit. */
+  private windowSlopeMmPerSec(): number {
+    const n = this.window.length;
+    if (n < MIN_TREND_SAMPLES) return 0;
+    const t0 = this.window[0].timestamp;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const e of this.window) {
+      const x = (e.timestamp - t0) / 1000;
+      const y = Math.abs(e.deviationMm);
+      sx += x; sy += y; sxx += x * x; sxy += x * y;
+    }
+    const denom = n * sxx - sx * sx;
+    if (Math.abs(denom) < 1e-6) return 0;
+    return (n * sxy - sx * sy) / denom;
+  }
+
   private evaluateWindow() {
+    // Frozen, not aged out — see DriftAnalyzerConfig.paused.
+    if (this.config.paused) return;
     const now = Date.now();
     this.window = this.window.filter((e) => now - e.timestamp <= this.config.windowMs);
     const count = this.window.length;
@@ -176,6 +213,17 @@ export class DriftAnalyzer {
     // (updated in ingestWeld) until the next spot check.
     if (this.config.enabled) this.displayedTrendMm = groundTruthTrendMm;
 
+    // Where this is heading, not just where it is. A linear fit over the
+    // retained window extrapolated to the spec limit — only meaningful
+    // while the slope is genuinely climbing, and only worth showing if the
+    // answer is close enough to act on.
+    const trendSlopeMmPerSec = this.windowSlopeMmPerSec();
+    const headroomMm = this.config.toleranceMm - groundTruthTrendMm;
+    const projectedBreachMs =
+      count >= MIN_TREND_SAMPLES && trendSlopeMmPerSec > MIN_PROJECTABLE_SLOPE && headroomMm > 0
+        ? Math.min((headroomMm / trendSlopeMmPerSec) * 1000, MAX_PROJECTION_MS)
+        : null;
+
     const statsEvent: RobotWindowStatsEvent = {
       topic: 'robot-metrics',
       kind: 'window-stats',
@@ -184,6 +232,11 @@ export class DriftAnalyzer {
       groundTruthTrendMm,
       displayedTrendMm: this.displayedTrendMm,
       sampleCount: count,
+      trendSlopeMmPerSec,
+      projectedBreachMs,
+      weldsUntilNextInspection: this.config.enabled
+        ? null
+        : this.config.sampleEveryN - (this.weldsSinceModeStart % this.config.sampleEveryN),
     };
     this.windowStatsListeners.forEach((l) => l(statsEvent));
 

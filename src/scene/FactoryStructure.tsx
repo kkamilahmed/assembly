@@ -362,7 +362,10 @@ function CrateStack({ x, z }: { x: number; z: number }) {
         <boxGeometry args={[0.7, 0.6, 0.7]} />
         <meshStandardMaterial color="#c7ccd2" metalness={0.2} roughness={0.6} />
       </mesh>
-      <mesh position={[0.28, 0.98, -0.05]} castShadow receiveShadow>
+      {/* Squared up over the crate below it — the old lateral offsets left
+          the top box overhanging by most of its own width, which reads as
+          two blocks floating rather than a stack. */}
+      <mesh position={[-0.16, 0.97, 0.08]} castShadow receiveShadow>
         <boxGeometry args={[0.55, 0.5, 0.55]} />
         <meshStandardMaterial color={COLORS.safetyYellow} metalness={0.15} roughness={0.6} />
       </mesh>
@@ -460,11 +463,12 @@ export function FactoryStructure() {
       <FireExtinguisher x={2} />
       <WallDoor x={9} />
 
-      {/* Open-aisle floor clutter (z >= 5, clear of the fence and every
-          robot/rack footprint — see module doc). */}
-      <Barrel x={-4} z={6} color="#2f6b9e" />
-      <Barrel x={-3.2} z={6.5} color="#c26a1f" />
-      <CrateStack x={9} z={6.5} />
+      {/* The marked walkway stays clear. Barrels and a crate stack used to
+          sit in it at z 6-6.5, which is both wrong for a plant (that yellow
+          line exists precisely to keep this lane empty) and badly placed:
+          it is the nearest geometry to the settle camera, so untextured
+          boxes were the largest, brightest objects in frame with the line
+          itself behind them. Staging moved back of house, below. */}
       <Bollard x={15.2} z={1.6} />
       <Bollard x={15.2} z={3.3} />
 
@@ -477,6 +481,7 @@ export function FactoryStructure() {
       <CrateStack x={14} z={BACK_CLUTTER_Z} />
       <Barrel x={22} z={BACK_CLUTTER_Z} color="#c26a1f" />
       <Barrel x={22.8} z={BACK_CLUTTER_Z + 0.6} color="#2f6b9e" />
+      <CrateStack x={19.5} z={BACK_CLUTTER_Z} />
     </group>
   );
 }

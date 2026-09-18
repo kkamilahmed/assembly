@@ -43,9 +43,12 @@ function MachinePreview({ robotId }: { robotId: RobotId }) {
       dpr={[1, 1.5]}
       shadows
       gl={{ antialias: true, alpha: true }}
-      camera={{ fov: 32, near: 0.1, far: 30, position: [4.6, 2.7, 5.8] }}
+      // Pulled back and raised to match the larger machines — at the old
+      // distance the taller arms clipped straight out of the top of the
+      // card, which is what made WHEEL-01's preview look cropped.
+      camera={{ fov: 32, near: 0.1, far: 40, position: [6.0, 3.6, 7.6] }}
     >
-      <AimCamera target={[0, 1.6, 0]} />
+      <AimCamera target={[0, 2.0, 0]} />
       <ambientLight intensity={0.7} />
       <directionalLight position={[3, 5, 2]} intensity={1.3} castShadow shadow-mapSize={[512, 512]} />
       <directionalLight position={[-3, 2, -2]} intensity={0.3} />
@@ -53,7 +56,7 @@ function MachinePreview({ robotId }: { robotId: RobotId }) {
       <group position={[-ROBOT_X[robotId], 0, -ROBOT_Z]}>
         <RobotArm robotId={robotId} showProps={false} />
       </group>
-      <ContactShadows position={[0, 0.01, 0]} scale={4.2} blur={2.2} far={3} resolution={256} opacity={0.45} color="#1a1d24" />
+      <ContactShadows position={[0, 0.01, 0]} scale={5.4} blur={2.2} far={4} resolution={256} opacity={0.45} color="#1a1d24" />
     </Canvas>
   );
 }
@@ -112,18 +115,21 @@ export function TelemetryCard({ robotId }: { robotId: RobotId }) {
         displayValue={`${telemetry.temperature.toFixed(1)}°C`}
         fraction={telemetry.temperature / 100}
         color={METRIC_HEX.temperature}
+        rangeLabel="20-100°C"
       />
       <SegmentedMeter
         label="Pressure"
         displayValue={`${telemetry.pressure.toFixed(1)} psi`}
         fraction={telemetry.pressure / 10}
         color={METRIC_HEX.pressure}
+        rangeLabel="0-10 psi"
       />
       <SegmentedMeter
         label="Vibration"
         displayValue={`${telemetry.vibration.toFixed(2)} mm/s`}
         fraction={telemetry.vibration / 10}
         color={METRIC_HEX.vibration}
+        rangeLabel="0-10 mm/s"
       />
 
       <div className="font-mono-ui text-[11px] text-[var(--text-secondary)]">Cycles: {Math.round(telemetry.cycles)}</div>

@@ -19,8 +19,6 @@ const analyzers = Object.fromEntries(ANALYZED_ROBOT_IDS.map((id) => [id, new Dri
 >;
 const producer = new CarProducer();
 
-const RECOVERY_REVEAL_MS = 7000;
-
 let initialized = false;
 
 export function initLineEngine() {
@@ -47,21 +45,36 @@ export function initLineEngine() {
   // and reveals the silently-accumulated ground-truth gap the instant
   // monitoring comes back on.
   let prevLiveQC = useStore.getState().liveVisionQC;
+  let offSnapshot: { at: number; groundTruthAt: number; caughtAt: number } | null = null;
   useStore.subscribe((state) => {
     if (state.liveVisionQC === prevLiveQC) return;
     const wasOff = !prevLiveQC;
     prevLiveQC = state.liveVisionQC;
+    if (!state.liveVisionQC) offSnapshot = state.qcOffSince;
     for (const analyzer of Object.values(analyzers)) analyzer.configure({ enabled: state.liveVisionQC });
 
     if (state.liveVisionQC && wasOff) {
-      const gap = state.suspectWeldsGroundTruth - state.suspectWeldsCaught;
+      // Bill exactly this off-period against the snapshot taken when
+      // inspection went dark (store.ts's qcOffSince), not the session
+      // running total — toggling twice used to re-report the first
+      // period's gap on top of the second one's.
+      const since = offSnapshot;
+      const gap = since
+        ? state.suspectWeldsGroundTruth - since.groundTruthAt - (state.suspectWeldsCaught - since.caughtAt)
+        : state.suspectWeldsGroundTruth - state.suspectWeldsCaught;
+      // Turn the grey question marks still on the line red before the
+      // banner appears, so the number in the banner is describing something
+      // the audience can already see.
+      useStore.getState().revealUninspectedDefects();
       if (gap > 0) {
-        const expiresAt = Date.now() + RECOVERY_REVEAL_MS;
-        useStore.getState().setRecoveryReveal({ gap, expiresAt });
-        setTimeout(() => {
-          const current = useStore.getState().recoveryReveal;
-          if (current && current.expiresAt === expiresAt) useStore.getState().setRecoveryReveal(null);
-        }, RECOVERY_REVEAL_MS);
+        // No expiry. This is the punchline of the whole demo and it used to
+        // fade itself out after 7s (against a 6s CSS animation, so it also
+        // sat invisible for a second before unmounting) — which meant it
+        // could vanish mid-sentence. It now stays until dismissed.
+        useStore.getState().setRecoveryReveal({
+          gap,
+          durationMs: since ? Date.now() - since.at : 0,
+        });
       }
     }
   });
@@ -71,6 +84,11 @@ export function initLineEngine() {
     if (state.paused === prevPaused) return;
     prevPaused = state.paused;
     producer.configure({ paused: state.paused });
+    // The analyzers' trailing window is wall-clock aged, so it has to be
+    // told about the pause too — otherwise pausing to talk about an
+    // incident silently ages every sample out from under it and the trend
+    // decays to zero while the line is standing still.
+    for (const analyzer of Object.values(analyzers)) analyzer.configure({ paused: state.paused });
   });
 
   producer.start();

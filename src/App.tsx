@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useKeyboardShortcuts } from '@/interactions/useKeyboardShortcuts';
+import { useStore } from '@/state/store';
 import { Scene } from '@/scene/Scene';
 import { initLineEngine } from '@/state/engine';
 import { initStoryDirector } from '@/state/storyDirector';
 import { EventFeed } from '@/ui/EventFeed';
 import { FleetOverview } from '@/ui/FleetOverview';
-import { ReworkList } from '@/ui/ReworkList';
+import { IncidentReplay } from '@/ui/IncidentReplay';
 import { RobotPanel } from '@/ui/RobotPanel';
+import { PresenterCue } from '@/ui/PresenterCue';
 import { ShortcutOverlay } from '@/ui/ShortcutOverlay';
 import { TopBar } from '@/ui/TopBar';
 
-type SideTab = 'events' | 'rework';
 type View = 'fleet' | 'line';
 
 // How long the fleet <-> line crossfade takes — long enough to read as a
@@ -19,7 +20,6 @@ const TRANSITION_MS = 550;
 
 export default function App() {
   const [view, setView] = useState<View>('fleet');
-  const [tab, setTab] = useState<SideTab>('events');
 
   // Both layers are kept mounted for the ~TRANSITION_MS window while one
   // fades/scales out and the other fades/scales in (see .view-layer in
@@ -76,8 +76,15 @@ export default function App() {
     [view, isTransitioning],
   );
 
+  const replayOpen = useStore((s) => s.replayOpen);
+  const shortcutOverlayOpen = useStore((s) => s.shortcutOverlayOpen);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // Never navigate out from under an open overlay — and never steal the
+      // arrow keys from the replay's scrub slider, which is focusable and
+      // arrow-driven by design.
+      if (replayOpen || shortcutOverlayOpen) return;
       if (e.key === 'ArrowRight' && view === 'fleet') {
         e.preventDefault();
         goTo('line');
@@ -88,7 +95,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [view, goTo]);
+  }, [view, goTo, replayOpen, shortcutOverlayOpen]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--bg)]">
@@ -111,25 +118,21 @@ export default function App() {
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Robots</div>
                   <RobotPanel />
                 </div>
+                {/* One feed, no tabs. The Rework tab duplicated what the
+                    event feed already says ("pulled car X for rework") and
+                    added a control that has to be explained on stage; the
+                    full queue lives on the incident replay, where it is
+                    actually being read. */}
                 <div>
-                  <div className="mb-2 flex gap-3 text-xs font-semibold uppercase tracking-wide">
-                    <button
-                      onClick={() => setTab('events')}
-                      className={tab === 'events' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}
-                    >
-                      Events
-                    </button>
-                    <button
-                      onClick={() => setTab('rework')}
-                      className={tab === 'rework' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}
-                    >
-                      Rework
-                    </button>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    What the operator was told
                   </div>
-                  {tab === 'events' ? <EventFeed /> : <ReworkList />}
+                  <EventFeed />
                 </div>
               </div>
             </div>
+            <IncidentReplay />
+            <PresenterCue />
             <ShortcutOverlay />
           </div>
         </div>

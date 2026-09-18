@@ -60,6 +60,20 @@ export interface RobotWindowStatsEvent {
    * it's off, so it lags behind reality in between samples. */
   displayedTrendMm: number;
   sampleCount: number;
+  /** Least-squares slope of the ground-truth trend across the window,
+   * mm per second. Positive means the process centre is still moving. */
+  trendSlopeMmPerSec: number;
+  /** Projected ms until the trend reaches the hard spec limit at the
+   * current slope, or null when it isn't heading there (flat/falling
+   * slope, or an ETA too far out to be meaningful). This is the number a
+   * per-event threshold rule structurally cannot produce: it only exists
+   * because the job keeps windowed state. */
+  projectedBreachMs: number | null;
+  /** Welds remaining until the next periodic manual inspection, or null
+   * while every weld is being inspected. Emitted from the analyzer rather
+   * than recounted downstream so there is exactly one source of truth for
+   * how long the blind window still has to run. */
+  weldsUntilNextInspection: number | null;
 }
 
 export type RobotMetricsEvent = RobotActionEvent | RobotWindowStatsEvent;
