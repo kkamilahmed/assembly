@@ -1,7 +1,7 @@
-// Seedable PRNG for the bake process-noise stream.
+// Seedable PRNG for the risk-score noise stream.
 //
-// CarProducer used Math.random() directly, which makes every run different:
-// the defect count, the detection latency and the "shipped undetected" gap
+// A producer using Math.random() directly makes every run different:
+// the fraud count, the detection latency and the projected loss
 // all moved between the rehearsal and the stage, so none of them could be
 // written into speaker notes. mulberry32 is small, fast and has a long
 // enough period for this; nothing here is cryptographic.

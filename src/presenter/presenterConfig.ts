@@ -26,7 +26,7 @@ const params = readParams();
 export const SPEED = (() => {
   const raw = Number(params.get('speed'));
   if (!Number.isFinite(raw) || raw <= 0) return 1;
-  // Past about 3x loaves crowd the belt and inspection's trend window gets
+  // Past about 3x packets crowd the lanes and the scoring trend window gets
   // too short to mean much.
   return Math.min(Math.max(raw, 0.5), 3);
 })();
@@ -39,7 +39,7 @@ export function scaleMs(ms: number): number {
 
 const DEFAULT_SEED = 20260915;
 
-/** Seed for the bake process-noise stream. Null means "genuinely random",
+/** Seed for the risk-score noise stream. Null means "genuinely random",
  *  only when explicitly asked for. A fixed seed is the default because a
  *  demo you cannot rehearse against is a demo you cannot write speaker
  *  notes for: with this set, the defect count, the detection latency and

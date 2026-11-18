@@ -1,52 +1,56 @@
 // Event schema shared by the simulated Kafka topics. A real backend would
 // serialize these same shapes over a WebSocket/SSE bridge - see README.
-import type { MachineId } from './lineConfig';
+import type { SourceId } from './networkConfig';
 
-/** Vision inspection's reading for one loaf: how far its crust browning is
- *  from the target bake. */
-export interface MeasurementEvent {
-  topic: 'measurements';
-  machine_id: MachineId;
+/** One payment as it reaches the processing hub: the stream's risk score
+ *  for it, and what the production rules decided. */
+export interface AuthorizationEvent {
+  topic: 'authorizations';
+  source_id: SourceId;
   item_id: string;
   timestamp: number;
-  /** Browning index minus target. Positive is over-baked. */
+  /** Risk score minus the everyday baseline. Positive is riskier. */
   offset: number;
+  /** The rules let it through. */
+  approved: boolean;
 }
 
-/** The QC verdict for one loaf. Every loaf is inspected as it streams past. */
-export interface QCCheckEvent {
-  topic: 'qc-checks';
-  machine_id: MachineId;
+/** The stream's verdict on one payment. Every payment is scored as it
+ *  streams past. */
+export interface ScoreEvent {
+  topic: 'fraud-scores';
+  source_id: SourceId;
   item_id: string;
   timestamp: number;
-  /** Out of tolerance: the loaf is kicked into the reject bin. */
+  /** Scored as fraud. */
   suspect: boolean;
+  approved: boolean;
   offset: number;
 }
 
 export type DriftAction = 'drift_warning' | 'drift_critical' | 'drift_cleared';
 
 export interface DriftActionEvent {
-  topic: 'machine-metrics';
+  topic: 'source-metrics';
   kind: 'action';
-  machine_id: MachineId;
+  source_id: SourceId;
   timestamp: number;
   action: DriftAction;
   reason: string;
 }
 
-/** Windowed rollup, emitted every second. Drives the trend sparkline. */
+/** Windowed rollup per source, emitted twice a second. Drives the trend. */
 export interface WindowStatsEvent {
-  topic: 'machine-metrics';
+  topic: 'source-metrics';
   kind: 'window-stats';
-  machine_id: MachineId;
+  source_id: SourceId;
   timestamp: number;
-  /** Windowed mean browning offset. */
+  /** Windowed mean risk over baseline of the source's approved charges. */
   trend: number;
   sampleCount: number;
-  /** Least-squares slope of the offset across the window, per second. */
+  /** Least-squares slope of the risk across the window, per second. */
   trendSlopePerSec: number;
-  /** Projected ms until the trend reaches the tolerance at the current
+  /** Projected ms until the trend reaches the warning limit at the current
    *  slope, or null when it isn't heading there. */
   projectedBreachMs: number | null;
 }

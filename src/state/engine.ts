@@ -1,86 +1,85 @@
 // The bridge between the streaming layer and the store - the ONLY file that
 // imports both `streaming/` and `state/store.ts`. Swapping in a real
-// Kafka/Flink backend means replacing the LineProducer/DriftAnalyzer/
-// SensorStream construction below with something exposing the same listener
+// Kafka/Flink backend means replacing the PaymentProducer/FraudAnalyzer/
+// SignalStream construction below with something exposing the same listener
 // surface (a WebSocket bridge, most likely); nothing in state/store.ts,
 // scene/ or ui/ needs to know the difference.
-import { STATION_S } from '@/scene/layout';
-import { DriftAnalyzer } from '@/streaming/DriftAnalyzer';
-import { LineProducer } from '@/streaming/LineProducer';
-import { PROBLEM_MACHINE_ID, type MachineId } from '@/streaming/lineConfig';
-import { SensorStream } from '@/streaming/sensorStream';
+import { LANE_STATIONS } from '@/scene/layout';
+import { FraudAnalyzer } from '@/streaming/FraudAnalyzer';
+import { PaymentProducer, type AttackConfig } from '@/streaming/PaymentProducer';
+import { SOURCE_IDS } from '@/streaming/networkConfig';
+import { SignalStream } from '@/streaming/signalStream';
 import { useStore } from './store';
 
-// Vision inspection scores every loaf the oven bakes.
-const inspection = new DriftAnalyzer(PROBLEM_MACHINE_ID);
-const producer = new LineProducer();
-const sensorStream = new SensorStream();
+// The hub scores every payment from every source.
+const scoring = new FraudAnalyzer();
+const producer = new PaymentProducer();
+const signalStream = new SignalStream();
 
 let initialized = false;
 
-/** Start everything: the line, the inspection analyzer and the sensor
- *  stream. Idempotent. */
+/** Start everything: the traffic, the scoring job and the signal stream.
+ *  Idempotent. */
 export function initEngine() {
   if (initialized) return;
   initialized = true;
 
-  producer.init(
-    { ovenOut: STATION_S.ovenOut, inspect: STATION_S.inspect, reject: STATION_S.reject, pack: STATION_S.pack },
-    inspection,
-  );
-  producer.onSpawn((id, spawnedAt) => useStore.getState().ingestLoafSpawn(id, spawnedAt));
-  producer.onBaked((id, offset) => useStore.getState().ingestLoafBaked(id, offset));
-  producer.onReject((id, timestamp) => useStore.getState().ingestLoafReject(id, timestamp));
-  producer.onPacked((id) => useStore.getState().ingestLoafPacked(id));
-  producer.onPauseShift((deltaMs) => useStore.getState().shiftLoafTimestamps(deltaMs));
+  producer.init(LANE_STATIONS, scoring);
+  producer.onSpawn((id, source, kind, spawnedAt) => useStore.getState().ingestSpawn(id, source, kind, spawnedAt));
+  producer.onBlock((id, timestamp) => useStore.getState().ingestBlock(id, timestamp));
+  producer.onSettle((id) => useStore.getState().ingestSettle(id));
 
-  inspection.onQCCheck((event) => useStore.getState().ingestQCCheck(event));
-  inspection.onWindowStats((event) => useStore.getState().ingestWindowStats(event));
-  inspection.onAction((event) => useStore.getState().ingestAction(event));
+  scoring.onScore((event) => useStore.getState().ingestScore(event));
+  scoring.onWindowStats((event) => useStore.getState().ingestWindowStats(event));
+  scoring.onAction((event) => useStore.getState().ingestAction(event));
 
-  sensorStream.onFrame((frame, timestamp) => useStore.getState().ingestSensorFrame(frame, timestamp));
+  signalStream.onFrame((frame, timestamp) => useStore.getState().ingestSignalFrame(frame, timestamp));
 
   // The store owns no stream state and the streams own no store state: this
-  // subscription is the one place that carries line state across.
-  let prevPaused = useStore.getState().paused;
+  // subscription is the one place that carries network state across.
+  let prevFrozen = useStore.getState().frozen;
   let prevInjections = useStore.getState().injections;
   useStore.subscribe((state) => {
-    if (state.paused !== prevPaused) {
-      prevPaused = state.paused;
-      producer.configure({ paused: state.paused });
-      inspection.configure({ paused: state.paused });
-      sensorStream.configure({ paused: state.paused });
+    if (state.frozen !== prevFrozen) {
+      prevFrozen = state.frozen;
+      producer.configure({ frozen: state.frozen });
+      scoring.configure({ frozen: state.frozen });
+      signalStream.configure({ frozen: state.frozen });
     }
     if (state.injections !== prevInjections) {
       prevInjections = state.injections;
-      sensorStream.setInjections(state.injections);
+      signalStream.setInjections(state.injections);
     }
   });
 
   producer.start();
-  inspection.start();
-  sensorStream.start();
+  scoring.start();
+  signalStream.start();
 }
 
-/** How far over target the oven is baking. Written by the story director's
- *  ramps and by recalibration. */
-export function setOvenOffset(offset: number) {
-  producer.setOvenOffset(offset);
+/** The attack currently hitting the network. Written by the story
+ *  director's ramps. */
+export function setAttack(attack: AttackConfig) {
+  producer.setAttack(attack);
 }
 
-/** A recalibrated machine is a new process: back on setpoint, the trend
- *  window that measured the old one dropped, sensors settled. */
-export function recalibrateMachine(machineId: MachineId) {
-  if (machineId === PROBLEM_MACHINE_ID) {
-    producer.setOvenOffset(0);
-    inspection.reset();
-  }
-  sensorStream.recover(machineId);
+/** Whether the production rules stop what the stream flags. */
+export function setRulesHold(hold: boolean) {
+  producer.setRulesHold(hold);
 }
 
-export function resetLine() {
+/** Rules fitted to the live attack: what slipped through before no longer
+ *  counts against any source, and approval velocity drops back to everyday
+ *  levels because the attack's charges stop being approved. */
+export function recalibrateNetwork() {
+  producer.setRulesHold(true);
+  scoring.reset();
+  for (const id of SOURCE_IDS) signalStream.recover(id);
+}
+
+export function resetNetwork() {
   producer.reset();
-  inspection.reset();
-  sensorStream.reset();
+  scoring.reset();
+  signalStream.reset();
   useStore.getState().reset();
 }
