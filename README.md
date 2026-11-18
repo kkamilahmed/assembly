@@ -1,11 +1,11 @@
-# Goldcrust Bakery - Real-Time Line Monitor
+# Northgate Payments - Real-Time Fraud Monitor
 
-A React Three Fiber demo of a bakery production line, driven by a **simulated** Kafka + Flink streaming pipeline and drawn as an isometric 3D illustration.
-Dough is mixed, baked in a tunnel oven, scored by vision inspection, and packed into cartons that leave on trucks.
-The presenter knocks the oven off its setpoint from the keyboard, shows on the machines screen what the stream says is wrong, shows on the plant floor what it is costing, stops the line, fixes it, and then lets the line fix itself.
+A React Three Fiber demo of a city's card payment network, driven by a **simulated** Kafka + Flink streaming pipeline and drawn as an isometric 3D illustration.
+Payments leave a cafe, a cash machine, a mall and an online store as glowing cards, run along lanes on the avenue into a processing hub where every one is scored, and settle in the bank vault.
+The presenter starts a card-testing attack from the keyboard, shows on the dashboard what it is costing, shows on the sources screen which merchant and which rule are to blame, freezes the merchant, fixes the rule, and then lets the network block the next wave on its own.
 
-This branch (`food-processing`) is the food-industry version of the car body-shop demo on `main`.
-The story and controls are the same.
+This branch (`fraud`) is the fraud-detection version of the bakery demo on `food-processing`.
+The story, controls and architecture are the same.
 
 ## Quick start
 
@@ -14,83 +14,86 @@ npm install
 npm run dev
 ```
 
-The app opens on the plant.
+The app opens on the network.
 Drag to pan and scroll to zoom; the view never rotates off the isometric angle.
 
 ## The story
 
-Three screens, left to right: **Machines | Plant | Dashboard**. The arrow keys walk between them and the app opens on the plant.
-The plant shows the line, the dashboard shows what it is producing (the effect), and the machines screen shows which machine is doing it and why (the cause).
+Three screens, left to right: **Sources | Network | Dashboard**. The arrow keys walk between them and the app opens on the network.
+The network shows the payments flowing, the dashboard shows what is getting through (the effect), and the sources screen shows which merchant it is coming from and which rule is letting it through (the cause).
 
-The moral: because every reading is analysed as it streams, you can stop the line the moment something goes wrong and fix it, instead of finding out at the end-of-shift audit after thousands of burnt loaves.
+The moral: because every payment is scored as it streams, you can stop fraud the minute it starts, instead of finding it in tomorrow morning's overnight batch check, when the money is already gone.
 
 | Beat | Do | What the room sees |
 |---|---|---|
-| 1. The plant | Nothing. Talk. | Dough drops from the mixer, rises and browns through the glowing tunnel oven, passes the vision gantry and is packed into cartons. |
-| 2. Something drifts | `D` | The oven starts running hot. On the plant, loaves come out darker and the reject pusher starts kicking them into the red bin. |
-| 3. The effect | `→` Dashboard | "Burnt loaves rising: 15 of the last 31 came out burnt", the output bars turning red, browning over the limit, and "If nothing changes, by end of shift: ≈14,000 kg of dough wasted". |
-| 4. The cause | `←` `←` Machines | The oven card is highlighted: zone 2 temperature and burner output over their limits. "Running over setpoint, over-baking loaves. Recommended: stop line, recalibrate oven." |
-| 5. Stop and fix | `S`, then `C` | The line stops; the stop report shows how fast it was caught and what waiting would have cost. Recalibrating puts the oven back on setpoint. |
-| 6. Back to the line | `→` Plant, `A` | Autopilot restarts the line. Press `D` or `E` again: the stream flags the drift and the oven is put back on setpoint well under a second after detection. |
+| 1. The network | Nothing. Talk. | White cards leave each source, turn green under the hub's scanner arch and settle in the vault. Analysts work, shoppers shop. |
+| 2. Something starts | `D` | TechDealz Online starts pulsing: a storm of tiny cards pours out of its warehouse, turns red at the scanner, and sails on into the vault. |
+| 3. The effect | `→` Dashboard | "Fraud losses climbing": fraud rate about 0.9% and rising over its limit, about $12k lost per 10 minutes, about $1.4M on track by tomorrow's batch check. Red climbs up the stacked bars. |
+| 4. The cause | `←` `←` Sources | TechDealz is flagged: about 4,800 charges of $1 from new cards in 5 minutes, card testing. The small-amount velocity rule only trips above 1,000 charges a minute, so its threshold is too loose. The other sources and rules are healthy. |
+| 5. Freeze and fix | `S`, then `C` | The merchant is frozen: its storm stops and its last cards are declined at the hub. The freeze report shows how fast it was caught and what waiting would have cost. Recalibrating fits the rule to the attack. |
+| 6. Back to the network | `→` Network, `A` | Autopilot unfreezes the merchant. Press `D` or `E` again: the stream flags the attack and the rule is refitted within a second, and the next wave's red cards stop at the hub and drop into quarantine. |
 
-`E` is the emergency version of `D`: a burner runaway, and every loaf burns.
+`E` is the emergency version of `D`: an account-takeover wave, with the storm growing and stolen logins paying at every source at once.
 
-Nothing happens on its own; the line stays healthy until a key is pressed.
-Only operator actions (Stop, Recalibrate, Autopilot) are on screen, so the audience never sees a "break it" button.
+Nothing happens on its own; the network stays healthy until a key is pressed.
+Only analyst actions (Freeze, Recalibrate, Autopilot) are on screen, so the audience never sees a "break it" button.
 
 ## Keyboard shortcuts
 
 | Key | Action |
 |---|---|
-| `D` | Slight deviation: oven zone 2 running hot |
-| `E` | Emergency: oven burner runaway |
-| `S` | Stop / start the line |
-| `C` | Recalibrate the oven |
+| `D` | Slight deviation: card testing at TechDealz Online |
+| `E` | Emergency: account-takeover wave |
+| `S` | Freeze / unfreeze the merchant |
+| `C` | Recalibrate the rule |
 | `A` | Run on autopilot (press again to turn it off) |
-| `←` / `→` | Move between Machines, Plant, Dashboard |
-| `F` | Manual sensor fault-injection panel (machines screen) |
+| `←` / `→` | Move between Sources, Network, Dashboard |
+| `F` | Manual signal fault-injection panel (sources screen) |
 | `R` | Reset the demo (autopilot stays as it was) |
 | `Esc` | Close the topmost overlay |
 | `?` | Shortcut overlay |
 
-## How the fault is modelled
+## How the attack is modelled
 
-**The bake.**
-Each loaf is baked at whatever the oven is doing as it leaves the tunnel, and vision inspection scores its crust browning against a target of 50 with a tolerance of 8 (`streaming/lineConfig.ts`).
-A slight drift sits just past the tolerance, so about one loaf in three still passes; an emergency burns everything.
-Loaf colour on the belt is drawn from the same number, so what the camera sees is what the inspection measured.
+**The packets.**
+Every source sends payments in turn; the attack adds its own storm of small cards at TechDealz (`streaming/networkConfig.ts`).
+At the hub's scanner each payment is given a risk score and the production rules decide whether to approve it.
+While an attack is running it is paced under the rules, so the stream flags it (red) but the rules approve it and it settles in the vault: money lost.
+Once the rule is recalibrated, flagged payments are blocked and pulled into the hub's quarantine tray.
+A packet's colour is the stream's verdict, so what the room sees is what the scoring measured.
 
-**The oven's own sensors.**
-A drift also moves the oven's zone temperature and burner output (`SENSOR_SIGNATURE` in `state/storyDirector.ts`).
-Those stream every 0.9 s, which is why the machines screen reacts before the first over-baked loaf reaches the camera.
+**The sources' own signals.**
+An attack also moves its merchant's approval velocity and new-card share (`SIGNAL_SIGNATURE` in `state/storyDirector.ts`).
+Those stream every 0.9 s, which is why the sources screen reacts before the first fraudulent card reaches the scanner.
 
 **Detection and autopilot act on the data, not on the script.**
-"Detected" is stamped the first time the oven's combined condition (worst of its browning trend and its sensors, `machineSeverity` in `state/store.ts`) leaves healthy, and the autopilot waits for that same condition.
+"Detected" is stamped the first time TechDealz's combined condition (worst of the risk of its approved charges and its signals, `sourceSeverity` in `state/store.ts`) leaves healthy, and the autopilot waits for that same condition.
 
 **Every number on screen is measured.**
-The stop report and the autopilot summary come from timestamps taken as things happened.
-The end-of-shift projection converts the measured reject rate using the illustrative figures in `ui/businessCase.ts` (4,000 loaves an hour, an 8-hour shift, $1.20 per rejected loaf); set them to a customer's numbers before a talk.
+The freeze report and the autopilot summary come from timestamps taken as things happened.
+The dashboard converts the measured rate of fraud settling into network terms using the illustrative figures in `ui/businessCase.ts` (3,000 payments a second, 4 real charges per red card, $1.25 lost per fraudulent charge, 19.5 hours to the overnight batch check); set them to a customer's numbers before a talk.
 
 ## Presenter settings
 
-- `?speed=2` runs the line and the fault at 2x, clamped to 0.5-3x.
-- Bake noise is seeded (`presenter/rng.ts`) and reseeded on reset, so a rehearsal reproduces on stage. `?seed=1234` picks another seed, `?seed=random` opts out.
-- `?still=1&shot=S01` (or `S02`) renders the scene alone, full window, with no UI. Used for screenshots.
+- `?speed=2` runs the network and the attack at 2x, clamped to 0.5-3x.
+- Risk noise is seeded (`presenter/rng.ts`) and reseeded on reset, so a rehearsal reproduces on stage. `?seed=1234` picks another seed, `?seed=random` opts out.
+- `?still=1&shot=S01` (or `S02`) renders the scene alone, full window, with no UI. Add `&target=x,y,z&zoom=n` for any close-up. Used for screenshots.
 
 ## Architecture
 
 ```
 src/
-  streaming/   LineProducer (loaves on the belt), DriftAnalyzer (Flink-style
-               inspection + windowed browning trend), SensorStream
-               (per-machine sensors) - pure logic, no React/Three
+  streaming/   PaymentProducer (payments on the lanes), FraudAnalyzer
+               (Flink-style per-payment scoring + windowed risk per source),
+               SignalStream (per-source signals) - pure logic, no React/Three
   state/       store.ts (Zustand), engine.ts (the one file that wires
                streaming -> store), storyDirector.ts (presenter controls
                and the autopilot)
   scene/       Stage (iso camera, light, post FX), layout, Diorama (slab,
-               walls, floor paint), machines/, props/, ui3d/ (status
-               tags, brand sign), Loaves (instanced), Line, Yard, Dressing
-  ui/          Top bar, action bar, overlays, machines and dashboard screens
+               avenue, walls, boards), buildings/ (hub, vault, sources,
+               rails), props/, ui3d/ (status tags, signs), City, Street,
+               Live (everything that changes with the stream), Packets
+  ui/          Top bar, action bar, overlays, sources and dashboard screens
   sandbox/     Dev-only page for building one scene part in isolation:
                /sandbox.html?part=<name>
 ```
@@ -101,10 +104,10 @@ All colours and material factories live in `scene/style.ts`, and every position 
 ## Swapping in a real Kafka/Flink backend
 
 `state/engine.ts` is the only file that imports both `streaming/` and `state/store.ts`.
-Replacing the simulators means replacing the `LineProducer` / `DriftAnalyzer` / `SensorStream` construction there with something exposing the same listener surface; nothing in `state/store.ts`, `scene/` or `ui/` needs to know.
+Replacing the simulators means replacing the `PaymentProducer` / `FraudAnalyzer` / `SignalStream` construction there with something exposing the same listener surface; nothing in `state/store.ts`, `scene/` or `ui/` needs to know.
 
 ## Known limitations
 
 - Visual quality was tuned in headless software rendering; check frame rate on the presenting machine before a talk.
-- Workers are about 45 meshes each without instancing; fine for the ~20 on screen.
-- Under headless software rendering, resizing any WebGL canvas stalls the main thread for seconds. The machines screen keeps a fixed layout for this reason.
+- People are about 45 meshes each without instancing; fine for the ~25 on screen.
+- Under headless software rendering, resizing any WebGL canvas stalls the main thread for seconds. The sources screen keeps a fixed layout for this reason.
