@@ -54,7 +54,7 @@ export function Yard() {
       <OutfeedPallet />
       <CartonStack position={[11.6, 0, 4.2]} rows={2} cols={2} layers={3} seed={8} />
       {/* Cartons going out to the trucks. */}
-      <Mover path={[[9.2, 11.2], [12.4, 11.2]]} speed={WORKER_WALK_SPEED * 0.8} offset={3}>
+      <Mover path={[[9.2, 11.2], [12.4, 11.2]]} speed={WORKER_WALK_SPEED * 0.8} offset={3} turn={false}>
         <PalletJack load="cartons" seed={4} />
         <Worker position={[PALLET_JACK_OPERATOR_X, 0, 0]} pose="walkPush" seed={6} skin={2} vest />
       </Mover>

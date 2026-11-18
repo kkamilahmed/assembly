@@ -1,16 +1,23 @@
 import { useMemo, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { GaitContext, type Gait } from './props/gait';
 import { WORKER_WALK_SPEED } from './props';
 
-/** Seconds spent turning round at each end of a route. */
-const TURN_S = 0.7;
+/** Seconds spent at each end of a route: turning round, or pausing before
+ *  pulling a load back. */
+const END_S = 0.9;
 
 /**
  * Walks its children back and forth along a short route on the floor:
  * a worker on their own, or a worker together with the trolley or pallet
- * jack they push. Children are authored facing +x; the mover turns them to
- * face the way they are going, and eases the turn at each end.
+ * jack they push. Children are authored facing +x.
+ *
+ * `turn` (default) turns round at each end, which is what a person on foot
+ * does. A worker pushing a load must not: they stand behind it, so spinning
+ * the whole rig swings them through whatever is beside the route. With
+ * `turn={false}` the rig keeps facing its outbound direction and the worker
+ * pulls the load back, stepping backwards.
  *
  * Driven by the render clock, so people keep working while the line is
  * stopped, the way they would in a real plant.
@@ -19,6 +26,7 @@ export function Mover({
   path,
   speed = WORKER_WALK_SPEED,
   offset = 0,
+  turn = true,
   children,
 }: {
   /** Route waypoints on the floor, [x, z]. */
@@ -26,9 +34,11 @@ export function Mover({
   speed?: number;
   /** Start part-way along the route, seconds, so movers don't move in step. */
   offset?: number;
+  turn?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
+  const gait = useRef<Gait['current']>({ dir: 1 });
   const route = useMemo(() => {
     const pts = path.map(([x, z]) => new THREE.Vector3(x, 0, z));
     const lens = pts.slice(1).map((p, i) => p.distanceTo(pts[i]));
@@ -39,13 +49,13 @@ export function Mover({
   useFrame(({ clock }) => {
     const g = ref.current;
     if (!g) return;
-    const cycle = 2 * (route.legS + TURN_S);
+    const cycle = 2 * (route.legS + END_S);
     const u = (clock.elapsedTime + offset) % cycle;
-    const out = u < route.legS + TURN_S;
-    const tLeg = out ? u : u - route.legS - TURN_S;
-    const walking = tLeg < route.legS;
+    const out = u < route.legS + END_S;
+    const tLeg = out ? u : u - route.legS - END_S;
+    const moving = tLeg < route.legS;
     // Distance along the route in the outbound direction.
-    const d = walking ? (tLeg / route.legS) * route.total : route.total;
+    const d = moving ? (tLeg / route.legS) * route.total : route.total;
     const along = out ? d : route.total - d;
 
     let rest = along;
@@ -60,16 +70,26 @@ export function Mover({
     g.position.lerpVectors(a, b, f);
 
     const dirOut = Math.atan2(-(b.z - a.z), b.x - a.x);
+    if (!turn) {
+      g.rotation.y = dirOut;
+      gait.current.dir = moving ? (out ? 1 : -1) : 0;
+      return;
+    }
     const heading = out ? dirOut : dirOut + Math.PI;
-    if (walking) {
+    if (moving) {
       g.rotation.y = heading;
+      gait.current.dir = 1;
     } else {
-      // Turning round at the end of the leg.
-      const k = (tLeg - route.legS) / TURN_S;
-      const s = k * k * (3 - 2 * k);
-      g.rotation.y = heading + Math.PI * s;
+      // Turning round on the spot, stepping as they turn.
+      const k = (tLeg - route.legS) / END_S;
+      g.rotation.y = heading + Math.PI * k * k * (3 - 2 * k);
+      gait.current.dir = 1;
     }
   });
 
-  return <group ref={ref}>{children}</group>;
+  return (
+    <GaitContext.Provider value={gait}>
+      <group ref={ref}>{children}</group>
+    </GaitContext.Provider>
+  );
 }

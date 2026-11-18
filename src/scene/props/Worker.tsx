@@ -15,6 +15,7 @@ import { crustMaterial, LOAF, loafGeometry, loafScoreGeometry, scoreMaterial } f
 import { Instances, Part } from './Part';
 import { Carton } from './Stock';
 import { mergeRigidChildren, unmerge } from '@/scene/mergeMeshes';
+import { useGait } from './gait';
 import { WALK_RATE, WALK_STRIDE, WORKER_SCALE } from './workerRig';
 
 /** 'walkCarry' and 'walkPush' walk with the hands where 'carry' and 'push'
@@ -244,19 +245,26 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
     pose === 'carry' || pose === 'walkCarry' ? (carrying === 'tray' ? 'carryTray' : 'carryBox') : pose === 'walkPush' ? 'push' : pose;
   const P = POSES[key];
 
-  useFrame(({ clock }) => {
+  const gait = useGait();
+  const stride = useRef(0);
+
+  useFrame(({ clock }, delta) => {
     if (!body.current || !torso.current || !head.current) return;
     const t = clock.elapsedTime + look.phase;
     const breath = Math.sin(t * 1.7);
     const sway = Math.sin(t * 0.55);
-    const walking = pose === 'walk' || pose === 'walkCarry' || pose === 'walkPush';
+    const dir = gait.current.dir;
+    const walking = (pose === 'walk' || pose === 'walkCarry' || pose === 'walkPush') && dir !== 0;
+    // Stride phase is accumulated, so reversing direction (pulling a load
+    // back) steps the feet backwards without a jump in the cycle.
+    stride.current += Math.min(delta, 0.1) * WALK_RATE * dir;
     // Work cycles: a slow reach-and-return for line work, a glance up from
     // the tablet every few seconds. Big enough to read at the plant's zoom.
     const reachU = (t % 3.4) / 3.4;
     const reach = Math.sin(Math.PI * Math.min(reachU / 0.85, 1)) ** 2;
     const glanceU = (t % 5.5) / 5.5;
     const glance = glanceU > 0.62 ? Math.sin(Math.PI * ((glanceU - 0.62) / 0.38)) ** 2 : 0;
-    const ph = t * WALK_RATE;
+    const ph = stride.current + look.phase;
     const sinR = Math.sin(ph);
 
     let lean = P.lean + breath * 0.004;

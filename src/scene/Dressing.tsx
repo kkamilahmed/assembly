@@ -52,7 +52,7 @@ function CoolingBay() {
       )}
       {/* Wheeling a full trolley up to the empty slot and back out for the
           next one. */}
-      <Mover path={[[1.4, 3.55], [1.4, 1.95]]} speed={WORKER_WALK_SPEED * 0.75} offset={2}>
+      <Mover path={[[1.4, 3.55], [1.4, 1.95]]} speed={WORKER_WALK_SPEED * 0.75} offset={2} turn={false}>
         <Trolley fill={1} seed={31} />
         <Worker position={[-(WORKER_PUSH_GRIP.x + trolleyHalf + 0.02), 0, 0]} pose="walkPush" seed={23} skin={3} />
       </Mover>
@@ -161,7 +161,7 @@ function GoodsIn() {
     <group>
       <FlourSackStack position={[-5.7, 0, 6.7]} layers={5} seed={3} />
       <FlourSackStack position={[-4.36, 0, 6.7]} layers={3} seed={6} />
-      <Mover path={[[-0.6, 6.68], [-2.6, 6.68]]} speed={WORKER_WALK_SPEED * 0.75} offset={5}>
+      <Mover path={[[-0.6, 6.68], [-2.6, 6.68]]} speed={WORKER_WALK_SPEED * 0.75} offset={5} turn={false}>
         <PalletJack load="sacks" seed={8} />
         <Worker position={[PALLET_JACK_OPERATOR_X, 0, 0]} pose="walkPush" seed={39} skin={1} vest />
       </Mover>
