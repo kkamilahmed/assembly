@@ -28,7 +28,7 @@ const DEFAULT_INTENSITY = 12;
  * any channels, set an intensity, and the readings start climbing on the
  * fleet cards behind the panel.
  *
- * Machines are multi-select and default to all four. The D / E deviation
+ * Machines are multi-select and default to all of them. The D / E deviation
  * keys (state/storyDirector.ts) only ever put one fault on one station at
  * one moment; this is the manual counterpart, for showing what the fleet
  * view does when several machines go wrong at once.
@@ -37,7 +37,7 @@ export function FaultInjectionPanel() {
   const open = useStore((s) => s.faultPanelOpen);
   const setOpen = useStore((s) => s.setFaultPanelOpen);
   // Only what somebody injected from this panel. The deviation keys put a
-  // physical signature on OVEN-01's sensors too, but that is the machine
+  // physical signature on PRESS-P2's sensors too, but that is the machine
   // misbehaving, not a fault this panel owns.
   const injections = useStore(useShallow((s) => s.injections.filter((i) => i.source === 'manual')));
   const injectFaults = useStore((s) => s.injectFaults);
@@ -49,7 +49,7 @@ export function FaultInjectionPanel() {
   const now = useStore((s) => s.sensorsAt);
 
   const [machines, setMachines] = useState<MachineId[]>(() => [...MACHINE_IDS]);
-  const [channels, setChannels] = useState<SensorChannel[]>(['vibration']);
+  const [channels, setChannels] = useState<SensorChannel[]>(['mechanical']);
   const [intensity, setIntensity] = useState(DEFAULT_INTENSITY);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export function FaultInjectionPanel() {
       className="animate-fade-in absolute left-4 top-4 z-30 flex max-h-[calc(100%-2rem)] w-80 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl"
     >
       <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-3">
-        <LayersIcon className="h-4 w-4 text-[var(--brand-orange)]" />
+        <LayersIcon className="h-4 w-4 text-[var(--brand)]" />
         <h2 className="text-sm font-semibold">Fault injection</h2>
         <button
           onClick={() => setOpen(false)}
@@ -177,7 +177,7 @@ export function FaultInjectionPanel() {
             onChange={(e) => setIntensity(Number(e.target.value))}
             aria-label="Fault intensity"
             className="mt-1 w-full cursor-pointer"
-            style={{ accentColor: 'var(--brand-orange)' }}
+            style={{ accentColor: 'var(--brand)' }}
           />
           <div className="font-mono-ui mt-0.5 flex justify-between text-[9px] text-[var(--text-secondary)]">
             <span>1</span>
@@ -214,7 +214,7 @@ export function FaultInjectionPanel() {
             <button
               onClick={() => injectFaults(machines, channels, intensity)}
               disabled={!canInject}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--brand-orange)] px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--brand)] px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <PlayIcon className="h-3 w-3" />
               Inject
@@ -266,7 +266,7 @@ export function FaultInjectionPanel() {
         <div className="grid grid-cols-3 gap-1.5">
           <Stat label="Readings" value={pipeline.readings} />
           <Stat label="Anomalies" value={pipeline.anomalies} color={pipeline.anomalies > 0 ? STATUS_HEX.warning : undefined} />
-          <Stat label="Active inj." value={injections.length} color={injections.length > 0 ? 'var(--brand-orange)' : undefined} />
+          <Stat label="Active inj." value={injections.length} color={injections.length > 0 ? 'var(--brand)' : undefined} />
         </div>
       </div>
     </aside>
@@ -325,7 +325,7 @@ function SectionLabel({ children, action }: { children: ReactNode; action?: Reac
 
 function QuickAction({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="text-[10px] font-medium text-[var(--brand-orange)] hover:underline">
+    <button onClick={onClick} className="text-[10px] font-medium text-[var(--brand)] hover:underline">
       {children}
     </button>
   );
@@ -338,8 +338,8 @@ function ToggleButton({ selected, onClick, children }: { selected: boolean; onCl
       aria-pressed={selected}
       className="rounded-md border px-2 py-1.5 text-left transition-colors hover:bg-black/[0.03]"
       style={{
-        borderColor: selected ? 'var(--brand-orange)' : 'var(--border)',
-        backgroundColor: selected ? 'rgba(232, 98, 44, 0.08)' : undefined,
+        borderColor: selected ? 'var(--brand)' : 'var(--border)',
+        backgroundColor: selected ? 'rgba(24, 104, 214, 0.08)' : undefined,
       }}
     >
       {children}

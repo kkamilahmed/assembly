@@ -15,3 +15,9 @@ export function fmtUsd(usd: number): string {
   if (usd >= 1_000) return `$${Math.round(usd / 1_000)}k`;
   return `$${usd}`;
 }
+
+/** Tablet counts: "2.0M", "20,000", "1,248". */
+export function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  return Math.round(n).toLocaleString();
+}

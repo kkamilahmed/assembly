@@ -34,7 +34,7 @@ export function ActionBar() {
           {paused ? 'Start line' : 'Stop line'}
         </Action>
         <Action k="C" onClick={() => recalibrate('operator')} primary={next === 'recalibrate'}>
-          Recalibrate oven
+          Recalibrate fill depth
         </Action>
         <Action k="A" onClick={toggleAutopilot} primary={next === 'autopilot'} active={autopilot}>
           {autopilot ? 'Autopilot on' : 'Run on autopilot'}
@@ -67,9 +67,9 @@ function Action({
         filled ? 'text-white shadow-sm' : 'hover:bg-black/5'
       } ${primary ? 'animate-card-pulse' : ''}`}
       style={{
-        backgroundColor: filled ? 'var(--brand-orange)' : undefined,
+        backgroundColor: filled ? 'var(--brand)' : undefined,
         color: filled ? '#fff' : danger ? 'var(--status-critical)' : undefined,
-        ['--pulse-color' as string]: 'rgba(232, 98, 44, 0.3)',
+        ['--pulse-color' as string]: 'rgba(24, 104, 214, 0.3)',
       }}
     >
       <Kbd tone={filled ? 'inverse' : 'default'}>{k}</Kbd>

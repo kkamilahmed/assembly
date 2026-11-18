@@ -4,10 +4,10 @@ import * as THREE from 'three';
 import { MachineModel } from '@/scene/MachineModel';
 import { useStore } from '@/state/store';
 import {
-  BROWNING_TARGET,
-  BROWNING_TOLERANCE,
   MACHINE_LABELS,
   PROBLEM_MACHINE_ID,
+  WEIGHT_TARGET_MG,
+  WEIGHT_TOLERANCE_MG,
   type MachineId,
 } from '@/streaming/lineConfig';
 import {
@@ -30,10 +30,10 @@ function MachinePreview({ machineId, active }: { machineId: MachineId; active: b
     <Canvas
       frameloop={active ? 'always' : 'never'}
       dpr={[1, 1.5]}
-      shadows
+      shadows={{ type: THREE.PCFShadowMap }}
       gl={{ antialias: true, alpha: true, toneMapping: THREE.NeutralToneMapping }}
     >
-      <OrthographicCamera makeDefault position={[20, 20 + 1.2, 20]} zoom={58} near={1} far={100} onUpdate={(c) => c.lookAt(0, 1.2, 0)} />
+      <OrthographicCamera makeDefault position={[20, 20 + 1.2, 20]} zoom={78} near={1} far={100} onUpdate={(c) => c.lookAt(0, 1.2, 0)} />
       <hemisphereLight args={['#ffffff', '#c9ccd2', 0.9]} />
       <directionalLight position={[-8, 18, 6]} intensity={2} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[10, 6, -8]} intensity={0.4} color="#dfe8ff" />
@@ -112,7 +112,7 @@ export function TelemetryCard({ machineId }: { machineId: MachineId }) {
         </span>
       </div>
 
-      {machineId === PROBLEM_MACHINE_ID && <BrowningMeter />}
+      {machineId === PROBLEM_MACHINE_ID && <WeightMeter />}
       {SENSOR_CHANNELS.map((channel) => (
         <ChannelMeter key={channel} machineId={machineId} channel={channel} value={reading[channel]} />
       ))}
@@ -122,19 +122,21 @@ export function TelemetryCard({ machineId }: { machineId: MachineId }) {
   );
 }
 
-/** The oven's quality signal, alongside its process sensors: the windowed
- *  crust browning vision inspection scores on every loaf. */
-function BrowningMeter() {
+/** The press's quality signal, alongside its process sensors: the windowed
+ *  mean tablet weight inspection measures on every tray. */
+function WeightMeter() {
   const machine = useStore((s) => s.machines[PROBLEM_MACHINE_ID]);
   const color = machine.status === 'healthy' ? METRIC_HEX.offset : STATUS_HEX[machine.status];
-  const value = BROWNING_TARGET + machine.trend;
+  const value = WEIGHT_TARGET_MG + machine.trend;
+  const lo = WEIGHT_TARGET_MG - 30;
+  const hi = WEIGHT_TARGET_MG + 10;
   return (
     <SegmentedMeter
-      label="Crust browning"
-      displayValue={value.toFixed(1)}
-      fraction={(value - 30) / 50}
+      label="Tablet weight"
+      displayValue={`${value.toFixed(1)} mg`}
+      fraction={(value - lo) / (hi - lo)}
       color={color}
-      rangeLabel={`30-80 · target ${BROWNING_TARGET} ±${BROWNING_TOLERANCE}`}
+      rangeLabel={`${lo}-${hi} mg · target ${WEIGHT_TARGET_MG} ±${WEIGHT_TOLERANCE_MG}`}
     />
   );
 }
@@ -160,7 +162,7 @@ function ChannelMeter({ machineId, channel, value }: { machineId: MachineId; cha
         injection && (
           <span
             className="font-mono-ui shrink-0 rounded-sm px-1 py-px text-[9px] font-semibold tracking-normal"
-            style={{ color: 'var(--brand-orange)', backgroundColor: 'rgba(232, 98, 44, 0.12)' }}
+            style={{ color: 'var(--brand)', backgroundColor: 'rgba(24, 104, 214, 0.12)' }}
             title={`Fault injected at level ${injection.intensity}`}
           >
             INJ L{injection.intensity}
