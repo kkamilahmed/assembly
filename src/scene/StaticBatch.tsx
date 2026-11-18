@@ -10,7 +10,7 @@ const BATCH_AFTER_FRAMES = 5;
  * Renders its children, then merges every static mesh under it into one mesh
  * per material and hides the originals.
  *
- * The plant is built the readable way, a few dozen small meshes per prop,
+ * The block is built the readable way, a few dozen small meshes per prop,
  * which is a couple of thousand draw calls a frame; most of them never move.
  * Batching the static set once turns those into a few dozen draws without
  * changing how anything is authored. Instanced meshes and anything under a

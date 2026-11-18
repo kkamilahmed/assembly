@@ -2,7 +2,7 @@ import { useMemo, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GaitContext, type Gait } from './props/gait';
-import { WORKER_WALK_SPEED } from './props';
+import { WALK_SPEED } from './props';
 
 /** Seconds spent at each end of a route: turning round, or pausing before
  *  pulling a load back. */
@@ -10,21 +10,21 @@ const END_S = 0.9;
 
 /**
  * Walks its children back and forth along a short route on the floor:
- * a worker on their own, or a worker together with the trolley or pallet
- * jack they push. Children are authored facing +x.
+ * a person on their own, or a courier together with the cart they push.
+ * Children are authored facing +x.
  *
  * `turn` (default) turns round at each end, which is what a person on foot
- * does. A worker pushing a load must not: they stand behind it, so spinning
+ * does. A person pushing a load must not: they stand behind it, so spinning
  * the whole rig swings them through whatever is beside the route. With
- * `turn={false}` the rig keeps facing its outbound direction and the worker
+ * `turn={false}` the rig keeps facing its outbound direction and the person
  * pulls the load back, stepping backwards.
  *
- * Driven by the render clock, so people keep working while the line is
- * stopped, the way they would in a real plant.
+ * Driven by the render clock, so people keep going about their day while a
+ * merchant is frozen, the way they would in a real city.
  */
 export function Mover({
   path,
-  speed = WORKER_WALK_SPEED,
+  speed = WALK_SPEED,
   offset = 0,
   turn = true,
   children,
@@ -89,8 +89,8 @@ export function Mover({
 
   return (
     <GaitContext.Provider value={gait}>
-      {/* `dynamic`: everything riding on a mover (the trolley or pallet jack as
-          well as the worker) must stay out of the scene's static batcher,
+      {/* `dynamic`: everything riding on a mover (the cart as well as the
+          person pushing it) must stay out of the scene's static batcher,
           or a frozen copy of it is left standing where the route began. */}
       <group ref={ref} userData={{ dynamic: true }}>
         {children}

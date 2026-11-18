@@ -2,7 +2,7 @@ import type { ThreeElements } from '@react-three/fiber';
 import type { Piece, ScreenKind, V3 } from './kit';
 import { screenMaterial } from './kit';
 
-/** Renders merged machine pieces. Self-lit and see-through pieces do not
+/** Renders merged building pieces. Self-lit and see-through pieces do not
  *  cast shadows. */
 export function Pieces({ pieces }: { pieces: Piece[] }) {
   return (
@@ -16,7 +16,7 @@ export function Pieces({ pieces }: { pieces: Piece[] }) {
 }
 
 /** The lit face of a display, `w` x `h`, facing local +z. The bezel is
- *  modelled by the machine that owns it. */
+ *  modelled by the building that owns it. */
 export function Screen({
   kind,
   size,

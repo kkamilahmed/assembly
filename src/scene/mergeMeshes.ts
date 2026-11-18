@@ -71,7 +71,7 @@ function flush(buckets: Map<string, Bucket>, target: THREE.Object3D): THREE.Mesh
 /**
  * Within every node of a rigged figure, merges the node's direct mesh
  * children per material. Bones (the groups an animation rotates) keep
- * moving; only the meshes riding on the same bone become one draw. A worker
+ * moving; only the meshes riding on the same bone become one draw. A person
  * drops from about 45 draws to about 20.
  */
 export function mergeRigidChildren(root: THREE.Object3D): THREE.Mesh[] {

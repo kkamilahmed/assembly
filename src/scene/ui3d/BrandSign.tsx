@@ -3,32 +3,29 @@ import { PALETTE } from '@/scene/style';
 import { font } from './kit';
 import { Panel } from './Panel';
 
-/** The bakery mark: a scored loaf, drawn white in a box of `s` at (x, y). */
-function drawLoafMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, bg: string) {
+/** The Northgate mark: two payment cards fanned out, drawn white in a box
+ *  of `s` at (x, y). */
+function drawCardsMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, bg: string) {
   ctx.save();
-  ctx.translate(x, y);
+  ctx.translate(x + s / 2, y + s / 2);
   ctx.scale(s / 100, s / 100);
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(14, 84);
-  ctx.lineTo(14, 52);
-  ctx.bezierCurveTo(-2, 22, 28, 14, 50, 14);
-  ctx.bezierCurveTo(72, 14, 102, 22, 86, 52);
-  ctx.lineTo(86, 84);
-  ctx.quadraticCurveTo(86, 90, 80, 90);
-  ctx.lineTo(20, 90);
-  ctx.quadraticCurveTo(14, 90, 14, 84);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = bg;
-  ctx.lineWidth = 7;
-  ctx.lineCap = 'round';
-  for (const cx of [34, 50, 66]) {
+  const card = (angle: number, dx: number, dy: number, fill: string) => {
+    ctx.save();
+    ctx.translate(dx, dy);
+    ctx.rotate(angle);
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.moveTo(cx + 5, 32);
-    ctx.lineTo(cx - 5, 50);
-    ctx.stroke();
-  }
+    ctx.roundRect(-38, -24, 76, 48, 8);
+    ctx.fill();
+    ctx.restore();
+  };
+  card(-0.32, -8, -8, 'rgba(255,255,255,0.55)');
+  card(0, 6, 8, '#ffffff');
+  ctx.fillStyle = bg;
+  ctx.fillRect(-32 + 6, -6 + 8, 76, 9);
+  ctx.beginPath();
+  ctx.roundRect(-20 + 6, 12 + 8, 16, 7, 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -42,7 +39,7 @@ export interface BrandSignProps {
 }
 
 /** The big orange brand sign: a thick rounded slab with a white wordmark. */
-export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 'Goldcrust', tagline = 'Bakery' }: BrandSignProps) {
+export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 'Northgate', tagline = 'Payments' }: BrandSignProps) {
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, w: number, h: number) => {
       ctx.fillStyle = PALETTE.orange;
@@ -54,7 +51,7 @@ export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 
       const nameW = ctx.measureText(name).width;
       const gap = h * 0.13;
       const x = (w - (mark + gap + nameW)) / 2;
-      drawLoafMark(ctx, x, (h - mark) / 2, mark, PALETTE.orange);
+      drawCardsMark(ctx, x, (h - mark) / 2, mark, PALETTE.orange);
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';

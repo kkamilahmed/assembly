@@ -8,7 +8,7 @@ import { PostFX } from './PostFX';
 
 
 /**
- * The studio every part of the plant is rendered in: seamless white, a true
+ * The studio every part of the block is rendered in: seamless white, a true
  * isometric orthographic camera, a soft key light with long contact shadows,
  * and a code-built light rig for reflections (no HDRI fetched at runtime).
  *
@@ -39,7 +39,7 @@ export function Stage({
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
-      shadows={{ type: THREE.PCFSoftShadowMap }}
+      shadows={{ type: THREE.PCFShadowMap }}
       // Capped at 1.5: on a retina laptop 2x quadruples the pixels every
       // post-processing pass has to touch, for a difference nobody can see
       // on a projector.
@@ -116,13 +116,13 @@ export function Stage({
   );
 }
 
-/** Shots are composed at this canvas height; a smaller canvas (the plant
+/** Shots are composed at this canvas height; a smaller canvas (the network
  *  view beside the sidebar) scales the zoom down so it shows the same
  *  framing instead of a tighter crop. */
 const DESIGN_HEIGHT = 990;
 
 /** Re-render the shadow map every other frame instead of every frame. Almost
- *  everything in the plant is static and what moves (loaves, workers) moves
+ *  everything on the block is static and what moves (packets, people) moves
  *  slowly, so the difference is invisible while the shadow pass, a full
  *  redraw of the scene, costs half as much. */
 function ThrottledShadows() {

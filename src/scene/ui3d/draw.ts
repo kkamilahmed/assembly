@@ -2,7 +2,7 @@
 import { PALETTE } from '@/scene/style';
 import type { Tone } from './kit';
 
-export type IconName = 'check' | 'alert' | 'thermo' | 'box' | 'eye' | 'loaf' | 'gauge' | 'bolt';
+export type IconName = 'check' | 'alert' | 'shield' | 'box' | 'eye' | 'card' | 'gauge' | 'bolt';
 
 export const TONE_COLOR: Record<Tone, string> = {
   healthy: PALETTE.healthy,
@@ -74,20 +74,19 @@ export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, cx: numb
       ctx.arc(12, 17, 1.4, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 'thermo':
-      ctx.moveTo(9.5, 14.2);
-      ctx.lineTo(9.5, 5);
-      ctx.arc(12, 5, 2.5, Math.PI, 0);
-      ctx.lineTo(14.5, 14.2);
-      ctx.arc(12, 17, 3.8, -Math.PI / 4, Math.PI * 1.25);
+    case 'shield':
+      ctx.moveTo(12, 2.8);
+      ctx.lineTo(20, 6);
+      ctx.lineTo(20, 11.5);
+      ctx.quadraticCurveTo(20, 18.5, 12, 21.5);
+      ctx.quadraticCurveTo(4, 18.5, 4, 11.5);
+      ctx.lineTo(4, 6);
       ctx.closePath();
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(12, 17, 1.6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(12, 15);
-      ctx.lineTo(12, 9);
+      ctx.moveTo(8.5, 12);
+      ctx.lineTo(11, 14.5);
+      ctx.lineTo(15.5, 9.5);
       ctx.stroke();
       break;
     case 'box':
@@ -115,21 +114,27 @@ export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, cx: numb
       ctx.arc(12, 12, 3.2, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 'loaf':
-      ctx.moveTo(4, 19.5);
-      ctx.lineTo(4, 12);
-      ctx.bezierCurveTo(1, 5, 9, 4.5, 12, 4.5);
-      ctx.bezierCurveTo(15, 4.5, 23, 5, 20, 12);
-      ctx.lineTo(20, 19.5);
+    case 'card':
+      ctx.moveTo(4.5, 5.5);
+      ctx.lineTo(19.5, 5.5);
+      ctx.quadraticCurveTo(21.5, 5.5, 21.5, 7.5);
+      ctx.lineTo(21.5, 16.5);
+      ctx.quadraticCurveTo(21.5, 18.5, 19.5, 18.5);
+      ctx.lineTo(4.5, 18.5);
+      ctx.quadraticCurveTo(2.5, 18.5, 2.5, 16.5);
+      ctx.lineTo(2.5, 7.5);
+      ctx.quadraticCurveTo(2.5, 5.5, 4.5, 5.5);
       ctx.closePath();
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(9, 9);
-      ctx.lineTo(9, 12.5);
-      ctx.moveTo(12, 9);
-      ctx.lineTo(12, 12.5);
-      ctx.moveTo(15, 9);
-      ctx.lineTo(15, 12.5);
+      ctx.moveTo(2.5, 10);
+      ctx.lineTo(21.5, 10);
+      ctx.lineWidth = 2.8;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.lineWidth = 2.5;
+      ctx.moveTo(6, 15);
+      ctx.lineTo(10, 15);
       ctx.stroke();
       break;
     case 'gauge':

@@ -1,7 +1,6 @@
 // Flat floor paint built as real geometry (not a texture), so stripes and
 // lane lines stay razor sharp at any zoom. Everything lies in the XZ plane.
 import * as THREE from 'three';
-import { LINE_PATH } from '@/scene/layout';
 
 type P = [number, number];
 export interface Rect {
@@ -9,27 +8,6 @@ export interface Rect {
   z0: number;
   x1: number;
   z1: number;
-}
-
-// The conveyor centreline, sampled once, for keeping paint out from under it.
-const pathSamples: P[] = [];
-{
-  const v = new THREE.Vector3();
-  for (let i = 0; i <= 400; i++) {
-    LINE_PATH.getPointAt(i / 400, v);
-    pathSamples.push([v.x, v.z]);
-  }
-}
-
-/** True when (x, z) is within `d` of the conveyor centreline. */
-export function nearLine(x: number, z: number, d: number): boolean {
-  const d2 = d * d;
-  for (const [px, pz] of pathSamples) {
-    const dx = px - x;
-    const dz = pz - z;
-    if (dx * dx + dz * dz < d2) return true;
-  }
-  return false;
 }
 
 function clip(poly: P[], axis: 0 | 1, bound: number, keepBelow: boolean): P[] {
@@ -78,11 +56,8 @@ export class Paint {
     ]);
   }
 
-  /**
-   * A straight painted line. `dash`/`gap` make it dashed. With `clear`, the
-   * parts closer than that to the conveyor are left out.
-   */
-  line(x0: number, z0: number, x1: number, z1: number, width = 0.07, opts: { dash?: number; gap?: number; clear?: number } = {}): this {
+  /** A straight painted line. `dash`/`gap` make it dashed. */
+  line(x0: number, z0: number, x1: number, z1: number, width = 0.07, opts: { dash?: number; gap?: number } = {}): this {
     const len = Math.hypot(x1 - x0, z1 - z0);
     if (len < 1e-6) return this;
     const ux = (x1 - x0) / len;
@@ -101,24 +76,7 @@ export class Paint {
     const period = opts.dash ? opts.dash + (opts.gap ?? opts.dash) : len;
     const dash = opts.dash ?? len;
     for (let s = 0; s < len - 1e-6; s += period) {
-      const a = s;
-      const b = Math.min(s + dash, len);
-      if (opts.clear === undefined) {
-        seg(a, b);
-        continue;
-      }
-      // Walk the dash in small steps and keep the runs clear of the line.
-      const step = 0.05;
-      let run: number | null = null;
-      for (let t = a; t <= b + 1e-6; t += step) {
-        const hit = nearLine(x0 + ux * t, z0 + uz * t, opts.clear);
-        if (!hit && run === null) run = t;
-        if (hit && run !== null) {
-          seg(run, t - step);
-          run = null;
-        }
-      }
-      if (run !== null) seg(run, b);
+      seg(s, Math.min(s + dash, len));
     }
     return this;
   }

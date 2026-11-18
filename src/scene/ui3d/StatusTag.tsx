@@ -30,7 +30,7 @@ function tailGeometry(): THREE.BufferGeometry {
 }
 
 export interface StatusTagProps {
-  /** The point the tag's tail points at, e.g. just above a machine. */
+  /** The point the tag's tail points at, e.g. just above a building. */
   position: [number, number, number];
   label: string;
   value: number | string;
@@ -42,7 +42,7 @@ export interface StatusTagProps {
 }
 
 /**
- * A floating tag pinned above a machine: a white rounded slab with a tone
+ * A floating tag pinned above a building: a white rounded slab with a tone
  * coloured rim and icon badge, a short label and a value.
  */
 export function StatusTag({ position, label, value, tone = 'neutral', icon, facing = 'z', scale = 1 }: StatusTagProps) {

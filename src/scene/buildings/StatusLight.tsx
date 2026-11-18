@@ -34,10 +34,11 @@ function parts() {
 }
 
 /**
- * Stack light. Origin at the foot of the pole, standing along +y, about
- * 0.6 tall. The segment for `severity` is lit; critical blinks.
+ * Stack light on each source: the same severity as its card on the sources
+ * screen. Origin at the foot of the pole, standing along +y, about 0.6
+ * tall. The segment for `severity` is lit; critical blinks.
  */
-export function Andon({ severity = 'healthy', ...props }: { severity?: Severity } & ThreeElements['group']) {
+export function StatusLight({ severity = 'healthy', ...props }: { severity?: Severity } & ThreeElements['group']) {
   const { body, lens: lensGeo } = parts();
   const meshes = useRef<Array<THREE.Mesh | null>>([]);
   useFrame(({ clock }) => {

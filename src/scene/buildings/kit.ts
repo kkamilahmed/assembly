@@ -1,6 +1,6 @@
-// Geometry kit for the machines. Each machine is modelled from many small
+// Geometry kit for the buildings. Each building is modelled from many small
 // soft-edged primitives, then merged into one geometry per material, so a
-// machine with hundreds of parts still costs about ten draw calls.
+// building with hundreds of parts still costs about ten draw calls.
 import { useEffect } from 'react';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -125,7 +125,7 @@ export class Kit {
   }
 }
 
-/** Frees merged pieces when they are replaced or the machine unmounts. */
+/** Frees merged pieces when they are replaced or the building unmounts. */
 export function useDispose(pieces: Piece[]): void {
   useEffect(() => () => pieces.forEach((p) => p.geometry.dispose()), [pieces]);
 }
@@ -236,26 +236,6 @@ export function spillTexture(): THREE.CanvasTexture {
   });
 }
 
-/** Brightness of an oven window: hottest low down where the product is,
- *  falling off toward the frame. Multiplied by the fire colour. */
-export function windowTexture(): THREE.CanvasTexture {
-  return texture('window', 96, 64, (ctx, w, h) => {
-    const img = ctx.createImageData(w, h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const u = Math.abs(x / (w - 1) - 0.5) * 2;
-        const v = y / (h - 1);
-        const edge = (1 - Math.pow(u, 4)) * (1 - Math.pow(Math.abs(v - 0.5) * 2, 6));
-        const a = (0.28 + 0.72 * Math.pow(v, 1.4)) * (0.35 + 0.65 * edge);
-        const i = (y * w + x) * 4;
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.round(255 * a);
-        img.data[i + 3] = 255;
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-  });
-}
-
 /** Round soft falloff, for additive halos around self-lit parts. */
 export function haloTexture(): THREE.CanvasTexture {
   return texture('halo', 64, 64, (ctx, w, h) => {
@@ -287,152 +267,157 @@ export function additive(color: THREE.ColorRepresentation, map: THREE.Texture | 
   });
 }
 
-/** Modular belt surface: slats across the belt with dark hinge grooves.
- *  One texture repeat is one slat; scroll `map.offset.x` to run the belt. */
-export function beltTexture(): THREE.CanvasTexture {
-  const t = texture('belt', 64, 64, (ctx, w, h) => {
-    const slat = new THREE.Color(PALETTE.rubber).lerp(new THREE.Color(PALETTE.graphite), 0.35);
-    ctx.fillStyle = `#${slat.getHexString()}`;
-    ctx.fillRect(0, 0, w, h);
-    // Lit leading edge of the slat.
-    ctx.fillStyle = PALETTE.graphite;
-    ctx.fillRect(12, 0, 5, h);
-    // Hinge groove.
-    ctx.fillStyle = PALETTE.hazardDark;
-    ctx.fillRect(0, 0, 11, h);
-    // Hinge knuckles break the groove up across the belt.
-    ctx.fillStyle = PALETTE.rubber;
-    for (let y = 0; y < h; y += 16) ctx.fillRect(2, y + 5, 7, 6);
-  });
-  t.wrapS = THREE.RepeatWrapping;
-  t.wrapT = THREE.RepeatWrapping;
-  return t;
-}
+export type ScreenKind = 'feed' | 'chart' | 'map' | 'scores' | 'atm' | 'pos' | 'store';
 
-export function beltMaterial(): THREE.MeshStandardMaterial {
-  return cached('belt', () => {
-    const map = beltTexture();
-    return new THREE.MeshStandardMaterial({ color: '#ffffff', map, bumpMap: map, bumpScale: 1, roughness: 0.7, metalness: 0 });
-  });
-}
+const C = {
+  bg: '#14171c',
+  panel: '#1f242c',
+  line: '#2b313b',
+  text: '#c9d2de',
+  muted: '#6d7887',
+};
 
-export type ScreenKind = 'hmi' | 'trend' | 'vision' | 'pack';
+function rows(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, n: number, pitch: number, seed: number) {
+  for (let i = 0; i < n; i++) {
+    const r = (Math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453) % 1;
+    const flagged = Math.abs(r) < 0.12;
+    ctx.fillStyle = i % 2 ? C.panel : C.bg;
+    ctx.fillRect(x, y + i * pitch, w, pitch - 2);
+    ctx.fillStyle = flagged ? PALETTE.critical : PALETTE.healthy;
+    ctx.beginPath();
+    ctx.arc(x + 9, y + i * pitch + pitch / 2 - 1, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = C.text;
+    ctx.fillRect(x + 20, y + i * pitch + pitch / 2 - 4, 40 + Math.abs(r) * 60, 5);
+    ctx.fillStyle = C.muted;
+    ctx.fillRect(x + w - 50, y + i * pitch + pitch / 2 - 4, 38, 5);
+  }
+}
 
 function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, h: number) {
-  ctx.fillStyle = PALETTE.slabSide;
+  ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, w, h);
-  // Header strip with status dots.
-  ctx.fillStyle = PALETTE.graphite;
-  ctx.fillRect(0, 0, w, 22);
-  [PALETTE.healthy, PALETTE.amber, PALETTE.blue].forEach((c, i) => {
-    ctx.fillStyle = c;
-    ctx.beginPath();
-    ctx.arc(14 + i * 16, 11, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.fillStyle = PALETTE.offWhite;
-  ctx.fillRect(w - 78, 8, 64, 6);
-
   const pad = 12;
-  if (kind === 'trend') {
-    // Oven temperature trend with a setpoint band and a big readout.
-    ctx.fillStyle = PALETTE.wall;
-    ctx.fillRect(pad, 34, w - pad * 2 - 74, h - 48);
-    ctx.strokeStyle = PALETTE.wallTrim;
+  if (kind === 'feed') {
+    // The live authorization feed: one row per payment, green or red.
+    ctx.fillStyle = PALETTE.blue;
+    ctx.fillRect(0, 0, w, 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(10, 7, 70, 6);
+    rows(ctx, pad, 28, w - pad * 2, 8, 16, 3);
+  } else if (kind === 'chart') {
+    // Fraud score over time with a limit line.
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(pad, pad, w - pad * 2, h - pad * 2);
+    ctx.strokeStyle = C.line;
     ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
-      const y = 34 + ((h - 48) * i) / 4;
+      const y = pad + ((h - pad * 2) * i) / 4;
       ctx.beginPath();
       ctx.moveTo(pad, y);
-      ctx.lineTo(w - pad - 74, y);
+      ctx.lineTo(w - pad, y);
       ctx.stroke();
     }
-    const line = (color: string, phase: number, amp: number, base: number) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      const x0 = pad + 4;
-      const x1 = w - pad - 78;
-      for (let i = 0; i <= 24; i++) {
-        const x = x0 + ((x1 - x0) * i) / 24;
-        const y = base + Math.sin(i * 0.7 + phase) * amp + Math.sin(i * 1.9 + phase * 2) * amp * 0.4;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    };
-    line(PALETTE.orange, 0.4, 9, 70);
-    line(PALETTE.blue, 2.1, 6, 108);
-    ctx.fillStyle = PALETTE.orange;
-    ctx.fillRect(w - 74, 34, 62, 40);
-    ctx.fillStyle = PALETTE.white;
-    ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('218°', w - 43, 62);
-    ctx.fillStyle = PALETTE.wallTrim;
-    ctx.fillRect(w - 74, 82, 62, 26);
-    ctx.fillRect(w - 74, 114, 62, 26);
-    ctx.fillStyle = PALETTE.healthy;
-    ctx.fillRect(w - 68, 90, 34, 10);
-    ctx.fillStyle = PALETTE.blue;
-    ctx.fillRect(w - 68, 122, 46, 10);
-  } else if (kind === 'vision') {
-    // Camera frame: a loaf outline inside a detection box.
-    ctx.fillStyle = PALETTE.wall;
-    ctx.fillRect(pad, 32, w - pad * 2, h - 44);
-    ctx.fillStyle = PALETTE.cardboard;
+    ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = PALETTE.critical;
     ctx.beginPath();
-    ctx.ellipse(w * 0.42, h * 0.6, 62, 30, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = PALETTE.healthy;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(w * 0.42 - 72, h * 0.6 - 40, 144, 80);
-    ctx.strokeStyle = PALETTE.blue;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(pad, h * 0.6);
-    ctx.lineTo(w - pad, h * 0.6);
+    ctx.moveTo(pad, h * 0.34);
+    ctx.lineTo(w - pad, h * 0.34);
     ctx.stroke();
-    ctx.fillStyle = PALETTE.healthy;
-    ctx.fillRect(w - 62, 40, 42, 16);
-    ctx.fillStyle = PALETTE.blue;
-    ctx.fillRect(w - 62, 62, 42, 8);
-    ctx.fillRect(w - 62, 76, 28, 8);
-  } else if (kind === 'pack') {
-    // Case counter: tiles and a progress bar.
-    for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = i < 4 ? PALETTE.blue : PALETTE.wallTrim;
-      ctx.fillRect(pad + (i % 3) * 56, 34 + Math.floor(i / 3) * 40, 48, 32);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = PALETTE.orange;
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i <= 24; i++) {
+      const x = pad + 4 + ((w - pad * 2 - 8) * i) / 24;
+      const y = h * 0.66 + Math.sin(i * 0.8) * 10 + Math.sin(i * 2.1) * 5;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     }
-    ctx.fillStyle = PALETTE.orange;
-    ctx.fillRect(w - 68, 34, 56, 72);
-    ctx.fillStyle = PALETTE.white;
-    ctx.font = 'bold 26px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('48', w - 40, 80);
-    ctx.fillStyle = PALETTE.wallTrim;
-    ctx.fillRect(pad, h - 34, w - pad * 2, 14);
-    ctx.fillStyle = PALETTE.healthy;
-    ctx.fillRect(pad, h - 34, (w - pad * 2) * 0.68, 14);
-  } else {
-    // Generic HMI: bar chart, recipe rows and soft keys.
-    const bars = [0.5, 0.8, 0.62, 0.9, 0.7, 0.4];
-    bars.forEach((v, i) => {
-      ctx.fillStyle = i === 3 ? PALETTE.orange : PALETTE.blue;
-      const bh = v * 62;
-      ctx.fillRect(pad + i * 20, 100 - bh, 14, bh);
-    });
-    for (let i = 0; i < 4; i++) {
-      ctx.fillStyle = PALETTE.wallTrim;
-      ctx.fillRect(142, 34 + i * 18, 102, 12);
-      ctx.fillStyle = i === 1 ? PALETTE.amber : PALETTE.offWhite;
-      ctx.fillRect(146, 37 + i * 18, 30 + ((i * 23) % 50), 6);
+    ctx.stroke();
+  } else if (kind === 'map') {
+    // The city's payment map: streets and glowing source dots.
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(pad, pad, w - pad * 2, h - pad * 2);
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 6;
+    for (const x of [60, 130, 200]) {
+      ctx.beginPath();
+      ctx.moveTo(x, pad);
+      ctx.lineTo(x, h - pad);
+      ctx.stroke();
     }
-    [PALETTE.healthy, PALETTE.blue, PALETTE.wallTrim, PALETTE.orange].forEach((c, i) => {
+    for (const y of [50, 105]) {
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(w - pad, y);
+      ctx.stroke();
+    }
+    const dots: Array<[number, number, string]> = [
+      [60, 50, PALETTE.healthy], [130, 105, PALETTE.healthy], [200, 50, PALETTE.healthy], [95, 78, PALETTE.blue],
+      [170, 130, PALETTE.healthy], [225, 105, PALETTE.amber], [40, 120, PALETTE.healthy],
+    ];
+    for (const [x, y, c] of dots) {
       ctx.fillStyle = c;
-      ctx.fillRect(pad + i * 59, h - 44, 52, 30);
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === 'scores') {
+    // Risk score histogram: almost everything low, a thin tail high.
+    const bars = [0.2, 0.62, 0.95, 0.7, 0.4, 0.22, 0.12, 0.07, 0.05, 0.08, 0.04];
+    const bw = (w - pad * 2) / bars.length;
+    bars.forEach((v, i) => {
+      ctx.fillStyle = i >= 8 ? PALETTE.critical : i >= 6 ? PALETTE.amber : PALETTE.blue;
+      const bh = v * (h - 40);
+      ctx.fillRect(pad + i * bw + 2, h - pad - bh, bw - 4, bh);
     });
+    ctx.fillStyle = C.text;
+    ctx.fillRect(pad, pad, 80, 7);
+  } else if (kind === 'atm') {
+    // Cash machine: amount buttons either side of a prompt.
+    ctx.fillStyle = '#1d3f73';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(w / 2 - 60, 26, 120, 10);
+    ctx.fillRect(w / 2 - 40, 44, 80, 6);
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = '#3b86e3';
+      ctx.fillRect(pad, 70 + i * 28, 70, 20);
+      ctx.fillRect(w - pad - 70, 70 + i * 28, 70, 20);
+    }
+  } else if (kind === 'pos') {
+    // Card terminal: amount and a tap prompt.
+    ctx.fillStyle = '#f4f6f8';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = PALETTE.tdzInk;
+    ctx.font = 'bold 44px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('$4.80', w / 2, h * 0.45);
+    ctx.strokeStyle = PALETTE.blue;
+    ctx.lineWidth = 5;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(w / 2, h * 0.78, 10 + i * 10, -Math.PI * 0.8, -Math.PI * 0.2);
+      ctx.stroke();
+    }
+  } else {
+    // The TechDealz checkout page, which is all card testers ever see.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = PALETTE.tdzInk;
+    ctx.fillRect(0, 0, w, 24);
+    ctx.fillStyle = PALETTE.tdzYellow;
+    ctx.fillRect(10, 7, 46, 10);
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = '#e9ebef';
+      ctx.fillRect(pad + i * 80, 36, 70, 60);
+      ctx.fillStyle = PALETTE.tdzYellow;
+      ctx.fillRect(pad + i * 80, 102, 40, 8);
+    }
+    ctx.fillStyle = PALETTE.blue;
+    ctx.fillRect(w - 110, h - 34, 96, 22);
   }
 }
 
@@ -450,33 +435,5 @@ export function screenMaterial(kind: ScreenKind): THREE.MeshStandardMaterial {
       metalness: 0,
       toneMapped: false,
     });
-  });
-}
-
-/** Hazard label for the reject bin: diagonal stripes around a red plate. */
-export function rejectLabelMaterial(): THREE.MeshStandardMaterial {
-  return cached('rejectLabel', () => {
-    const map = texture('rejectLabel', 256, 96, (ctx, w, h) => {
-      ctx.fillStyle = PALETTE.amber;
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = PALETTE.hazardDark;
-      for (let x = -h; x < w + h; x += 36) {
-        ctx.beginPath();
-        ctx.moveTo(x, h);
-        ctx.lineTo(x + 18, h);
-        ctx.lineTo(x + 18 + h, 0);
-        ctx.lineTo(x + h, 0);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.fillStyle = PALETTE.white;
-      ctx.fillRect(34, 16, w - 68, h - 32);
-      ctx.fillStyle = PALETTE.critical;
-      ctx.font = 'bold 44px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('REJECT', w / 2, h / 2 + 3);
-    });
-    return new THREE.MeshStandardMaterial({ map, roughness: 0.5, metalness: 0 });
   });
 }

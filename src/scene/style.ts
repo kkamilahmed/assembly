@@ -1,15 +1,15 @@
-// The look of the plant, in one place.
+// The look of the city block, in one place.
 //
 // The target is an isometric 3D illustration: a dark diorama slab on seamless
-// white, glossy rounded props, two accent colours (warm orange for heat and
-// the brand, clean blue for people and handling equipment) and crisp bevel
-// highlights on every edge. Every mesh in the scene takes its colours and
-// materials from here, so the whole plant reads as one illustration rather
-// than a pile of separately styled parts.
+// white, glossy rounded props, two accent colours (warm orange for the brand,
+// clean blue for the network and its people) and crisp bevel highlights on
+// every edge. Every mesh in the scene takes its colours and materials from
+// here, so the whole block reads as one illustration rather than a pile of
+// separately styled parts.
 //
 // Rules for anything added to the scene:
 // - Nothing has a hard edge. Use drei's <RoundedBox> (radius 0.03-0.08 for
-//   props, up to 0.15 for big machine housings) or capsule/cylinder shapes.
+//   props, up to 0.15 for big building parts) or capsule/cylinder shapes.
 // - Use the material factories below, never a bare <meshStandardMaterial>
 //   with ad-hoc colours. Materials are cached and shared.
 // - Every mesh casts and receives shadows unless it is emissive.
@@ -46,42 +46,30 @@ export const PALETTE = {
 
   cardboard: '#c99a62',
   cardboardDark: '#a97a45',
-  tape: '#3b86e3',
+  tape: '#f6c431',
   palletWood: '#dcb47e',
-  flourSack: '#efe6d3',
+
+  /** The avenue the lanes run along, a shade darker than the block. */
+  asphalt: '#2d3037',
+  paving: '#c8ccd3',
+  pavingDark: '#aeb3bb',
+  tile: '#eef0f3',
+  stone: '#ebe6dc',
+  gold: '#d9a640',
+  /** Brand colours of the sources. */
+  cafeGreen: '#2f9e6b',
+  tdzYellow: '#f6c431',
+  tdzInk: '#1f2126',
+  foliage: '#58a95a',
+  foliageDark: '#3d8a48',
+  bark: '#8a6446',
 
   skinTones: ['#f1c7a5', '#d9a07a', '#a8714f', '#7a4e33'],
-  coat: '#f7f8fa',
-  hairnet: '#5aa0ea',
-  glove: '#3b86e3',
-  trousers: '#2f3a4d',
-  boots: '#f4f5f7',
 
   healthy: '#2fb574',
   warning: '#f2a33a',
   critical: '#e5484d',
 } as const;
-
-/** Bread, from raw dough to charcoal. `bake` 0 is dough, 1 is the perfect
- *  golden crust, 2 is the over-baked limit, 3 is burnt. */
-const CRUST_STOPS: Array<[number, THREE.Color]> = [
-  [0, new THREE.Color('#f1e9da')],
-  [1, new THREE.Color('#d98c38')],
-  [2, new THREE.Color('#9a5a26')],
-  [3, new THREE.Color('#3a2418')],
-];
-
-export function crustColor(bake: number, out: THREE.Color = new THREE.Color()): THREE.Color {
-  const b = THREE.MathUtils.clamp(bake, 0, 3);
-  for (let i = 1; i < CRUST_STOPS.length; i++) {
-    const [b1, c1] = CRUST_STOPS[i];
-    if (b <= b1) {
-      const [b0, c0] = CRUST_STOPS[i - 1];
-      return out.copy(c0).lerp(c1, (b - b0) / (b1 - b0));
-    }
-  }
-  return out.copy(CRUST_STOPS[CRUST_STOPS.length - 1][1]);
-}
 
 const cache = new Map<string, THREE.Material>();
 function cached<T extends THREE.Material>(key: string, make: () => T): T {
@@ -93,14 +81,14 @@ function cached<T extends THREE.Material>(key: string, make: () => T): T {
   return m;
 }
 
-/** Glossy painted/plastic surface: machine housings, cards, vehicles. */
+/** Glossy painted/plastic surface: shopfronts, cards, vehicles. */
 export function plastic(color: string, roughness = 0.32): THREE.MeshPhysicalMaterial {
   return cached(`plastic:${color}:${roughness}`, () =>
     new THREE.MeshPhysicalMaterial({ color, roughness, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.25 }),
   );
 }
 
-/** Brushed stainless: food-grade machine bodies, rails, tunnels. */
+/** Brushed metal: fittings, rails, frames, the vault door. */
 export function metal(color: string = PALETTE.steel, roughness = 0.28): THREE.MeshStandardMaterial {
   return cached(`metal:${color}:${roughness}`, () =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.85, envMapIntensity: 1.2 }),
@@ -112,14 +100,14 @@ export function matte(color: string, roughness = 0.8): THREE.MeshStandardMateria
   return cached(`matte:${color}:${roughness}`, () => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 }));
 }
 
-/** Self-lit: oven mouths, indicator lamps, screens. Not shadow-casting. */
+/** Self-lit: indicator lamps, screens, light strips. Not shadow-casting. */
 export function glow(color: string, intensity = 2): THREE.MeshStandardMaterial {
   return cached(`glow:${color}:${intensity}`, () =>
     new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.4, toneMapped: false }),
   );
 }
 
-/** Clear partitions and machine guards. */
+/** Clear partitions and shop windows. */
 export function glass(): THREE.MeshPhysicalMaterial {
   return cached('glass', () =>
     new THREE.MeshPhysicalMaterial({

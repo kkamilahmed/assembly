@@ -3,7 +3,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 /** Anything smaller than this across (world units) casts no shadow. At the
- *  plant's zoom its shadow is a pixel or two, but it still costs a draw call
+ *  overview zoom its shadow is a pixel or two, but it still costs a draw call
  *  in the shadow pass, and the crew alone carry hundreds of such parts. */
 const MIN_SHADOW_SIZE = 0.16;
 const sphere = new THREE.Sphere();
