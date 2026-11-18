@@ -34,16 +34,16 @@ export function trayGeometry(): THREE.BufferGeometry {
 function tabletGeometry(): THREE.BufferGeometry {
   const r = TABLET_R;
   const h = TABLET_H;
+  // Few segments: a tablet is a handful of pixels across at the plant's
+  // zoom, and there are a couple of thousand of them on screen.
   const profile: Array<[number, number]> = [
     [0, 0],
-    [r * 0.72, h * 0.06],
-    [r * 0.97, h * 0.3],
+    [r * 0.8, h * 0.08],
     [r, h * 0.5],
-    [r * 0.97, h * 0.7],
-    [r * 0.72, h * 0.94],
+    [r * 0.8, h * 0.92],
     [0, h],
   ];
-  return new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), 10);
+  return new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), 8);
 }
 
 /** The 24 tablets on a tray, as one geometry sitting on the tray floor.
