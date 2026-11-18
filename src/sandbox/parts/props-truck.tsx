@@ -1,4 +1,4 @@
-// Both Goldcrust trucks, front and rear quarter views.
+// Both Meridian refrigerated trucks, front and rear quarter views.
 import { Truck } from '@/scene/props';
 import { PALETTE } from '@/scene/style';
 

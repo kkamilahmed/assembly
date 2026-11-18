@@ -1,5 +1,5 @@
 // Handling equipment and stock up close.
-import { Carton, CartonStack, Cone, FlourSackStack, Forklift, HandTruck, Pallet, PalletJack, PALLET_JACK_OPERATOR_X, Trolley, Worker } from '@/scene/props';
+import { Carton, CartonStack, Cone, DrumPallet, Forklift, HandTruck, Pallet, PalletJack, PALLET_JACK_OPERATOR_X, Trolley, Worker } from '@/scene/props';
 
 export const view = { target: [0.3, 0.9, 0] as [number, number, number], zoom: 105 };
 
@@ -9,7 +9,7 @@ export default function PropsHandling() {
       <Forklift load="cartons" position={[-3.6, 0, -1.2]} rotation-y={-0.5} />
       <Forklift position={[-3.2, 0, 3.2]} rotation-y={0.35} />
       <group position={[0.6, 0, 2.4]} rotation-y={0.2}>
-        <PalletJack load="sacks" />
+        <PalletJack load="drums" />
         <Worker pose="push" skin={2} seed={4} vest position={[PALLET_JACK_OPERATOR_X, 0, 0]} />
       </group>
       <PalletJack position={[3.9, 0, 1.6]} rotation-y={-0.6} />
@@ -20,7 +20,7 @@ export default function PropsHandling() {
       <Trolley position={[0.2, 0, -0.6]} rotation-y={0.2} />
       <Trolley fill={0.5} position={[1.3, 0, -1.1]} rotation-y={Math.PI / 2 - 0.1} />
       <CartonStack position={[3.1, 0, -1.4]} count={10} seed={3} />
-      <FlourSackStack position={[4.3, 0, -3.2]} seed={2} />
+      <DrumPallet position={[4.3, 0, -3.2]} seed={2} />
       <Pallet position={[5.2, 0, -0.4]} rotation-y={0.3} />
       <Carton position={[5.6, 0, 1.6]} rotation-y={0.4} />
       <Carton position={[5.5, 0.362, 1.62]} rotation-y={0.2} />

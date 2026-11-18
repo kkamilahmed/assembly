@@ -1,4 +1,5 @@
-// Two workers at portrait distance, for checking faces, hands and seams.
+// Two workers at portrait distance, for checking faces, masks, hands and
+// seams: one gowned for the clean room, one in yard kit.
 import { Worker } from '@/scene/props';
 
 export const view = { target: [0, 0.95, 0] as [number, number, number], zoom: 520 };

@@ -1,4 +1,5 @@
-// Every worker pose side by side, for judging the figures up close.
+// Every worker pose side by side, gowned and in the yard kit, for judging
+// the figures up close.
 import { Worker, type WorkerPose } from '@/scene/props/Worker';
 
 const POSES: WorkerPose[] = ['stand', 'tablet', 'carry', 'carry', 'push', 'inspect', 'walk'];
