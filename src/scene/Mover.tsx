@@ -1,8 +1,9 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GaitContext, type Gait } from './props/gait';
 import { WORKER_WALK_SPEED } from './props';
+import { mergeStatic, unmerge } from './mergeMeshes';
 
 /** Seconds spent at each end of a route: turning round, or pausing before
  *  pulling a load back. */
@@ -45,6 +46,17 @@ export function Mover({
     const total = lens.reduce((a, b) => a + b, 0);
     return { pts, lens, total, legS: total / speed };
   }, [path, speed]);
+
+  // The rig a worker pushes (a cart of drums, a trolley, a pallet jack and
+  // its load) is rigid: merge it per material, once, so a cart of four drums
+  // is a handful of draws instead of dozens. The worker is skipped (it is
+  // its own dynamic node and merges per bone).
+  useLayoutEffect(() => {
+    const g = ref.current;
+    if (!g) return;
+    const made = mergeStatic(g, g);
+    return () => unmerge(g, made);
+  }, []);
 
   useFrame(({ clock }) => {
     const g = ref.current;

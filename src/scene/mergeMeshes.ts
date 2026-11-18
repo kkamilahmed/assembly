@@ -41,6 +41,58 @@ function collect(buckets: Map<string, Bucket>, mesh: THREE.Mesh, matrix: THREE.M
   b.sources.push(mesh);
 }
 
+/** One material for every plain, untextured part of a rigged figure: the
+ *  part's own colour rides in its vertices, so a bone carrying a sleeve, a
+ *  glove and a badge is one draw instead of three. At the size people are
+ *  drawn, the differences in gloss between those materials don't read. */
+let tintMaterial: THREE.MeshStandardMaterial | undefined;
+function tint(): THREE.MeshStandardMaterial {
+  tintMaterial ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.66, metalness: 0 });
+  return tintMaterial;
+}
+
+/** A plain colour with no texture, glow or transparency. */
+function isPlain(m: THREE.Material): m is THREE.MeshStandardMaterial {
+  const s = m as THREE.MeshStandardMaterial;
+  return (
+    s.isMeshStandardMaterial === true &&
+    !s.map &&
+    !s.transparent &&
+    s.toneMapped &&
+    s.metalness < 0.5 &&
+    (!s.emissive || s.emissive.getHex() === 0)
+  );
+}
+
+/** Like `collect`, but plain materials share one vertex-coloured bucket. */
+function collectTinted(buckets: Map<string, Bucket>, mesh: THREE.Mesh, matrix: THREE.Matrix4) {
+  const material = mesh.material as THREE.Material;
+  if (!mesh.isMesh || (mesh as THREE.InstancedMesh).isInstancedMesh || Array.isArray(mesh.material) || !isPlain(material)) {
+    collect(buckets, mesh, matrix);
+    return;
+  }
+  const g = bakeable(mesh.geometry, matrix);
+  if (!g) return;
+  g.deleteAttribute('uv');
+  const n = g.attributes.position.count;
+  const colors = new Float32Array(n * 3);
+  const c = material.color;
+  for (let i = 0; i < n; i++) {
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const key = `tint|${mesh.castShadow}|${mesh.receiveShadow}`;
+  let b = buckets.get(key);
+  if (!b) {
+    b = { material: tint(), cast: mesh.castShadow, receive: mesh.receiveShadow, geos: [], sources: [] };
+    buckets.set(key, b);
+  }
+  b.geos.push(g);
+  b.sources.push(mesh);
+}
+
 /** Turns each bucket of two or more meshes into one merged mesh added to
  *  `target`, hiding the originals (left in place, so React still owns them).
  *  Returns the merged meshes. */
@@ -70,9 +122,10 @@ function flush(buckets: Map<string, Bucket>, target: THREE.Object3D): THREE.Mesh
 
 /**
  * Within every node of a rigged figure, merges the node's direct mesh
- * children per material. Bones (the groups an animation rotates) keep
- * moving; only the meshes riding on the same bone become one draw. A worker
- * drops from about 45 draws to about 20.
+ * children: plain colours into one vertex-coloured mesh, anything lit,
+ * textured or see-through per material. Bones (the groups an animation
+ * rotates) keep moving; only the meshes riding on the same bone become one
+ * draw. A worker drops from about 45 draws to about 15.
  */
 export function mergeRigidChildren(root: THREE.Object3D): THREE.Mesh[] {
   const nodes: THREE.Object3D[] = [];
@@ -86,7 +139,7 @@ export function mergeRigidChildren(root: THREE.Object3D): THREE.Mesh[] {
       const mesh = child as THREE.Mesh;
       if (!mesh.isMesh || !mesh.visible || mesh.userData.merged) continue;
       mesh.updateMatrix();
-      collect(buckets, mesh, mesh.matrix);
+      collectTinted(buckets, mesh, mesh.matrix);
     }
     made.push(...flush(buckets, node));
   }
