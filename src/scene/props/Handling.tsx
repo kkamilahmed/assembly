@@ -280,12 +280,12 @@ export function Cone(props: GroupProps) {
   );
 }
 
-// -------------------------------------------------------------- trolley
+// ------------------------------------------------------------ cell cart
 
 const CART = { l: 0.74, w: 0.52, base: 0.17, pitch: 0.215 } as const;
 
 function cartFrameGeometry(levels: number) {
-  return mergedBoxes(`trolleyFrame:${levels}`, () => {
+  return mergedBoxes(`cartFrame:${levels}`, () => {
     const { l, w, base, pitch } = CART;
     const top = base + 0.16 + levels * pitch;
     const out: BoxSpec[] = [];

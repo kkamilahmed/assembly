@@ -122,7 +122,7 @@ export function Stage({
 const DESIGN_HEIGHT = 990;
 
 /** Re-render the shadow map every other frame instead of every frame. Almost
- *  everything in the plant is static and what moves (loaves, workers) moves
+ *  everything in the plant is static and what moves (modules, workers) moves
  *  slowly, so the difference is invisible while the shadow pass, a full
  *  redraw of the scene, costs half as much. */
 function ThrottledShadows() {

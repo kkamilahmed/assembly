@@ -1,4 +1,4 @@
-// Goldcrust delivery truck: a cab-over box truck about 7.1 long. Origin at
+// Voltline delivery truck: a cab-over box truck about 7.1 long. Origin at
 // the ground under its centre, length along x, cab at +x, roller door at -x.
 import type { ThreeElements } from '@react-three/fiber';
 import { glow, matte, metal, PALETTE, plastic } from '@/scene/style';
