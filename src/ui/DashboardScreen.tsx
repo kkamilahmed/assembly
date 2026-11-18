@@ -221,31 +221,54 @@ function Card({
  *  drifts the red climbs up through the bars, which is the whole story in
  *  one picture. */
 function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }) {
-  const all = [...buckets, current];
-  while (all.length < BUCKETS + 1) all.unshift({ good: 0, rejected: 0 });
+  // A fixed scale: a full interval at line speed sits at about 80%, so the
+  // bars never rescale under the audience's eyes.
   const perBucket = BUCKET_MS / TRAY_INTERVAL_MS;
-  const max = Math.max(perBucket, ...all.map((b) => b.good + b.rejected));
+  const max = perBucket * 1.25;
   const W = 100;
   const H = 60;
-  const slot = W / all.length;
+  const slot = W / (BUCKETS + 1);
   const bw = slot * 0.66;
+  const bar = (b: Bucket, i: number) => {
+    const x = i * slot + (slot - bw) / 2;
+    const gh = (Math.min(b.good, max) / max) * H;
+    const rh = (Math.min(b.rejected, max - Math.min(b.good, max)) / max) * H;
+    return { x, gh, rh };
+  };
+  const live = bar(current, BUCKETS);
+  const full = (perBucket / max) * H;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full" aria-label="Trays per interval">
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={0} x2={W} y1={H * f} y2={H * f} stroke="#e5e8ec" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       ))}
-      {all.map((b, i) => {
-        const x = i * slot + (slot - bw) / 2;
-        const gh = (b.good / max) * H;
-        const rh = (b.rejected / max) * H;
-        const live = i === all.length - 1;
+      {buckets.map((b, i) => {
+        const { x, gh, rh } = bar(b, i);
         return (
-          <g key={i} opacity={live ? 0.55 : 1}>
+          <g key={i}>
             <rect x={x} y={H - gh} width={bw} height={gh} rx={0.6} fill={GOOD} />
             <rect x={x} y={H - gh - rh} width={bw} height={rh} rx={0.6} fill={BAD} />
           </g>
         );
       })}
+      {/* The interval in progress: an outline of a full interval, filling
+          up as trays arrive, so it never reads as a short bar. */}
+      <rect
+        x={live.x}
+        y={H - full}
+        width={bw}
+        height={full}
+        rx={0.6}
+        fill="none"
+        stroke="#c3cad3"
+        strokeDasharray="3,3"
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+      <g opacity={0.55}>
+        <rect x={live.x} y={H - live.gh} width={bw} height={live.gh} rx={0.6} fill={GOOD} />
+        <rect x={live.x} y={H - live.gh - live.rh} width={bw} height={live.rh} rx={0.6} fill={BAD} />
+      </g>
     </svg>
   );
 }

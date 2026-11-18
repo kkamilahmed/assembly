@@ -143,6 +143,10 @@ export class LineProducer {
     }
 
     const st = this.stations;
+    // Events carry the moment the tray actually reached the station, not
+    // the moment this tick noticed: a tick delayed by a busy tab must not
+    // bunch a few seconds of trays onto one timestamp.
+    const at = (tray: Tray, station: number) => Math.min(now, tray.spawnedAt + (station / BELT_SPEED) * 1000);
     for (const tray of this.trays) {
       const s = ((now - tray.spawnedAt) / 1000) * BELT_SPEED;
       if (tray.stage === 'pressed' && s >= st.inspect) {
@@ -151,17 +155,17 @@ export class LineProducer {
           topic: 'measurements',
           machine_id: PROBLEM_MACHINE_ID,
           item_id: tray.id,
-          timestamp: now,
+          timestamp: at(tray, st.inspect),
           offset: tray.offset,
         });
       }
       if (tray.stage === 'inspected' && tray.failed && s >= st.reject) {
         tray.stage = 'done';
-        this.rejectListeners.forEach((l) => l(tray.id, now));
+        this.rejectListeners.forEach((l) => l(tray.id, at(tray, st.reject)));
       }
       if (tray.stage === 'inspected' && !tray.failed && s >= st.pack) {
         tray.stage = 'done';
-        this.packedListeners.forEach((l) => l(tray.id, now));
+        this.packedListeners.forEach((l) => l(tray.id, at(tray, st.pack)));
       }
     }
     this.trays = this.trays.filter((t) => t.stage !== 'done');

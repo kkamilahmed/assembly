@@ -71,6 +71,17 @@ export interface Tray {
   rejectedAt: number | null;
 }
 
+/** One tray's fate, stamped on the line's own clock (wall time minus every
+ *  stop so far), so the output chart buckets by when trays came off the
+ *  line and a stopped line simply adds nothing. */
+export interface Outcome {
+  t: number;
+  ok: boolean;
+}
+
+/** Outcomes kept: comfortably more than the chart's two minutes. */
+const OUTCOMES_MAX = 400;
+
 export interface FeedItem {
   id: string;
   timestamp: number;
@@ -209,6 +220,10 @@ export interface StoreState {
   /** Trays that passed inspection and went on to the blister packer. */
   traysPacked: number;
   traysRejected: number;
+  outcomes: Outcome[];
+  /** Total time the line has spent stopped; wall time minus this is the
+   *  line's clock. */
+  stoppedMs: number;
   /** Wall clock of the last reject gate kick, for the pusher animation. */
   lastKickAt: number | null;
   incident: Incident | null;
@@ -225,7 +240,7 @@ export interface StoreState {
   // ---- ingestion actions, called only from state/engine.ts ----
   ingestTraySpawn: (id: string, spawnedAt: number, offset: number) => void;
   ingestTrayReject: (id: string, timestamp: number) => void;
-  ingestTrayPacked: (id: string) => void;
+  ingestTrayPacked: (id: string, timestamp: number) => void;
   shiftTrayTimestamps: (deltaMs: number) => void;
   ingestQCCheck: (event: QCCheckPayload) => void;
   ingestWindowStats: (event: WindowStatsPayload) => void;
@@ -272,6 +287,8 @@ export const useStore = create<StoreState>((set) => ({
 
   traysPacked: 0,
   traysRejected: 0,
+  outcomes: [],
+  stoppedMs: 0,
   lastKickAt: null,
   incident: null,
   autopilotCatch: null,
@@ -296,13 +313,15 @@ export const useStore = create<StoreState>((set) => ({
     set((state) => ({
       trays: state.trays.map((l) => (l.id === id ? { ...l, rejectedAt: timestamp } : l)),
       traysRejected: state.traysRejected + 1,
+      outcomes: [...state.outcomes, { t: timestamp - state.stoppedMs, ok: false }].slice(-OUTCOMES_MAX),
       lastKickAt: timestamp,
     })),
 
-  ingestTrayPacked: (id) =>
+  ingestTrayPacked: (id, timestamp) =>
     set((state) => ({
       trays: state.trays.filter((l) => l.id !== id),
       traysPacked: state.traysPacked + 1,
+      outcomes: [...state.outcomes, { t: timestamp - state.stoppedMs, ok: true }].slice(-OUTCOMES_MAX),
     })),
 
   shiftTrayTimestamps: (deltaMs) =>
@@ -313,6 +332,7 @@ export const useStore = create<StoreState>((set) => ({
         rejectedAt: l.rejectedAt === null ? null : l.rejectedAt + deltaMs,
       })),
       lastKickAt: state.lastKickAt === null ? null : state.lastKickAt + deltaMs,
+      stoppedMs: state.stoppedMs + deltaMs,
     })),
 
   ingestQCCheck: (event) =>
@@ -505,6 +525,7 @@ export const useStore = create<StoreState>((set) => ({
       pausedAt: null,
       traysPacked: 0,
       traysRejected: 0,
+      outcomes: [],
       lastKickAt: null,
       incident: null,
       autopilotCatch: null,

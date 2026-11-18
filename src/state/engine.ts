@@ -27,7 +27,7 @@ export function initEngine() {
   producer.init({ inspect: STATION_S.inspect, reject: STATION_S.reject, pack: STATION_S.pack }, inspection);
   producer.onSpawn((id, spawnedAt, offset) => useStore.getState().ingestTraySpawn(id, spawnedAt, offset));
   producer.onReject((id, timestamp) => useStore.getState().ingestTrayReject(id, timestamp));
-  producer.onPacked((id) => useStore.getState().ingestTrayPacked(id));
+  producer.onPacked((id, timestamp) => useStore.getState().ingestTrayPacked(id, timestamp));
   producer.onPauseShift((deltaMs) => useStore.getState().shiftTrayTimestamps(deltaMs));
 
   inspection.onQCCheck((event) => useStore.getState().ingestQCCheck(event));
