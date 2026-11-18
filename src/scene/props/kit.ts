@@ -1,5 +1,5 @@
 // Shared building blocks for the yard props and the people: cached
-// geometries (so two hundred cartons share one box), the Goldcrust brand
+// geometries (so two hundred cartons share one box), the Voltline brand
 // textures drawn on canvases, and a small seeded random source.
 //
 // Everything here is created lazily and cached for the life of the page.
@@ -202,28 +202,28 @@ function roundText(c: CanvasRenderingContext2D, text: string, x: number, y: numb
   c.fillText(text, x, y);
 }
 
-/** The Goldcrust mark: a scored loaf rising over a baseline. */
-function drawLoafMark(c: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, cut: string) {
+/** The Voltline mark: a lightning bolt in a rounded cell outline, centred
+ *  on (x, y) in a box of `s`. `cut` is the colour inside the outline. */
+function drawVoltMark(c: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, cut: string) {
   c.save();
   c.translate(x, y);
   c.fillStyle = color;
   c.beginPath();
-  c.moveTo(-0.5 * s, 0.3 * s);
-  c.bezierCurveTo(-0.62 * s, -0.1 * s, -0.4 * s, -0.42 * s, 0, -0.42 * s);
-  c.bezierCurveTo(0.4 * s, -0.42 * s, 0.62 * s, -0.1 * s, 0.5 * s, 0.3 * s);
-  c.quadraticCurveTo(0.5 * s, 0.4 * s, 0.4 * s, 0.4 * s);
-  c.lineTo(-0.4 * s, 0.4 * s);
-  c.quadraticCurveTo(-0.5 * s, 0.4 * s, -0.5 * s, 0.3 * s);
+  c.roundRect(-0.34 * s, -0.4 * s, 0.68 * s, 0.84 * s, 0.14 * s);
   c.fill();
-  c.strokeStyle = cut;
-  c.lineWidth = 0.075 * s;
-  c.lineCap = 'round';
-  for (const dx of [-0.24, 0, 0.24]) {
-    c.beginPath();
-    c.moveTo((dx - 0.07) * s, 0.02 * s);
-    c.lineTo((dx + 0.07) * s, -0.22 * s);
-    c.stroke();
-  }
+  c.beginPath();
+  c.roundRect(-0.13 * s, -0.5 * s, 0.26 * s, 0.14 * s, 0.04 * s);
+  c.fill();
+  c.fillStyle = cut;
+  c.beginPath();
+  c.moveTo(0.06 * s, -0.3 * s);
+  c.lineTo(-0.17 * s, 0.06 * s);
+  c.lineTo(-0.01 * s, 0.06 * s);
+  c.lineTo(-0.07 * s, 0.33 * s);
+  c.lineTo(0.18 * s, -0.04 * s);
+  c.lineTo(0.02 * s, -0.04 * s);
+  c.closePath();
+  c.fill();
   c.restore();
 }
 
@@ -231,9 +231,9 @@ let wordmarkTex: THREE.CanvasTexture | undefined;
 /** Truck-side wordmark: orange on transparent, 4:1. */
 export function wordmarkTexture(): THREE.CanvasTexture {
   wordmarkTex ??= canvasTexture(2048, 512, (c) => {
-    drawLoafMark(c, 250, 250, 330, PALETTE.orange, '#ffffff');
-    roundText(c, 'Goldcrust', 480, 300, 290, PALETTE.orange, 4);
-    roundText(c, 'BAKERY', 492, 430, 92, PALETTE.orangeDeep, 34);
+    drawVoltMark(c, 250, 260, 360, PALETTE.orange, '#ffffff');
+    roundText(c, 'Voltline', 470, 300, 290, PALETTE.orange, 4);
+    roundText(c, 'BATTERY', 482, 430, 92, PALETTE.orangeDeep, 34);
     // Thin rule that ties the two lines together.
     c.fillStyle = PALETTE.orange;
     c.beginPath();
@@ -265,14 +265,14 @@ export function cartonFaceTexture(): THREE.CanvasTexture {
     }
     c.fillRect(30, 152, 160, 12);
     // Printed brand line.
-    roundText(c, 'GOLDCRUST', 30, 350, 54, ink, 2);
+    roundText(c, 'VOLTLINE', 30, 350, 54, ink, 2);
     // Shipping label.
     c.fillStyle = '#fbfbfc';
     c.beginPath();
     c.roundRect(262, 150, 226, 226, 14);
     c.fill();
-    drawLoafMark(c, 312, 204, 74, PALETTE.orange, '#ffffff');
-    roundText(c, 'Goldcrust', 356, 218, 27, PALETTE.orange, 0);
+    drawVoltMark(c, 312, 206, 74, PALETTE.orange, '#ffffff');
+    roundText(c, 'Voltline', 356, 218, 27, PALETTE.orange, 0);
     c.fillStyle = '#c9ced6';
     c.fillRect(282, 250, 186, 10);
     c.fillRect(282, 270, 120, 10);
@@ -285,26 +285,6 @@ export function cartonFaceTexture(): THREE.CanvasTexture {
     });
   });
   return cartonTex;
-}
-
-let sackTex: THREE.CanvasTexture | undefined;
-/** Print on the top of a flour sack. */
-export function sackTexture(): THREE.CanvasTexture {
-  sackTex ??= canvasTexture(512, 320, (c) => {
-    c.fillStyle = PALETTE.blue;
-    c.beginPath();
-    c.roundRect(96, 60, 320, 200, 26);
-    c.fill();
-    c.fillStyle = '#fbfbfc';
-    c.beginPath();
-    c.roundRect(112, 76, 288, 168, 16);
-    c.fill();
-    drawLoafMark(c, 256, 130, 86, PALETTE.orange, '#ffffff');
-    c.textAlign = 'center';
-    roundText(c, 'FLOUR', 256, 222, 58, PALETTE.blueDeep, 6);
-    c.textAlign = 'left';
-  });
-  return sackTex;
 }
 
 const decalCache = new Map<string, THREE.MeshStandardMaterial>();

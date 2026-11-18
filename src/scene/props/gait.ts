@@ -5,10 +5,12 @@ import { createContext, useContext } from 'react';
  *  whatever moves the worker's group (the scene's Mover), read every frame by
  *  the worker; a ref so neither re-renders. */
 export interface Gait {
-  current: { dir: -1 | 0 | 1 };
+  /** `outbound` is true from leaving the start of the route until leaving
+   *  its far end: what an AGV uses to know whether it is carrying. */
+  current: { dir: -1 | 0 | 1; outbound: boolean };
 }
 
-const ALWAYS_FORWARD: Gait = { current: { dir: 1 } };
+const ALWAYS_FORWARD: Gait = { current: { dir: 1, outbound: true } };
 
 export const GaitContext = createContext<Gait>(ALWAYS_FORWARD);
 

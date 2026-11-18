@@ -1,9 +1,10 @@
-// Stainless furniture for the bakery floor: work tables, a utility cart, a
-// handwash station and the weighing scales. Origins are at the footprint
+// Furniture for the plant floor: work tables, a utility cart, the test
+// bay's cycler cabinets and the weighing scales. Origins are at the footprint
 // centre on the ground.
 import type { ThreeElements } from '@react-three/fiber';
 import { glow, matte, metal, PALETTE, plastic } from '@/scene/style';
-import { cyl, mergedBoxes, rbox, studioWhite, torus, type BoxSpec } from '@/scene/props/kit';
+import { cyl, mergedBoxes, rbox, studioWhite, type BoxSpec } from '@/scene/props/kit';
+import { moduleCaseGeometry, moduleMaterial } from '@/scene/props/module';
 import { Part } from '@/scene/props/Part';
 
 type GroupProps = Omit<ThreeElements['group'], 'children'>;
@@ -62,34 +63,29 @@ export function WorkTable({ size = [1.8, 0.75, 0.9], shelf = true, upstand = fal
   );
 }
 
-// ------------------------------------------------------- handwash sink
+// --------------------------------------------------------- cycler cabinet
 
-/** Knee-operated handwash station with a splashback, soap and towels.
- *  0.55 deep, 0.9 wide; the user stands on the +x side. */
-export function HandwashStation(props: GroupProps) {
-  const blue = plastic(PALETTE.blue, 0.36);
+/** Test-bay cycler: a tall cabinet with three shelves of modules plugged in
+ *  for charge and discharge testing, a status light per bay and a screen on
+ *  top. 0.62 deep, 1.3 wide, 1.95 tall; the front faces +x. */
+export function CyclerCabinet({ filled = 5, ...props }: GroupProps & { filled?: number }) {
+  const white = plastic(WHITE, 0.4);
+  const dark = plastic(PALETTE.graphite, 0.45);
+  const bays: Array<[number, number]> = [];
+  for (let r = 0; r < 3; r++) for (const z of [-0.31, 0.31]) bays.push([0.36 + r * 0.5, z]);
   return (
     <group {...props}>
-      <Part g={rbox(0.5, 0.84, 0.9, 0.035, 3)} m={steel()} position={[0, 0.42, 0]} />
-      <Part g={rbox(0.56, 0.05, 0.94, 0.02, 2)} m={steel()} position={[0.01, 0.865, 0]} />
-      {/* Basin: a dark recess in the top. */}
-      <Part g={rbox(0.34, 0.012, 0.52, 0.005, 1)} m={matte(PALETTE.graphite, 0.5)} position={[0.04, 0.893, -0.08]} castShadow={false} />
-      {/* Splashback. */}
-      <Part g={rbox(0.045, 0.72, 0.94, 0.018, 2)} m={steel()} position={[-0.25, 1.24, 0]} />
-      {/* Gooseneck tap. */}
-      <group position={[-0.16, 0.89, -0.08]}>
-        <Part g={cyl(0.018, 0.022, 0.2, 12)} m={metal(PALETTE.steelDark, 0.2)} position-y={0.1} />
-        <Part g={torus(0.07, 0.017, 16, Math.PI)} m={metal(PALETTE.steelDark, 0.2)} position={[0.07, 0.2, 0]} />
-        <Part g={cyl(0.017, 0.017, 0.05, 12)} m={metal(PALETTE.steelDark, 0.2)} position={[0.14, 0.18, 0]} />
-      </group>
-      {/* Knee paddle, soap, sanitiser and a towel dispenser. */}
-      <Part g={rbox(0.03, 0.22, 0.3, 0.012, 2)} m={blue} position={[0.262, 0.5, -0.08]} />
-      <Part g={rbox(0.09, 0.2, 0.11, 0.03, 3)} m={blue} position={[-0.19, 1.2, 0.3]} />
-      <Part g={rbox(0.09, 0.2, 0.11, 0.03, 3)} m={plastic(PALETTE.orange, 0.36)} position={[-0.19, 1.2, 0.14]} />
-      <Part g={rbox(0.12, 0.26, 0.3, 0.035, 3)} m={plastic(WHITE, 0.4)} position={[-0.18, 1.36, -0.2]} />
-      {/* "Wash your hands" sign above. */}
-      <Part g={rbox(0.03, 0.2, 0.5, 0.012, 2)} m={blue} position={[-0.25, 1.72, 0]} />
-      <Part g={cyl(0.055, 0.055, 0.012, 20)} m={plastic(WHITE, 0.5)} position={[-0.232, 1.72, 0]} rotation-z={HALF} castShadow={false} />
+      <Part g={rbox(0.62, 1.95, 1.3, 0.04, 3)} m={white} position-y={0.975} />
+      <Part g={rbox(0.63, 0.06, 1.31, 0.02, 2)} m={plastic(PALETTE.orange, 0.36)} position-y={1.82} />
+      {bays.map(([y, z], i) => (
+        <group key={i}>
+          <Part g={rbox(0.03, 0.42, 0.56, 0.012, 2)} m={dark} position={[0.3, y + 0.17, z]} castShadow={false} />
+          {i < filled && <Part g={moduleCaseGeometry()} m={moduleMaterial()} position={[0.08, y - 0.03, z]} rotation-y={HALF} scale={0.78} />}
+          <mesh geometry={cyl(0.022, 0.022, 0.012, 12)} material={glow(i < filled ? (i === 3 ? PALETTE.amber : PALETTE.healthy) : PALETTE.graphite, i < filled ? 1.5 : 0.2)} position={[0.318, y + 0.36, z + 0.22]} rotation-z={HALF} />
+        </group>
+      ))}
+      <mesh geometry={rbox(0.012, 0.16, 0.5, 0.004, 1)} material={glow('#cfe1ff', 0.55)} position={[0.315, 1.62, 0]} />
+      <Part g={rbox(0.6, 0.06, 1.28, 0.02, 2)} m={dark} position-y={0.03} />
     </group>
   );
 }

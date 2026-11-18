@@ -1,5 +1,5 @@
 // Handling equipment for the yard and the shop floor: forklift, pallet
-// jack, hand truck, traffic cone and the bakery's rack trolley.
+// jack, hand truck, traffic cone and the dry room's cell cart.
 // Origins are at the footprint centre on the ground. Each faces +x: forks,
 // toe plates and the direction of travel point that way.
 import { useMemo } from 'react';
@@ -7,18 +7,18 @@ import type { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, matte, metal, PALETTE, plastic } from '@/scene/style';
 import { capsule, cyl, lathe, mergedBoxes, rbox, rng, sphere, torus, type BoxSpec } from './kit';
-import { crustMaterial, LOAF, loafGeometry, loafScoreGeometry, scoreMaterial } from './loaf';
+import { cellTrayGeometry, moduleMaterial } from './module';
 import { Instances, Part } from './Part';
-import { Carton, CartonStack, FlourSackStack } from './Stock';
+import { Carton, CartonStack, ModuleStack } from './Stock';
 import { Wheel } from './Wheel';
 
 type GroupProps = Omit<ThreeElements['group'], 'children'>;
-export type PalletLoad = 'cartons' | 'sacks';
+export type PalletLoad = 'cartons' | 'modules';
 
 const HALF = Math.PI / 2;
 
 function Load({ kind, seed }: { kind: PalletLoad; seed: number }) {
-  return kind === 'cartons' ? <CartonStack layers={2} seed={seed} /> : <FlourSackStack layers={5} seed={seed} />;
+  return kind === 'cartons' ? <CartonStack layers={2} seed={seed} /> : <ModuleStack layers={2} seed={seed} />;
 }
 
 /** A straight tube between two points. */
@@ -282,11 +282,11 @@ export function Cone(props: GroupProps) {
 
 // -------------------------------------------------------------- trolley
 
-const TROLLEY = { l: 0.74, w: 0.52, base: 0.17, pitch: 0.215 } as const;
+const CART = { l: 0.74, w: 0.52, base: 0.17, pitch: 0.215 } as const;
 
-function trolleyFrameGeometry(levels: number) {
+function cartFrameGeometry(levels: number) {
   return mergedBoxes(`trolleyFrame:${levels}`, () => {
-    const { l, w, base, pitch } = TROLLEY;
+    const { l, w, base, pitch } = CART;
     const top = base + 0.16 + levels * pitch;
     const out: BoxSpec[] = [];
     const r = 0.009;
@@ -305,8 +305,8 @@ function trolleyFrameGeometry(levels: number) {
 }
 
 function casterGeometry() {
-  return mergedBoxes('trolleyCasters', () => {
-    const { l, w, base } = TROLLEY;
+  return mergedBoxes('cartCasters', () => {
+    const { l, w, base } = CART;
     const out: BoxSpec[] = [];
     for (const x of [-l / 2 + 0.03, l / 2 - 0.03]) {
       for (const z of [-w / 2 + 0.03, w / 2 - 0.03]) {
@@ -319,21 +319,21 @@ function casterGeometry() {
   }, 1);
 }
 
-export interface TrolleyProps extends GroupProps {
+export interface CellCartProps extends GroupProps {
   /** Tray levels. */
   levels?: number;
-  /** Share of the trays that carry loaves, filled from the top. */
+  /** Share of the trays that carry cells, filled from the top. */
   fill?: number;
   seed?: number;
 }
 
-/** Bakery rack trolley: a stainless frame on casters with trays of golden
- *  loaves. Trays slide in along x. About 0.74 x 0.52 and 1.6 tall. */
-export function Trolley({ levels = 6, fill = 1, seed = 1, ...props }: TrolleyProps) {
+/** Cell cart: a stainless frame on casters with trays of cells standing in
+ *  their holders. Trays slide in along x. About 0.74 x 0.52 and 1.6 tall. */
+export function CellCart({ levels = 6, fill = 1, seed = 1, ...props }: CellCartProps) {
   const layout = useMemo(() => {
-    const { l, w, base, pitch } = TROLLEY;
+    const { l, w, base, pitch } = CART;
     const trays: THREE.Matrix4[] = [];
-    const loaves: THREE.Matrix4[] = [];
+    const cells: THREE.Matrix4[] = [];
     const wheels: THREE.Matrix4[] = [];
     const rand = rng(seed * 17 + 1);
     const q = new THREE.Quaternion();
@@ -345,30 +345,25 @@ export function Trolley({ levels = 6, fill = 1, seed = 1, ...props }: TrolleyPro
       const y = base + 0.135 + i * pitch;
       trays.push(new THREE.Matrix4().makeTranslation(0, y, 0));
       if (i < levels - loaded) continue;
-      for (let c = 0; c < 2; c++) {
-        for (let r = 0; r < 3; r++) {
-          p.set((c - 0.5) * (LOAF.l + 0.05) + (rand() - 0.5) * 0.02, y + 0.01, (r - 1) * 0.145 + (rand() - 0.5) * 0.012);
-          q.setFromEuler(e.set(0, (rand() - 0.5) * 0.16, 0));
-          loaves.push(new THREE.Matrix4().compose(p, q, one));
-        }
-      }
+      p.set((rand() - 0.5) * 0.012, y + 0.01, (rand() - 0.5) * 0.01);
+      q.setFromEuler(e.set(0, 0, 0));
+      cells.push(new THREE.Matrix4().compose(p, q, one));
     }
     q.setFromEuler(e.set(HALF, 0, 0));
     for (const x of [-l / 2 + 0.03, l / 2 - 0.03]) {
       for (const z of [-w / 2 + 0.03, w / 2 - 0.03]) wheels.push(new THREE.Matrix4().compose(p.set(x - 0.02, 0.05, z), q, one));
     }
-    return { trays, loaves, wheels };
+    return { trays, cells, wheels };
   }, [levels, fill, seed]);
 
   const steel = metal(PALETTE.steel, 0.3);
   return (
     <group {...props}>
-      <Part g={trolleyFrameGeometry(levels)} m={steel} />
+      <Part g={cartFrameGeometry(levels)} m={steel} />
       <Part g={casterGeometry()} m={steel} />
       <Instances g={cyl(0.05, 0.05, 0.032, 16)} m={matte(PALETTE.graphite, 0.6)} matrices={layout.wheels} />
-      <Instances g={rbox(TROLLEY.l - 0.05, 0.018, TROLLEY.w - 0.07, 0.008, 2)} m={metal(PALETTE.steelDark, 0.45)} matrices={layout.trays} />
-      <Instances g={loafGeometry()} m={crustMaterial()} matrices={layout.loaves} />
-      <Instances g={loafScoreGeometry()} m={scoreMaterial()} matrices={layout.loaves} shadows={false} />
+      <Instances g={rbox(CART.l - 0.05, 0.018, CART.w - 0.07, 0.008, 2)} m={metal(PALETTE.steelDark, 0.45)} matrices={layout.trays} />
+      <Instances g={cellTrayGeometry()} m={moduleMaterial()} matrices={layout.cells} />
     </group>
   );
 }

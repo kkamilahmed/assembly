@@ -1,5 +1,5 @@
-// A bakery worker in food-plant whites: white jacket, hairnet, blue nitrile
-// gloves, dark trousers, white safety boots. About 1.75 m tall, origin on the
+// A battery-plant technician: light ESD smock, wraparound safety glasses,
+// grey ESD gloves, dark trousers, black safety shoes. About 1.75 m tall, origin on the
 // ground between the feet, facing +x.
 //
 // The figure is posed by targets rather than joint angles: each pose says
@@ -11,8 +11,8 @@ import { useFrame, type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, matte, PALETTE, plastic } from '@/scene/style';
 import { capsule, cyl, dome, lathe, limb, rbox, rng, sphere, studioWhite, torus } from './kit';
-import { crustMaterial, LOAF, loafGeometry, loafScoreGeometry, scoreMaterial } from './loaf';
-import { Instances, Part } from './Part';
+import { cellTrayGeometry, moduleMaterial } from './module';
+import { Part } from './Part';
 import { Carton } from './Stock';
 import { mergeRigidChildren, unmerge } from '@/scene/mergeMeshes';
 import { useGait } from './gait';
@@ -129,7 +129,20 @@ const POSES: Record<Exclude<WorkerPose, 'carry' | 'walkCarry' | 'walkPush'> | 'c
   },
 };
 
-const WHITES = studioWhite(PALETTE.coat, 0.62);
+const SMOCK = studioWhite(PALETTE.coat, 0.78);
+
+/** The lens band of the safety glasses: an open cylinder round the front of
+ *  the head, at eye height. */
+let lensGeo: THREE.BufferGeometry | undefined;
+function glassesLens(): THREE.BufferGeometry {
+  lensGeo ??= new THREE.CylinderGeometry(0.118, 0.116, 0.04, 22, 1, true, Math.PI / 2 - 1.25, 2.5);
+  return lensGeo;
+}
+let browGeo: THREE.BufferGeometry | undefined;
+function glassesBrow(): THREE.BufferGeometry {
+  browGeo ??= new THREE.CylinderGeometry(0.121, 0.121, 0.012, 22, 1, true, Math.PI / 2 - 1.62, 3.24);
+  return browGeo;
+}
 
 const HAIR = ['#2a1f18', '#17171a', '#4b3524', '#6d4c30', '#3a2a20', '#8b6b46'];
 
@@ -185,21 +198,6 @@ function jacketR(y: number): number {
 const band = (y0: number, y1: number): Array<[number, number]> => [
   [jacketR(y0) + 0.02, y0], [jacketR((y0 + y1) / 2) + 0.02, (y0 + y1) / 2], [jacketR(y1) + 0.02, y1],
 ];
-
-let trayLoaves: THREE.Matrix4[] | undefined;
-function trayLoafMatrices(): THREE.Matrix4[] {
-  if (!trayLoaves) {
-    trayLoaves = [];
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
-    const s = new THREE.Vector3(1, 1, 1);
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 2; j++) {
-        trayLoaves.push(new THREE.Matrix4().compose(new THREE.Vector3((i - 1) * 0.13, 0.012, (j - 0.5) * (LOAF.l + 0.02)), q, s));
-      }
-    }
-  }
-  return trayLoaves;
-}
 
 export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carrying = 'box', ...props }: WorkerProps) {
   const root = useRef<THREE.Group>(null);
@@ -360,13 +358,15 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
   });
 
   const skinMat = matte(PALETTE.skinTones[skin % PALETTE.skinTones.length], 0.62);
-  const coat = matte(WHITES, 0.72);
+  const coat = matte(SMOCK, 0.72);
   const trousers = matte(PALETTE.trousers, 0.8);
   const glove = plastic(PALETTE.glove, 0.45);
-  const boot = matte(WHITES, 0.5);
+  const boot = matte(PALETTE.boots, 0.5);
   const sole = matte(PALETTE.steelDark, 0.8);
   const hair = matte(look.hair, 0.85);
-  const net = look.visorCap ? matte(WHITES, 0.7) : matte(PALETTE.hairnet, 0.6);
+  const cap = matte(PALETTE.trousers, 0.7);
+  const lens = plastic(PALETTE.lens, 0.12);
+  const frame = matte('#1c1d21', 0.45);
   const dark = matte('#1c1d21', 0.5);
   const hiVis = matte(PALETTE.orange, 0.7);
   const reflective = matte('#e9edf0', 0.35);
@@ -453,15 +453,18 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
                       <Part g={rbox(0.008, 0.005, 0.03, 0.002, 1)} m={hair} position={[0.097, 0.05, s * 0.039]} castShadow={false} />
                     </group>
                   ))}
-                  {/* Hair shows at the forehead, temples and nape under the net. */}
-                  <Part g={dome(0.112, Math.PI * 0.5)} m={hair} position={[-0.004, 0.006, 0]} rotation-z={0.42} scale={[1, 1.12, 0.93]} />
-                  <group position={[-0.016, 0.012, 0]} rotation-z={0.4}>
-                    <Part g={dome(0.121, Math.PI * 0.46)} m={net} scale={[1.06, 0.97, 0.98]} />
-                    <Part g={torus(0.12, 0.0055, 24)} m={net} position-y={0.015} rotation-x={Math.PI / 2} scale={[1.06, 0.98, 1]} />
-                  </group>
+                  {/* Short hair, and on some a cap. */}
+                  <Part g={dome(0.113, Math.PI * 0.52)} m={hair} position={[-0.006, 0.008, 0]} rotation-z={0.42} scale={[1.02, 1.12, 0.95]} />
                   {look.visorCap && (
-                    <Part g={cyl(0.085, 0.085, 0.012, 20)} m={net} position={[0.088, 0.062, 0]} rotation-z={-0.12} scale={[1, 1, 1.05]} />
+                    <>
+                      <Part g={dome(0.12, Math.PI * 0.46)} m={cap} position={[-0.012, 0.016, 0]} rotation-z={0.36} scale={[1.04, 0.95, 0.98]} />
+                      <Part g={cyl(0.085, 0.085, 0.012, 20)} m={cap} position={[0.088, 0.062, 0]} rotation-z={-0.12} scale={[1, 1, 1.05]} />
+                    </>
                   )}
+                  {/* Wraparound safety glasses: a lens band across the eyes
+                      under a dark brow bar, with arms back to the ears. */}
+                  <Part g={glassesLens()} m={lens} position-y={0.018} scale={[1, 1, 0.9]} castShadow={false} />
+                  <Part g={glassesBrow()} m={frame} position-y={0.042} scale={[1, 1, 0.9]} castShadow={false} />
                 </group>
               </group>
 
@@ -476,10 +479,8 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
               )}
               {key === 'carryBox' && <Carton size={[0.36, 0.3, 0.44]} position={[0.31, 0.955, 0]} />}
               {key === 'carryTray' && (
-                <group position={[0.37, 1.045, 0]}>
-                  <Part g={rbox(0.42, 0.022, 0.62, 0.01, 2)} m={plastic(PALETTE.steelDark, 0.45)} />
-                  <Instances g={loafGeometry()} m={crustMaterial()} matrices={trayLoafMatrices()} />
-                  <Instances g={loafScoreGeometry()} m={scoreMaterial()} matrices={trayLoafMatrices()} shadows={false} />
+                <group position={[0.37, 1.04, 0]} rotation-y={Math.PI / 2} scale={0.82}>
+                  <Part g={cellTrayGeometry()} m={moduleMaterial()} />
                 </group>
               )}
             </group>

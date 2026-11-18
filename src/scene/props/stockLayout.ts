@@ -2,14 +2,13 @@
 // components so the rack can lay out a whole wall of pallets and draw all of
 // its cartons in one instanced mesh.
 import * as THREE from 'three';
-import { cartonFaceTexture, decal, merged, mergedBoxes, quad, rbox, rng, sackTexture } from './kit';
+import { cartonFaceTexture, decal, merged, mergedBoxes, quad, rbox, rng } from './kit';
+import { MODULE } from './module';
 
 /** A 1200 x 1000 pallet: long side on x. */
 export const PALLET = { w: 1.2, h: 0.144, d: 1.0 } as const;
 /** Default carton, [x, y, z]. Four fit a pallet layer. */
 export const CARTON_SIZE: [number, number, number] = [0.56, 0.36, 0.46];
-/** Flour sack lying flat, long side on x. */
-export const SACK = { l: 0.6, h: 0.15, w: 0.4, pitch: 0.132 } as const;
 
 /** Racking module: bay width (x), depth (z) and level pitch. */
 export const RACK = { bay: 2.72, depth: 1.1, level: 1.72 } as const;
@@ -61,24 +60,6 @@ export function cartonGeometries(size: [number, number, number]) {
   return { body, tape, faces, faceMaterial: decal('cartonFace', cartonFaceTexture, 0.75, '#c9c9c9') };
 }
 
-export function sackGeometries() {
-  const body = mergedBoxes('sack', () => [
-    { size: [SACK.l - 0.05, SACK.h, SACK.w], pos: [0, 0, 0], r: 0.07 },
-    // Crimped, stitched ends.
-    { size: [0.05, 0.03, SACK.w - 0.04], pos: [SACK.l / 2 - 0.035, 0, 0], r: 0.012 },
-    { size: [0.05, 0.03, SACK.w - 0.04], pos: [-SACK.l / 2 + 0.035, 0, 0], r: 0.012 },
-    // Three bevel segments keep the soft pillow edge; five cost 4,400
-    // triangles a sack, and there are hundreds of sacks.
-  ], 2);
-  const print = merged('sackPrint', () => {
-    const g = quad(0.36, 0.225).clone();
-    g.rotateX(-Math.PI / 2);
-    g.translate(0, SACK.h / 2 + 0.0015, 0);
-    return [g];
-  });
-  return { body, print, printMaterial: decal('sackPrint', sackTexture, 0.9, '#a9a9a9') };
-}
-
 const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3(1, 1, 1);
@@ -126,38 +107,32 @@ export function cartonStackMatrices(opts: CartonStackOpts, base: THREE.Matrix4, 
   return out;
 }
 
-export interface SackStackOpts {
+export interface ModuleStackOpts {
   layers?: number;
-  /** Sacks actually present, filled bottom-up (5 per layer). */
+  /** Modules actually present, filled bottom-up (4 per layer). */
   count?: number;
   seed?: number;
 }
 
-/** Appends one matrix per sack: the classic five-sack interlocking layer,
- *  mirrored on alternate layers. */
-export function sackStackMatrices(opts: SackStackOpts, base: THREE.Matrix4, out: THREE.Matrix4[]): THREE.Matrix4[] {
-  const { layers = 4, seed = 1 } = opts;
-  const count = Math.min(opts.count ?? layers * 5, layers * 5);
+/** Appends one matrix per cased module: 2 x 2 to a layer, a thin slip
+ *  sheet's gap between layers. Each matrix places a module by the centre of
+ *  its base. */
+export function moduleStackMatrices(opts: ModuleStackOpts, base: THREE.Matrix4, out: THREE.Matrix4[]): THREE.Matrix4[] {
+  const { layers = 3, seed = 1 } = opts;
+  const count = Math.min(opts.count ?? layers * 4, layers * 4);
   const rand = rng(seed + 77);
   let i = 0;
   for (let l = 0; l < layers; l++) {
-    const flip = l % 2 === 0 ? 1 : -1;
-    const y = SACK.h / 2 + l * SACK.pitch;
-    const spots: Array<[number, number, number]> = [
-      [-0.4, -0.2 * flip, Math.PI / 2],
-      [0, -0.2 * flip, Math.PI / 2],
-      [0.4, -0.2 * flip, Math.PI / 2],
-      [-0.3, 0.3 * flip, 0],
-      [0.3, 0.3 * flip, 0],
-    ];
-    for (const [x, z, yaw] of spots) {
-      const jx = (rand() - 0.5) * 0.02;
-      const jz = (rand() - 0.5) * 0.02;
-      const jy = (rand() - 0.5) * 0.06 + (rand() < 0.5 ? 0 : Math.PI);
-      if (i++ >= count) continue;
-      _p.set(x + jx, y, z + jz);
-      _q.setFromEuler(_e.set(0, yaw + jy, 0));
-      out.push(new THREE.Matrix4().compose(_p, _q, _s).premultiply(base));
+    for (const x of [-0.305, 0.305]) {
+      for (const z of [-0.24, 0.24]) {
+        const jx = (rand() - 0.5) * 0.012;
+        const jz = (rand() - 0.5) * 0.012;
+        const yaw = (rand() - 0.5) * 0.03 + (rand() < 0.5 ? 0 : Math.PI);
+        if (i++ >= count) continue;
+        _p.set(x + jx, l * (MODULE.casedTop + 0.006), z + jz);
+        _q.setFromEuler(_e.set(0, yaw, 0));
+        out.push(new THREE.Matrix4().compose(_p, _q, _s).premultiply(base));
+      }
     }
   }
   return out;

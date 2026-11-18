@@ -2,15 +2,15 @@
 // and is picked from either z side; origin at the footprint centre.
 //
 // All the stock in a rack is drawn instanced: one mesh of pallets, one set
-// of cartons, one set of sacks, however many bays there are.
+// of cartons, one set of modules, however many bays there are.
 import { useMemo } from 'react';
 import type { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { metal, PALETTE, plastic } from '@/scene/style';
 import { mergedBoxes, rng, type BoxSpec } from './kit';
 import { Instances } from './Part';
-import { CartonInstances, PalletInstances, SackInstances } from './Stock';
-import { at, cartonStackMatrices, PALLET, RACK, sackStackMatrices } from './stockLayout';
+import { CartonInstances, ModuleInstances, PalletInstances } from './Stock';
+import { at, cartonStackMatrices, moduleStackMatrices, PALLET, RACK } from './stockLayout';
 
 type GroupProps = Omit<ThreeElements['group'], 'children'>;
 
@@ -62,7 +62,7 @@ export function Rack({ bays = 2, levels = 3, color = 'blue', stocked = true, see
     const beams: THREE.Matrix4[] = [];
     const pallets: THREE.Matrix4[] = [];
     const cartons: THREE.Matrix4[] = [];
-    const sacks: THREE.Matrix4[] = [];
+    const modules: THREE.Matrix4[] = [];
     const x0 = (-bays * RACK.bay) / 2;
     const rand = rng(seed * 13 + 5);
     for (let i = 0; i <= bays; i++) frames.push(at(x0 + i * RACK.bay, 0, 0));
@@ -86,12 +86,12 @@ export function Rack({ bays = 2, levels = 3, color = 'blue', stocked = true, see
             const full = pick < 0.55 ? 12 : pick < 0.8 ? 8 : 12 - 1 - Math.floor(pick * 3);
             cartonStackMatrices({ layers: 3, count: full, seed: s }, top, cartons);
           } else {
-            sackStackMatrices({ layers: 4 + Math.floor(pick * 4), seed: s }, top, sacks);
+            moduleStackMatrices({ layers: 2 + Math.floor(pick * 3), seed: s }, top, modules);
           }
         }
       }
     }
-    return { frames, beams, pallets, cartons, sacks };
+    return { frames, beams, pallets, cartons, modules };
   }, [bays, levels, stocked, seed]);
 
   const paint = plastic(color === 'orange' ? PALETTE.orange : PALETTE.blue, 0.38);
@@ -101,7 +101,7 @@ export function Rack({ bays = 2, levels = 3, color = 'blue', stocked = true, see
       <Instances g={beamGeometry()} m={metal(PALETTE.steel, 0.36)} matrices={layout.beams} />
       <PalletInstances matrices={layout.pallets} />
       <CartonInstances matrices={layout.cartons} />
-      <SackInstances matrices={layout.sacks} />
+      <ModuleInstances matrices={layout.modules} />
     </group>
   );
 }
