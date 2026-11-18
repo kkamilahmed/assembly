@@ -10,8 +10,8 @@ interface SparklineProps {
   data: TrendSample[];
   color: string;
   height?: number;
-  warnMm: number;
-  criticalMm: number;
+  warn: number;
+  critical: number;
   /** Top of the scale. Defaults to a bit above the critical limit so a
    *  healthy line sits low in the frame with its headroom visible. */
   max?: number;
@@ -19,8 +19,8 @@ interface SparklineProps {
 
 const W = 100;
 
-export function Sparkline({ data, color, height = 40, warnMm, criticalMm, max }: SparklineProps) {
-  const maxV = Math.max(max ?? criticalMm * 1.6, ...data.map((d) => d.v));
+export function Sparkline({ data, color, height = 40, warn, critical, max }: SparklineProps) {
+  const maxV = Math.max(max ?? critical * 1.6, ...data.map((d) => d.v));
   const y = (v: number) => height - Math.min(v / maxV, 1) * height;
 
   const points =
@@ -31,10 +31,10 @@ export function Sparkline({ data, color, height = 40, warnMm, criticalMm, max }:
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none" aria-hidden>
       {/* warning band, then critical band above it */}
-      <rect x={0} y={y(criticalMm)} width={W} height={Math.max(0, y(warnMm) - y(criticalMm))} fill={STATUS_HEX.warning} fillOpacity={0.1} />
-      <rect x={0} y={0} width={W} height={Math.max(0, y(criticalMm))} fill={STATUS_HEX.critical} fillOpacity={0.1} />
-      <line x1={0} x2={W} y1={y(warnMm)} y2={y(warnMm)} stroke={STATUS_HEX.warning} strokeWidth={1} strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
-      <line x1={0} x2={W} y1={y(criticalMm)} y2={y(criticalMm)} stroke={STATUS_HEX.critical} strokeWidth={1} strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
+      <rect x={0} y={y(critical)} width={W} height={Math.max(0, y(warn) - y(critical))} fill={STATUS_HEX.warning} fillOpacity={0.1} />
+      <rect x={0} y={0} width={W} height={Math.max(0, y(critical))} fill={STATUS_HEX.critical} fillOpacity={0.1} />
+      <line x1={0} x2={W} y1={y(warn)} y2={y(warn)} stroke={STATUS_HEX.warning} strokeWidth={1} strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
+      <line x1={0} x2={W} y1={y(critical)} y2={y(critical)} stroke={STATUS_HEX.critical} strokeWidth={1} strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
       {points && (
         <polyline
           points={points}

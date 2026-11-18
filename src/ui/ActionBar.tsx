@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { useStore } from '@/state/store';
-import { injectDeviation, recalibrate, toggleAutopilot, toggleLine } from '@/state/storyDirector';
-import { PROBLEM_ROBOT_ID } from '@/streaming/lineConfig';
+import { recalibrate, toggleAutopilot, toggleLine } from '@/state/storyDirector';
 import { Kbd } from './Kbd';
 
 type Next = 'deviate' | 'stop' | 'recalibrate' | 'autopilot';
@@ -18,10 +17,10 @@ function useNext(): Next {
 }
 
 /**
- * The bottom strip over the plant view. Left half simulates a fault (what
- * the presenter does to the line), right half is what an operator does about
- * it. Every button has the same key as its label, so the demo can be driven
- * from the keyboard without ever looking down.
+ * The operator controls along the bottom of the plant view. Only what an
+ * operator would do is on screen; the presenter injects the fault from the
+ * keyboard (D / E), so the audience never sees a "break it" button. Every
+ * button carries its key, so the demo can be driven without looking down.
  */
 export function ActionBar() {
   const paused = useStore((s) => s.paused);
@@ -31,26 +30,11 @@ export function ActionBar() {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
       <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 p-1.5 shadow-lg backdrop-blur">
-        <span className="px-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-          Simulate
-        </span>
-        <Action k="D" onClick={() => injectDeviation('slight')}>
-          Slight deviation
-        </Action>
-        <Action k="E" onClick={() => injectDeviation('emergency')} danger>
-          Emergency
-        </Action>
-
-        <span className="mx-1.5 h-6 w-px bg-[var(--border)]" />
-
-        <span className="px-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-          Operate
-        </span>
         <Action k="S" onClick={toggleLine} primary={next === 'stop'} danger={!paused}>
           {paused ? 'Start line' : 'Stop line'}
         </Action>
         <Action k="C" onClick={() => recalibrate('operator')} primary={next === 'recalibrate'}>
-          Recalibrate {PROBLEM_ROBOT_ID}
+          Recalibrate oven
         </Action>
         <Action k="A" onClick={toggleAutopilot} primary={next === 'autopilot'} active={autopilot}>
           {autopilot ? 'Autopilot on' : 'Run on autopilot'}

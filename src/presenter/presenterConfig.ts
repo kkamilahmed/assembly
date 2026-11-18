@@ -26,22 +26,20 @@ const params = readParams();
 export const SPEED = (() => {
   const raw = Number(params.get('speed'));
   if (!Number.isFinite(raw) || raw <= 0) return 1;
-  // Past about 3x the walking-beam cadence gets shorter than the station
-  // choreography it has to contain, and arms start getting cut off
-  // mid-motion by the next index step.
+  // Past about 3x loaves crowd the belt and inspection's trend window gets
+  // too short to mean much.
   return Math.min(Math.max(raw, 0.5), 3);
 })();
 
 /** Scale a duration by the presenter speed. Applied to schedules and
- *  windows, never to geometry - station spacing is derived from a transit
- *  time that must stay put or the 3D line physically changes shape. */
+ *  windows, never to geometry. */
 export function scaleMs(ms: number): number {
   return Math.round(ms / SPEED);
 }
 
 const DEFAULT_SEED = 20260915;
 
-/** Seed for the weld process-noise stream. Null means "genuinely random",
+/** Seed for the bake process-noise stream. Null means "genuinely random",
  *  only when explicitly asked for. A fixed seed is the default because a
  *  demo you cannot rehearse against is a demo you cannot write speaker
  *  notes for: with this set, the defect count, the detection latency and

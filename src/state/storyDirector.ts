@@ -1,92 +1,93 @@
 // The presenter's controls, as plain functions the keyboard and the on-screen
 // action bar both call:
 //
-//   D  slight deviation   - WELD-01's torch creeps off the seam. Some cars fail.
-//   E  emergency          - the torch jumps well off the seam. Every car fails.
+//   D  slight deviation  - the oven's zone 2 creeps over setpoint. Some loaves
+//                          come out over-baked and are rejected.
+//   E  emergency         - burner runaway. Every loaf burns.
 //   S  stop / start line
-//   C  recalibrate WELD-01
-//   A  run on autopilot   - the line recalibrates itself the moment the
-//                           pipeline flags a deviation
+//   C  recalibrate the oven
+//   A  run on autopilot  - the line recalibrates itself the moment the stream
+//                          flags the oven
 //
 // Nothing here runs on its own: the line stays healthy until a key is
 // pressed, so the presenter decides when the story moves.
 import { scaleMs } from '@/presenter/presenterConfig';
 import {
-  DEVIATION_OFFSET_MM,
+  DEVIATION_OFFSET,
   DEVIATION_RAMP_MS,
-  PROBLEM_ROBOT_ID,
+  PROBLEM_MACHINE_ID,
   type DeviationLevel,
 } from '@/streaming/lineConfig';
 import type { SensorChannel } from '@/streaming/sensorStream';
-import { recalibrateMachine, resetLine, setRobotBias } from './engine';
+import { recalibrateMachine, resetLine, setOvenOffset } from './engine';
 import { machineSeverity, useStore } from './store';
 
 /**
- * What a misaligned torch does to the arm's own sensors. The weld offset is
- * only measured once per car, but the arm fighting its own mis-set wrist
- * shows up in vibration and temperature within a second or two - which is
- * why the machines screen lights up before the first bad car comes off the
- * weld station, and why the autopilot can act before one does.
+ * What an oven running hot does to its own sensors. A loaf's browning is only
+ * measured once it has travelled from the oven to the camera, but the zone
+ * temperature and the burner output move within a second or two - which is
+ * why the machines screen lights up before the first over-baked loaf reaches
+ * inspection, and why the autopilot can act before a pile of them does.
  *
  * Intensities are on the fault-injection scale (1-20, a fraction of each
  * channel's headroom): slight settles in the warning band, emergency in
  * critical.
  */
 const SENSOR_SIGNATURE: Record<DeviationLevel, Partial<Record<SensorChannel, number>>> = {
-  slight: { vibration: 9, temperature: 6 },
-  emergency: { vibration: 18, temperature: 16, pressure: 12 },
+  slight: { temperature: 5, load: 11 },
+  emergency: { temperature: 14, load: 17, vibration: 9 },
 };
 
 const FAULT_TEXT: Record<DeviationLevel, string> = {
-  slight: `${PROBLEM_ROBOT_ID} torch alignment starting to drift`,
-  emergency: `${PROBLEM_ROBOT_ID} torch knocked off the seam`,
+  slight: `${PROBLEM_MACHINE_ID} zone 2 starting to run hot`,
+  emergency: `${PROBLEM_MACHINE_ID} burner runaway`,
 };
 
 let rampTimers: number[] = [];
 let autopilotTimer: number | undefined;
-let currentBiasMm = 0;
+let currentOffset = 0;
 
 function clearRamp() {
   rampTimers.forEach((id) => window.clearTimeout(id));
   rampTimers = [];
 }
 
-function rampBias(to: number, durationMs: number) {
+function rampOffset(to: number, durationMs: number) {
   clearRamp();
-  const from = currentBiasMm;
+  const from = currentOffset;
   const steps = Math.max(Math.round(durationMs / 250), 1);
   for (let i = 1; i <= steps; i++) {
     rampTimers.push(
       window.setTimeout(() => {
-        currentBiasMm = from + ((to - from) * i) / steps;
-        setRobotBias(PROBLEM_ROBOT_ID, currentBiasMm);
+        currentOffset = from + ((to - from) * i) / steps;
+        setOvenOffset(currentOffset);
       }, (i / steps) * durationMs),
     );
   }
 }
 
-/** D / E. Drifts the weld torch to the level's offset and puts the matching
- *  physical signature on the arm's sensors. Pressing E during a slight
- *  deviation escalates it. */
+/** D / E. Drifts the oven to the level's offset and puts the matching
+ *  physical signature on its sensors. Pressing E during a slight deviation
+ *  escalates it. */
 export function injectDeviation(level: DeviationLevel) {
   const store = useStore.getState();
   store.openIncident(Date.now(), FAULT_TEXT[level]);
   store.clearInjections('scenario');
   for (const [channel, intensity] of Object.entries(SENSOR_SIGNATURE[level])) {
-    store.injectFaults([PROBLEM_ROBOT_ID], [channel as SensorChannel], intensity, 'scenario');
+    store.injectFaults([PROBLEM_MACHINE_ID], [channel as SensorChannel], intensity, 'scenario');
   }
-  rampBias(DEVIATION_OFFSET_MM[level], DEVIATION_RAMP_MS[level]);
+  rampOffset(DEVIATION_OFFSET[level], DEVIATION_RAMP_MS[level]);
 }
 
-/** C. Puts the torch back on the seam: zero offset, sensors settle, trend
+/** C. Puts the oven back on setpoint: zero offset, sensors settle, trend
  *  window restarts, incident closed. */
 export function recalibrate(by: 'operator' | 'autopilot' = 'operator') {
   clearRamp();
-  currentBiasMm = 0;
+  currentOffset = 0;
   const store = useStore.getState();
   store.clearInjections('scenario');
-  recalibrateMachine(PROBLEM_ROBOT_ID);
-  store.markRecalibrated(PROBLEM_ROBOT_ID, Date.now(), by);
+  recalibrateMachine(PROBLEM_MACHINE_ID);
+  store.markRecalibrated(PROBLEM_MACHINE_ID, Date.now(), by);
 }
 
 /** S. Stops the line, or restarts it in whatever mode it was in. */
@@ -115,27 +116,27 @@ export function resetDemo() {
   clearRamp();
   window.clearTimeout(autopilotTimer);
   autopilotTimer = undefined;
-  currentBiasMm = 0;
+  currentOffset = 0;
   resetLine();
 }
 
 /** How long autopilot takes to act once the machine is flagged: long enough
  *  that the flagged state is visible for a beat on screen, short enough that
- *  the next car through the weld station is already back in spec. */
+ *  the next loaf out of the oven is already back on target. */
 const AUTOPILOT_REACTION_MS = scaleMs(600);
 
 /**
  * The autopilot acts on what the pipeline has *detected*, not on what the
- * story director knows it caused: it waits for WELD-01 to leave healthy on
+ * story director knows it caused: it waits for OVEN-01 to leave healthy on
  * the same readings the dashboard shows, then recalibrates. That is the
  * honest version of the claim - real-time analysis is what lets the line
- * fix itself before a stream of bad cars comes off it.
+ * fix itself before a stream of burnt loaves comes off it.
  */
 function maybeAutoRecalibrate() {
   const state = useStore.getState();
   const incident = state.incident;
   if (!state.autopilot || state.paused || !incident || incident.resolvedAt !== null) return;
-  if (machineSeverity(state, PROBLEM_ROBOT_ID) === 'healthy') return;
+  if (machineSeverity(state, PROBLEM_MACHINE_ID) === 'healthy') return;
   if (autopilotTimer !== undefined) return;
   autopilotTimer = window.setTimeout(() => {
     const now = useStore.getState();

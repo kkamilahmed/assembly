@@ -1,19 +1,20 @@
 import { useShallow } from 'zustand/react/shallow';
 import { machineSeverity, useStore, type Severity } from '@/state/store';
 import {
-  PROBLEM_ROBOT_ID,
-  ROBOT_IDS,
-  ROBOT_LABELS,
-  WARN_TREND_MM,
-  type RobotId,
+  PROBLEM_MACHINE_ID,
+  MACHINE_IDS,
+  MACHINE_LABELS,
+  BROWNING_TARGET,
+  BROWNING_TOLERANCE,
+  type MachineId,
 } from '@/streaming/lineConfig';
-import { CHANNEL_SPECS, channelSeverity, formatReading, SENSOR_CHANNELS } from '@/streaming/sensorStream';
+import { channelSeverity, channelSpec, formatReading, SENSOR_CHANNELS } from '@/streaming/sensorStream';
 import { STATUS_HEX } from './colors';
 import { FaultInjectionPanel } from './FaultInjectionPanel';
 import { MachinePreviewCard, TelemetryCard } from './FleetMachineCard';
 import { Kbd } from './Kbd';
 
-/** The machines screen: every arm on the line with its live process sensors,
+/** The machines screen: every machine on the line with its live process sensors,
  *  and a diagnosis strip that says, in words, what the readings add up to.
  *  This is where the presenter comes after pressing D to show what is going
  *  wrong before going back to the plant to show what it is costing. */
@@ -33,8 +34,8 @@ export function FleetOverview({ active, onBack }: { active: boolean; onBack: () 
           Plant
         </button>
         <div>
-          <div className="text-sm font-semibold">Machines · Line 2</div>
-          <div className="text-xs text-[var(--text-secondary)]">Live sensor stream from every arm</div>
+          <div className="text-sm font-semibold">Machines · Line 1</div>
+          <div className="text-xs text-[var(--text-secondary)]">Live sensor stream from every machine</div>
         </div>
         <button
           onClick={() => setFaultPanelOpen(!faultPanelOpen)}
@@ -73,13 +74,13 @@ export function FleetOverview({ active, onBack }: { active: boolean; onBack: () 
             <Diagnosis />
           </div>
           <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
-            {ROBOT_IDS.map((id) => (
-              <MachinePreviewCard key={id} robotId={id} active={active} />
+            {MACHINE_IDS.map((id) => (
+              <MachinePreviewCard key={id} machineId={id} active={active} />
             ))}
           </div>
           <div className="grid shrink-0 grid-cols-4 gap-4">
-            {ROBOT_IDS.map((id) => (
-              <TelemetryCard key={id} robotId={id} />
+            {MACHINE_IDS.map((id) => (
+              <TelemetryCard key={id} machineId={id} />
             ))}
           </div>
         </div>
@@ -90,7 +91,7 @@ export function FleetOverview({ active, onBack }: { active: boolean; onBack: () 
 }
 
 interface Evidence {
-  robotId: RobotId;
+  machineId: MachineId;
   text: string;
   severity: Severity;
 }
@@ -103,25 +104,27 @@ function useEvidence(): Evidence[] {
   const rows = useStore(
     useShallow((s) => {
       const out: string[] = [];
-      for (const robotId of ROBOT_IDS) {
-        const robot = s.robots[robotId];
-        if (robot.status !== 'healthy') {
-          out.push([robotId, robot.status, `weld offset ${robot.trendMm.toFixed(2)}mm avg (limit ${WARN_TREND_MM})`].join('|'));
+      for (const machineId of MACHINE_IDS) {
+        const machine = s.machines[machineId];
+        if (machine.status !== 'healthy') {
+          out.push(
+            [machineId, machine.status, `crust browning ${(BROWNING_TARGET + machine.trend).toFixed(1)} (limit ${BROWNING_TARGET + BROWNING_TOLERANCE})`].join('|'),
+          );
         }
         for (const channel of SENSOR_CHANNELS) {
-          const value = s.sensors[robotId][channel];
-          const severity = channelSeverity(channel, value);
+          const value = s.sensors[machineId][channel];
+          const severity = channelSeverity(machineId, channel, value);
           if (severity === 'healthy') continue;
-          const spec = CHANNEL_SPECS[channel];
-          out.push([robotId, severity, `${spec.label.toLowerCase()} ${formatReading(channel, value)} (limit ${spec.warn})`].join('|'));
+          const spec = channelSpec(machineId, channel);
+          out.push([machineId, severity, `${spec.label.toLowerCase()} ${formatReading(machineId, channel, value)} (limit ${spec.warn})`].join('|'));
         }
       }
       return out;
     }),
   );
   return rows.map((row) => {
-    const [robotId, severity, text] = row.split('|');
-    return { robotId: robotId as RobotId, severity: severity as Severity, text };
+    const [machineId, severity, text] = row.split('|');
+    return { machineId: machineId as MachineId, severity: severity as Severity, text };
   });
 }
 
@@ -132,7 +135,7 @@ function useEvidence(): Evidence[] {
  */
 function Diagnosis() {
   const evidence = useEvidence();
-  const weldSeverity = useStore((s) => machineSeverity(s, PROBLEM_ROBOT_ID));
+  const ovenSeverity = useStore((s) => machineSeverity(s, PROBLEM_MACHINE_ID));
   const incident = useStore((s) => s.incident);
   const paused = useStore((s) => s.paused);
   const autopilot = useStore((s) => s.autopilot);
@@ -149,10 +152,10 @@ function Diagnosis() {
           <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: STATUS_HEX.healthy }}>
             Healthy
           </div>
-          <div className="mt-0.5 text-base font-semibold">All {ROBOT_IDS.length} machines inside limits</div>
+          <div className="mt-0.5 text-base font-semibold">All {MACHINE_IDS.length} machines inside limits</div>
           <div className="mt-1 text-xs text-[var(--text-secondary)]">
-            Temperature, pressure and vibration from every arm, plus the weld offset on every car, analysed as they
-            stream.
+            Temperatures, loads and vibration from every machine, plus a browning score for every loaf, analysed as
+            they stream.
           </div>
         </div>
         <div className="ml-auto text-right">
@@ -165,9 +168,9 @@ function Diagnosis() {
 
   const worst = evidence.some((e) => e.severity === 'critical') ? 'critical' : 'warning';
   const color = STATUS_HEX[worst];
-  const weldFault = weldSeverity !== 'healthy';
+  const ovenFault = ovenSeverity !== 'healthy';
   const open = incident !== null && incident.resolvedAt === null;
-  const alarmed = [...new Set(evidence.map((e) => e.robotId))];
+  const alarmed = [...new Set(evidence.map((e) => e.machineId))];
 
   return (
     <div
@@ -182,38 +185,38 @@ function Diagnosis() {
               {worst === 'critical' ? 'Critical' : 'Warning'} · {alarmed.join(', ')}
             </div>
             <div className="mt-0.5 text-base font-semibold">
-              {weldFault
-                ? `${PROBLEM_ROBOT_ID} ${ROBOT_LABELS[PROBLEM_ROBOT_ID]}: torch is drifting off the weld seam`
+              {ovenFault
+                ? `${PROBLEM_MACHINE_ID} ${MACHINE_LABELS[PROBLEM_MACHINE_ID]}: running over setpoint, over-baking loaves`
                 : `${alarmed.length === 1 ? alarmed[0] : `${alarmed.length} machines`} reading outside limits`}
             </div>
             <ul className="mt-2 flex flex-wrap gap-1.5">
               {evidence.map((e) => (
                 <li
-                  key={`${e.robotId}-${e.text.split(' ')[0]}`}
+                  key={`${e.machineId}-${e.text.split(' ')[0]}`}
                   className="font-mono-ui rounded-md px-2 py-0.5 text-[11px]"
                   style={{ color: STATUS_HEX[e.severity], backgroundColor: `${STATUS_HEX[e.severity]}14` }}
                 >
-                  {alarmed.length > 1 ? `${e.robotId} ` : ''}
+                  {alarmed.length > 1 ? `${e.machineId} ` : ''}
                   {e.text}
                 </li>
               ))}
             </ul>
-            {weldFault && (
+            {ovenFault && (
               <p className="mt-2 max-w-3xl text-xs leading-snug text-[var(--text-secondary)]">
-                Vibration and heat rising at the wrist while the weld offset climbs is the signature of a torch whose
-                tool-center-point has shifted. Every car through the weld station now gets its seam off-target.
+                Zone 2 temperature and burner output climbing together, followed by darker crusts at inspection, is the
+                signature of a temperature controller drifting off setpoint. Every loaf through the oven now over-bakes.
               </p>
             )}
           </div>
 
-          {weldFault && (
+          {ovenFault && (
             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
               {open && (
                 <div>
-                  <div className="font-mono-ui text-2xl font-semibold leading-none" style={{ color: incident.scrapped ? STATUS_HEX.critical : undefined }}>
-                    {incident.scrapped} / {incident.welds}
+                  <div className="font-mono-ui text-2xl font-semibold leading-none" style={{ color: incident.rejected ? STATUS_HEX.critical : undefined }}>
+                    {incident.rejected} / {incident.inspected}
                   </div>
-                  <div className="mt-1 text-[11px] text-[var(--text-secondary)]">cars failed weld QC since onset</div>
+                  <div className="mt-1 text-[11px] text-[var(--text-secondary)]">loaves rejected since onset</div>
                 </div>
               )}
               <div className="flex items-center gap-1.5 text-xs font-medium">
@@ -221,11 +224,11 @@ function Diagnosis() {
                   'Autopilot is recalibrating'
                 ) : paused ? (
                   <>
-                    Recommended: <Kbd>C</Kbd> recalibrate
+                    Recommended: <Kbd>C</Kbd> recalibrate oven
                   </>
                 ) : (
                   <>
-                    Recommended: <Kbd>S</Kbd> stop line, <Kbd>C</Kbd> recalibrate
+                    Recommended: <Kbd>S</Kbd> stop line, <Kbd>C</Kbd> recalibrate oven
                   </>
                 )}
               </div>

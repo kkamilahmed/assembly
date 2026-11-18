@@ -1,169 +1,169 @@
-// The per-machine process sensors - temperature, pressure and vibration for
-// all four arms - plus the manual fault injection that drives them out of
-// range.
+// Per-machine process sensors, plus the manual fault injection that drives
+// them out of range.
 //
-// These channels are NOT the weld-alignment pipeline (DriftAnalyzer): no car
-// is measured here and no QC verdict depends on them. They are the second,
-// coarser signal a real line publishes continuously from every machine, and
-// they exist so all four arms have something live to show on the fleet
-// overview - and so a fault can be put on any machine, on demand, without
-// waiting for the scripted weld-drift act to come round.
+// Every machine publishes three channels. The channel keys are generic
+// (temperature, load, vibration) so the stream, the store and the cards can
+// treat every machine alike; what each one means on a given machine (oven
+// zone temperature, burner output, fan vibration...) lives in SENSOR_SPECS.
 //
-// Generation is a mean-reverting random walk rather than a plain one: a
-// long-idle session would otherwise let a reading wander off and sit pinned
-// at its clamp, which reads as a broken machine nobody injected.
-import { ROBOT_IDS, type RobotId } from './lineConfig';
+// Generation is a mean-reverting random walk so a long-idle session never
+// wanders off and pins at a limit nobody injected.
+import { MACHINE_IDS, type MachineId } from './lineConfig';
 
-export const SENSOR_CHANNELS = ['temperature', 'pressure', 'vibration'] as const;
+export const SENSOR_CHANNELS = ['temperature', 'load', 'vibration'] as const;
 export type SensorChannel = (typeof SENSOR_CHANNELS)[number];
+
+/** Machine-independent names, for places that pick a channel across the
+ *  whole fleet (the fault-injection panel). */
+export const CHANNEL_NAMES: Record<SensorChannel, string> = {
+  temperature: 'Temperature',
+  load: 'Load',
+  vibration: 'Vibration',
+};
 
 export type SensorSeverity = 'healthy' | 'warning' | 'critical';
 
 export interface ChannelSpec {
   label: string;
   unit: string;
-  /** Whether the unit reads with a space after the number ("5.0 psi") or
-   *  without one ("71.0°C"). */
+  /** Whether the unit reads with a space after the number ("62 %") or not
+   *  ("221.4°C"). */
   unitGap: boolean;
   /** Ends of the displayed scale. `max` doubles as the ceiling an injection
    *  ramps toward, so a level-20 fault pins the channel at full scale. */
   min: number;
   max: number;
-  /** Alarm limits. Every profile below sits far enough under `warn` that an
-   *  uninjected line never trips one - an anomaly on this dashboard is
-   *  always something somebody caused. */
   warn: number;
   critical: number;
   decimals: number;
+  /** Healthy operating point and run-to-run wobble. */
+  base: number;
+  jitter: number;
 }
 
-export const CHANNEL_SPECS: Record<SensorChannel, ChannelSpec> = {
-  temperature: { label: 'Temperature', unit: '°C', unitGap: false, min: 20, max: 100, warn: 78, critical: 88, decimals: 1 },
-  pressure: { label: 'Pressure', unit: 'psi', unitGap: true, min: 0, max: 10, warn: 7.0, critical: 8.2, decimals: 1 },
-  vibration: { label: 'Vibration', unit: 'mm/s', unitGap: true, min: 0, max: 10, warn: 5.5, critical: 7.2, decimals: 2 },
+type MachineSpecs = Record<SensorChannel, ChannelSpec>;
+
+const temp = (label: string, min: number, max: number, warn: number, critical: number, base: number, jitter: number): ChannelSpec => ({
+  label, unit: '°C', unitGap: false, min, max, warn, critical, decimals: 1, base, jitter,
+});
+const pct = (label: string, warn: number, critical: number, base: number, jitter: number): ChannelSpec => ({
+  label, unit: '%', unitGap: false, min: 0, max: 100, warn, critical, decimals: 0, base, jitter,
+});
+const vib = (label: string, base: number, jitter: number): ChannelSpec => ({
+  label, unit: 'mm/s', unitGap: true, min: 0, max: 10, warn: 5.5, critical: 7.2, decimals: 2, base, jitter,
+});
+
+export const SENSOR_SPECS: Record<MachineId, MachineSpecs> = {
+  'MIXER-01': {
+    temperature: temp('Dough temp', 18, 34, 28, 30, 24.5, 0.25),
+    load: pct('Motor load', 82, 92, 58, 2.5),
+    vibration: vib('Bowl vibration', 2.6, 0.25),
+  },
+  'OVEN-01': {
+    temperature: temp('Zone 2 temp', 180, 300, 234, 250, 220, 0.9),
+    load: pct('Burner output', 85, 95, 62, 1.6),
+    vibration: vib('Fan vibration', 2.2, 0.2),
+  },
+  'VISION-01': {
+    temperature: temp('Camera temp', 20, 70, 50, 58, 36, 0.4),
+    load: pct('Inference load', 85, 95, 41, 3),
+    vibration: vib('Gantry vibration', 0.8, 0.1),
+  },
+  'PACK-01': {
+    temperature: temp('Seal jaw temp', 120, 220, 186, 196, 165, 0.8),
+    load: pct('Motor load', 82, 92, 54, 2.5),
+    vibration: vib('Frame vibration', 3.1, 0.3),
+  },
 };
 
-export function channelSeverity(channel: SensorChannel, value: number): SensorSeverity {
-  const spec = CHANNEL_SPECS[channel];
+export function channelSpec(machineId: MachineId, channel: SensorChannel): ChannelSpec {
+  return SENSOR_SPECS[machineId][channel];
+}
+
+export function channelSeverity(machineId: MachineId, channel: SensorChannel, value: number): SensorSeverity {
+  const spec = channelSpec(machineId, channel);
   if (value >= spec.critical) return 'critical';
   if (value >= spec.warn) return 'warning';
   return 'healthy';
 }
 
-export function formatReading(channel: SensorChannel, value: number): string {
-  const spec = CHANNEL_SPECS[channel];
+export function formatReading(machineId: MachineId, channel: SensorChannel, value: number): string {
+  const spec = channelSpec(machineId, channel);
   return `${value.toFixed(spec.decimals)}${spec.unitGap ? ' ' : ''}${spec.unit}`;
 }
 
-/** "20-100°C · limits 78 / 88" - a reading means nothing without the scale
- *  it sits on and the lines it is being judged against. */
-export function channelRangeLabel(channel: SensorChannel): string {
-  const spec = CHANNEL_SPECS[channel];
+/** "180-300°C · limits 234 / 250" - a reading means nothing without the
+ *  scale it sits on and the lines it is judged against. */
+export function channelRangeLabel(machineId: MachineId, channel: SensorChannel): string {
+  const spec = channelSpec(machineId, channel);
   const gap = spec.unitGap ? ' ' : '';
   return `${spec.min}-${spec.max}${gap}${spec.unit} · limits ${spec.warn} / ${spec.critical}`;
 }
 
-interface ChannelProfile {
-  base: number;
-  jitter: number;
-}
-
-interface MachineProfile {
-  temperature: ChannelProfile;
-  pressure: ChannelProfile;
-  vibration: ChannelProfile;
-  cyclesBase: number;
-}
-
-const PROFILES: Record<RobotId, MachineProfile> = {
-  'PANEL-01': {
-    temperature: { base: 52, jitter: 1.4 },
-    pressure: { base: 4.8, jitter: 0.15 },
-    vibration: { base: 2.9, jitter: 0.3 },
-    cyclesBase: 340,
-  },
-  'WELD-01': {
-    temperature: { base: 71, jitter: 1.8 },
-    pressure: { base: 5.0, jitter: 0.12 },
-    vibration: { base: 3.6, jitter: 0.35 },
-    cyclesBase: 410,
-  },
-  'PAINT-01': {
-    temperature: { base: 58, jitter: 1.2 },
-    pressure: { base: 4.6, jitter: 0.18 },
-    vibration: { base: 2.4, jitter: 0.25 },
-    cyclesBase: 300,
-  },
-  'WHEEL-01': {
-    temperature: { base: 55, jitter: 1.3 },
-    pressure: { base: 5.1, jitter: 0.14 },
-    vibration: { base: 3.1, jitter: 0.28 },
-    cyclesBase: 380,
-  },
-};
-
 export interface SensorReading {
   temperature: number;
-  pressure: number;
+  load: number;
   vibration: number;
   cycles: number;
 }
 
-export type SensorFrame = Record<RobotId, SensorReading>;
+export type SensorFrame = Record<MachineId, SensorReading>;
+
+const CYCLES_BASE: Record<MachineId, number> = { 'MIXER-01': 1240, 'OVEN-01': 8610, 'VISION-01': 8590, 'PACK-01': 1075 };
 
 export function initialSensorFrame(): SensorFrame {
   return Object.fromEntries(
-    ROBOT_IDS.map((id) => [
+    MACHINE_IDS.map((id) => [
       id,
       {
-        temperature: PROFILES[id].temperature.base,
-        pressure: PROFILES[id].pressure.base,
-        vibration: PROFILES[id].vibration.base,
-        cycles: PROFILES[id].cyclesBase,
+        temperature: SENSOR_SPECS[id].temperature.base,
+        load: SENSOR_SPECS[id].load.base,
+        vibration: SENSOR_SPECS[id].vibration.base,
+        cycles: CYCLES_BASE[id],
       } satisfies SensorReading,
     ]),
-  ) as Record<RobotId, SensorReading>;
+  ) as Record<MachineId, SensorReading>;
 }
 
 export const INTENSITY_MIN = 1;
 export const INTENSITY_MAX = 20;
 
 export interface FaultInjection {
-  /** `${robotId}:${channel}`. One injection per machine+channel pair, so
+  /** `${machineId}:${channel}`. One injection per machine+channel pair, so
    *  re-injecting a pair retunes it rather than stacking a second fault on
    *  top of the first. */
   id: string;
-  robotId: RobotId;
+  machineId: MachineId;
   channel: SensorChannel;
   /** 1..INTENSITY_MAX. */
   intensity: number;
   startedAt: number;
   /** `manual` came from the fault-injection panel. `scenario` is the
-   *  physical side effect of the presenter's D / E deviation: a torch being
-   *  dragged off its seam shakes and heats the arm. Only manual injections
+   *  physical side effect of the presenter's D / E deviation: an oven running
+   *  hot shows it in its zone temperature and burner output. Only manual injections
    *  are badged on the dashboard, because a scenario fault is meant to read
    *  as the machine genuinely misbehaving. */
   source: 'manual' | 'scenario';
 }
 
-export const injectionId = (robotId: RobotId, channel: SensorChannel) => `${robotId}:${channel}`;
+export const injectionId = (machineId: MachineId, channel: SensorChannel) => `${machineId}:${channel}`;
 
 /** Where an injected channel settles: a fraction of the way from this
  *  machine's healthy base to the top of the channel's scale, set by
  *  intensity. Bases differ per machine, so one intensity lands at different
  *  severities across the fleet - which is exactly what makes injecting all
  *  four at once worth looking at. */
-export function injectionTarget(robotId: RobotId, channel: SensorChannel, intensity: number): number {
-  const base = PROFILES[robotId][channel].base;
-  const spec = CHANNEL_SPECS[channel];
+export function injectionTarget(machineId: MachineId, channel: SensorChannel, intensity: number): number {
+  const base = SENSOR_SPECS[machineId][channel].base;
+  const spec = SENSOR_SPECS[machineId][channel];
   return base + (spec.max - base) * (intensity / INTENSITY_MAX);
 }
 
 /** What an injection at this intensity will settle at, before it is armed -
  *  so the panel can say what the slider is about to do rather than making
  *  you press Inject to find out. */
-export function injectionSeverity(robotId: RobotId, channel: SensorChannel, intensity: number): SensorSeverity {
-  return channelSeverity(channel, injectionTarget(robotId, channel, intensity));
+export function injectionSeverity(machineId: MachineId, channel: SensorChannel, intensity: number): SensorSeverity {
+  return channelSeverity(machineId, channel, injectionTarget(machineId, channel, intensity));
 }
 
 /** Fraction of the gap to its target a channel closes per tick. A healthy
@@ -187,18 +187,18 @@ const RECOVERY_PULL = 0.28;
  *  somebody caused. */
 const HEALTHY_ENVELOPE = 0.5;
 
-function healthyCeiling(robotId: RobotId, channel: SensorChannel): number {
-  const base = PROFILES[robotId][channel].base;
-  return base + (CHANNEL_SPECS[channel].warn - base) * HEALTHY_ENVELOPE;
+function healthyCeiling(machineId: MachineId, channel: SensorChannel): number {
+  const base = SENSOR_SPECS[machineId][channel].base;
+  return base + (SENSOR_SPECS[machineId][channel].warn - base) * HEALTHY_ENVELOPE;
 }
 
-function step(robotId: RobotId, channel: SensorChannel, value: number, injection: FaultInjection | undefined): number {
-  const spec = CHANNEL_SPECS[channel];
-  const profile = PROFILES[robotId][channel];
-  const target = injection ? injectionTarget(robotId, channel, injection.intensity) : profile.base;
+function step(machineId: MachineId, channel: SensorChannel, value: number, injection: FaultInjection | undefined): number {
+  const spec = SENSOR_SPECS[machineId][channel];
+  const profile = spec;
+  const target = injection ? injectionTarget(machineId, channel, injection.intensity) : profile.base;
   // Above its healthy envelope with nothing injected into it: this channel
   // is on its way back down from a fault that was just cleared.
-  const envelope = healthyCeiling(robotId, channel);
+  const envelope = healthyCeiling(machineId, channel);
   const recovering = !injection && value > envelope;
   const pull = injection ? INJECTED_PULL : recovering ? RECOVERY_PULL : HEALTHY_PULL;
   // A failing machine does not just read high, it reads unstable - so jitter
@@ -263,10 +263,10 @@ export class SensorStream {
   }
 
   /** Snap one machine's channels back to its healthy baseline. A
-   *  recalibration removes the mechanical cause, so the arm stops shaking
+   *  recalibration removes the cause, so the machine settles
    *  the moment it is done, not a dozen ticks later. */
-  recover(robotId: RobotId) {
-    this.frame = { ...this.frame, [robotId]: { ...initialSensorFrame()[robotId], cycles: this.frame[robotId].cycles } };
+  recover(machineId: MachineId) {
+    this.frame = { ...this.frame, [machineId]: { ...initialSensorFrame()[machineId], cycles: this.frame[machineId].cycles } };
     this.emit();
   }
 
@@ -283,13 +283,13 @@ export class SensorStream {
     if (this.paused) return;
     this.tickCount += 1;
     const next = {} as SensorFrame;
-    for (const robotId of ROBOT_IDS) {
-      const prev = this.frame[robotId];
+    for (const machineId of MACHINE_IDS) {
+      const prev = this.frame[machineId];
       const reading: SensorReading = { ...prev, cycles: prev.cycles + (this.tickCount % 3 === 0 ? 1 : 0) };
       for (const channel of SENSOR_CHANNELS) {
-        reading[channel] = step(robotId, channel, prev[channel], this.injections.get(injectionId(robotId, channel)));
+        reading[channel] = step(machineId, channel, prev[channel], this.injections.get(injectionId(machineId, channel)));
       }
-      next[robotId] = reading;
+      next[machineId] = reading;
     }
     this.frame = next;
     this.emit();

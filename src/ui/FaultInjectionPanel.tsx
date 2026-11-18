@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '@/state/store';
-import { ROBOT_IDS, ROBOT_LABELS, type RobotId } from '@/streaming/lineConfig';
+import { MACHINE_IDS, MACHINE_LABELS, type MachineId } from '@/streaming/lineConfig';
 import {
-  CHANNEL_SPECS,
+  CHANNEL_NAMES,
   channelSeverity,
+  channelSpec,
   formatReading,
   injectionSeverity,
   INTENSITY_MAX,
@@ -36,7 +37,7 @@ export function FaultInjectionPanel() {
   const open = useStore((s) => s.faultPanelOpen);
   const setOpen = useStore((s) => s.setFaultPanelOpen);
   // Only what somebody injected from this panel. The deviation keys put a
-  // physical signature on WELD-01's sensors too, but that is the machine
+  // physical signature on OVEN-01's sensors too, but that is the machine
   // misbehaving, not a fault this panel owns.
   const injections = useStore(useShallow((s) => s.injections.filter((i) => i.source === 'manual')));
   const injectFaults = useStore((s) => s.injectFaults);
@@ -47,7 +48,7 @@ export function FaultInjectionPanel() {
   // The stream's own clock, not the wall clock: see store.sensorsAt.
   const now = useStore((s) => s.sensorsAt);
 
-  const [machines, setMachines] = useState<RobotId[]>(() => [...ROBOT_IDS]);
+  const [machines, setMachines] = useState<MachineId[]>(() => [...MACHINE_IDS]);
   const [channels, setChannels] = useState<SensorChannel[]>(['vibration']);
   const [intensity, setIntensity] = useState(DEFAULT_INTENSITY);
 
@@ -64,21 +65,21 @@ export function FaultInjectionPanel() {
 
   // Selections are kept in canonical order, not click order, so the active
   // list and the grid always read top-left to bottom-right.
-  const toggleMachine = (id: RobotId) =>
-    setMachines((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : ROBOT_IDS.filter((r) => r === id || prev.includes(r))));
+  const toggleMachine = (id: MachineId) =>
+    setMachines((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : MACHINE_IDS.filter((r) => r === id || prev.includes(r))));
   const toggleChannel = (channel: SensorChannel) =>
     setChannels((prev) =>
       prev.includes(channel) ? prev.filter((c) => c !== channel) : SENSOR_CHANNELS.filter((c) => c === channel || prev.includes(c)),
     );
 
-  const allMachines = machines.length === ROBOT_IDS.length;
+  const allMachines = machines.length === MACHINE_IDS.length;
   const allChannels = channels.length === SENSOR_CHANNELS.length;
   const canInject = machines.length > 0 && channels.length > 0;
 
   // What this intensity will actually do, per selected pair, before anyone
   // presses the button - the same arithmetic the stream will run, so the
   // preview cannot disagree with the result.
-  const outcomes = machines.flatMap((robotId) => channels.map((channel) => injectionSeverity(robotId, channel, intensity)));
+  const outcomes = machines.flatMap((machineId) => channels.map((channel) => injectionSeverity(machineId, channel, intensity)));
   const critical = outcomes.filter((o) => o === 'critical').length;
   const warning = outcomes.filter((o) => o === 'warning').length;
   const inLimits = outcomes.length - critical - warning;
@@ -120,18 +121,18 @@ export function FaultInjectionPanel() {
         <section className="flex flex-col gap-1.5">
           <SectionLabel
             action={
-              <QuickAction onClick={() => setMachines(allMachines ? [] : [...ROBOT_IDS])}>
-                {allMachines ? 'Clear' : `Select all ${ROBOT_IDS.length}`}
+              <QuickAction onClick={() => setMachines(allMachines ? [] : [...MACHINE_IDS])}>
+                {allMachines ? 'Clear' : `Select all ${MACHINE_IDS.length}`}
               </QuickAction>
             }
           >
             Machine
           </SectionLabel>
           <div className="grid grid-cols-2 gap-1.5">
-            {ROBOT_IDS.map((id) => (
+            {MACHINE_IDS.map((id) => (
               <ToggleButton key={id} selected={machines.includes(id)} onClick={() => toggleMachine(id)}>
                 <span className="font-mono-ui block text-[11px] font-semibold">{id}</span>
-                <span className="block truncate text-[10px] text-[var(--text-secondary)]">{ROBOT_LABELS[id]}</span>
+                <span className="block truncate text-[10px] text-[var(--text-secondary)]">{MACHINE_LABELS[id]}</span>
               </ToggleButton>
             ))}
           </div>
@@ -148,15 +149,11 @@ export function FaultInjectionPanel() {
             Sensor
           </SectionLabel>
           {SENSOR_CHANNELS.map((channel) => {
-            const spec = CHANNEL_SPECS[channel];
             return (
               <ToggleButton key={channel} selected={channels.includes(channel)} onClick={() => toggleChannel(channel)}>
                 <span className="flex items-center gap-2 text-xs font-medium">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: METRIC_HEX[channel] }} />
-                  {spec.label}
-                  <span className="font-mono-ui ml-auto text-[10px] font-normal text-[var(--text-secondary)]">
-                    limits {spec.warn} / {spec.critical}
-                  </span>
+                  {CHANNEL_NAMES[channel]}
                 </span>
               </ToggleButton>
             );
@@ -287,8 +284,8 @@ function ActiveInjectionRow({
 }) {
   // The live reading, not the target: an injection that has only just been
   // armed is still on its way up, and the row should say so.
-  const value = useStore((s) => s.sensors[injection.robotId][injection.channel]);
-  const severity = channelSeverity(injection.channel, value);
+  const value = useStore((s) => s.sensors[injection.machineId][injection.channel]);
+  const severity = channelSeverity(injection.machineId, injection.channel, value);
   const color = STATUS_HEX[severity];
 
   return (
@@ -296,19 +293,19 @@ function ActiveInjectionRow({
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <div className="min-w-0 flex-1">
         <div className="font-mono-ui truncate text-[11px] font-medium">
-          {injection.robotId} &middot; {CHANNEL_SPECS[injection.channel].label}
+          {injection.machineId} &middot; {channelSpec(injection.machineId, injection.channel).label}
         </div>
         <div className="font-mono-ui text-[10px] text-[var(--text-secondary)]">
           level {injection.intensity} &middot;{' '}
           <span style={{ color, fontWeight: severity === 'healthy' ? undefined : 600 }}>
-            {formatReading(injection.channel, value)}
+            {formatReading(injection.machineId, injection.channel, value)}
           </span>{' '}
           &middot; {fmtDuration(now - injection.startedAt)}
         </div>
       </div>
       <button
         onClick={onClear}
-        aria-label={`Clear ${injection.robotId} ${CHANNEL_SPECS[injection.channel].label} fault`}
+        aria-label={`Clear ${injection.machineId} ${channelSpec(injection.machineId, injection.channel).label} fault`}
         className="shrink-0 rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-black/5 hover:text-[var(--text-primary)]"
       >
         <XIcon className="h-3 w-3" />

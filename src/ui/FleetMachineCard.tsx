@@ -1,14 +1,19 @@
-import { useEffect } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
-import { ContactShadows, Environment } from '@react-three/drei';
-import { ROBOT_X, ROBOT_Z } from '@/scene/constants';
-import { RobotArm } from '@/scene/RobotArm';
+import { Canvas } from '@react-three/fiber';
+import { ContactShadows, Environment, Lightformer, OrthographicCamera } from '@react-three/drei';
+import * as THREE from 'three';
+import { MachineModel } from '@/scene/MachineModel';
 import { useStore } from '@/state/store';
-import { PROBLEM_ROBOT_ID, ROBOT_LABELS, WELD_TOLERANCE_MM, type RobotId } from '@/streaming/lineConfig';
 import {
-  CHANNEL_SPECS,
+  BROWNING_TARGET,
+  BROWNING_TOLERANCE,
+  MACHINE_LABELS,
+  PROBLEM_MACHINE_ID,
+  type MachineId,
+} from '@/streaming/lineConfig';
+import {
   channelRangeLabel,
   channelSeverity,
+  channelSpec,
   formatReading,
   SENSOR_CHANNELS,
   type SensorChannel,
@@ -17,53 +22,36 @@ import { METRIC_HEX, STATUS_HEX } from './colors';
 import { useChannelInjection, useMachineSeverity, useSensorReading } from './fleetTelemetry';
 import { SegmentedMeter } from './SegmentedMeter';
 
-// R3F points the default camera at the world origin, which is ground level
-// at the arm's pedestal base - too low to frame a ~3m machine with headroom.
-// Re-aim it at roughly the arm's mid-height instead, once, on mount.
-function AimCamera({ target }: { target: [number, number, number] }) {
-  const camera = useThree((s) => s.camera);
-  useEffect(() => {
-    camera.lookAt(...target);
-  }, [camera, target]);
-  return null;
-}
-
-/** One machine's arm rendered alone in its own canvas. RobotArm places
- *  itself at this station's world position on the full line (ROBOT_X/
- *  ROBOT_Z, scene/constants.ts) - the inner group cancels that offset so
- *  every card frames its arm at the origin regardless of which station it
- *  is. No docked car ever reaches these standalone canvases, so each arm
- *  just idles at its authored rest pose (RobotArm.tsx's `reachBlend`
- *  requires a docked car to blend into any IK pose). */
-function MachinePreview({ robotId, active }: { robotId: RobotId; active: boolean }) {
+/** One machine rendered alone, from the same isometric angle as the plant,
+ *  so a card and the plant view show the same object. Lighter than the
+ *  plant's stage (no post-processing): four of these run at once. */
+function MachinePreview({ machineId, active }: { machineId: MachineId; active: boolean }) {
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
       dpr={[1, 1.5]}
       shadows
-      gl={{ antialias: true, alpha: true }}
-      // Pulled back and raised to match the larger machines - at the old
-      // distance the taller arms clipped straight out of the top of the
-      // card, which is what made WHEEL-01's preview look cropped.
-      camera={{ fov: 32, near: 0.1, far: 40, position: [6.0, 3.6, 7.6] }}
+      gl={{ antialias: true, alpha: true, toneMapping: THREE.NeutralToneMapping }}
     >
-      <AimCamera target={[0, 2.0, 0]} />
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[3, 5, 2]} intensity={1.3} castShadow shadow-mapSize={[512, 512]} />
-      <directionalLight position={[-3, 2, -2]} intensity={0.3} />
-      <Environment preset="studio" background={false} environmentIntensity={0.3} />
-      <group position={[-ROBOT_X[robotId], 0, -ROBOT_Z]}>
-        <RobotArm robotId={robotId} showProps={false} />
-      </group>
-      <ContactShadows position={[0, 0.01, 0]} scale={5.4} blur={2.2} far={4} resolution={256} opacity={0.45} color="#1a1d24" />
+      <OrthographicCamera makeDefault position={[20, 20 + 1.2, 20]} zoom={58} near={1} far={100} onUpdate={(c) => c.lookAt(0, 1.2, 0)} />
+      <hemisphereLight args={['#ffffff', '#c9ccd2', 0.9]} />
+      <directionalLight position={[-8, 18, 6]} intensity={2} castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight position={[10, 6, -8]} intensity={0.4} color="#dfe8ff" />
+      <Environment resolution={128} background={false} environmentIntensity={0.9}>
+        <color attach="background" args={['#c9ced6']} />
+        <Lightformer form="rect" intensity={3} position={[0, 10, 0]} rotation-x={Math.PI / 2} scale={[20, 20, 1]} />
+        <Lightformer form="rect" intensity={1.4} position={[-10, 4, 6]} rotation-y={Math.PI / 2} scale={[14, 6, 1]} />
+      </Environment>
+      <MachineModel machineId={machineId} />
+      <ContactShadows position={[0, 0.005, 0]} scale={8} blur={2.4} far={4} resolution={512} opacity={0.4} color="#1a1d24" />
     </Canvas>
   );
 }
 
-export function MachinePreviewCard({ robotId, active }: { robotId: RobotId; active: boolean }) {
+export function MachinePreviewCard({ machineId, active }: { machineId: MachineId; active: boolean }) {
   // Same reading as the telemetry card below it - the two cards describe the
   // same machine, so they must never disagree about whether it is healthy.
-  const severity = useMachineSeverity(robotId);
+  const severity = useMachineSeverity(machineId);
   const color = STATUS_HEX[severity];
   const alarmed = severity !== 'healthy';
 
@@ -84,19 +72,19 @@ export function MachinePreviewCard({ robotId, active }: { robotId: RobotId; acti
           className="absolute left-2.5 top-2.5 z-10 h-2 w-2 rounded-full"
           style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}33` }}
         />
-        <MachinePreview robotId={robotId} active={active} />
+        <MachinePreview machineId={machineId} active={active} />
       </div>
       <div className="flex shrink-0 items-center justify-between border-t border-[var(--border)] px-3 py-2 text-xs">
-        <span className="font-mono-ui text-[var(--text-secondary)]">{robotId}</span>
-        <span className="text-[var(--text-secondary)]">{ROBOT_LABELS[robotId]}</span>
+        <span className="font-mono-ui text-[var(--text-secondary)]">{machineId}</span>
+        <span className="text-[var(--text-secondary)]">{MACHINE_LABELS[machineId]}</span>
       </div>
     </div>
   );
 }
 
-export function TelemetryCard({ robotId }: { robotId: RobotId }) {
-  const severity = useMachineSeverity(robotId);
-  const reading = useSensorReading(robotId);
+export function TelemetryCard({ machineId }: { machineId: MachineId }) {
+  const severity = useMachineSeverity(machineId);
+  const reading = useSensorReading(machineId);
   const color = STATUS_HEX[severity];
   const alarmed = severity !== 'healthy';
 
@@ -112,8 +100,8 @@ export function TelemetryCard({ robotId }: { robotId: RobotId }) {
     >
       <div className="flex items-center justify-between">
         <div>
-          <div className="font-mono-ui text-xs font-semibold">{robotId}</div>
-          <div className="text-[11px] text-[var(--text-secondary)]">{ROBOT_LABELS[robotId]}</div>
+          <div className="font-mono-ui text-xs font-semibold">{machineId}</div>
+          <div className="text-[11px] text-[var(--text-secondary)]">{MACHINE_LABELS[machineId]}</div>
         </div>
         <span
           className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"
@@ -124,9 +112,9 @@ export function TelemetryCard({ robotId }: { robotId: RobotId }) {
         </span>
       </div>
 
-      {robotId === PROBLEM_ROBOT_ID && <WeldOffsetMeter />}
+      {machineId === PROBLEM_MACHINE_ID && <BrowningMeter />}
       {SENSOR_CHANNELS.map((channel) => (
-        <ChannelMeter key={channel} robotId={robotId} channel={channel} value={reading[channel]} />
+        <ChannelMeter key={channel} machineId={machineId} channel={channel} value={reading[channel]} />
       ))}
 
       <div className="font-mono-ui text-[11px] text-[var(--text-secondary)]">Cycles: {Math.round(reading.cycles)}</div>
@@ -134,18 +122,19 @@ export function TelemetryCard({ robotId }: { robotId: RobotId }) {
   );
 }
 
-/** The weld station's quality signal, alongside its process sensors: the
- *  windowed weld offset the analyzer computes from every car. */
-function WeldOffsetMeter() {
-  const robot = useStore((s) => s.robots[PROBLEM_ROBOT_ID]);
-  const color = robot.status === 'healthy' ? METRIC_HEX.offset : STATUS_HEX[robot.status];
+/** The oven's quality signal, alongside its process sensors: the windowed
+ *  crust browning vision inspection scores on every loaf. */
+function BrowningMeter() {
+  const machine = useStore((s) => s.machines[PROBLEM_MACHINE_ID]);
+  const color = machine.status === 'healthy' ? METRIC_HEX.offset : STATUS_HEX[machine.status];
+  const value = BROWNING_TARGET + machine.trend;
   return (
     <SegmentedMeter
-      label="Weld offset"
-      displayValue={`${robot.trendMm.toFixed(2)} mm`}
-      fraction={robot.trendMm / 2.5}
+      label="Crust browning"
+      displayValue={value.toFixed(1)}
+      fraction={(value - 30) / 50}
       color={color}
-      rangeLabel={`0-2.5 mm · spec ±${WELD_TOLERANCE_MM}`}
+      rangeLabel={`30-80 · target ${BROWNING_TARGET} ±${BROWNING_TOLERANCE}`}
     />
   );
 }
@@ -154,19 +143,19 @@ function WeldOffsetMeter() {
  *  three meters read apart; once a reading crosses a limit the bar switches
  *  to the status colour, because at that point which sensor it is matters
  *  less than that it is out of range. */
-function ChannelMeter({ robotId, channel, value }: { robotId: RobotId; channel: SensorChannel; value: number }) {
-  const injection = useChannelInjection(robotId, channel);
-  const severity = channelSeverity(channel, value);
-  const spec = CHANNEL_SPECS[channel];
+function ChannelMeter({ machineId, channel, value }: { machineId: MachineId; channel: SensorChannel; value: number }) {
+  const injection = useChannelInjection(machineId, channel);
+  const severity = channelSeverity(machineId, channel, value);
+  const spec = channelSpec(machineId, channel);
   const color = severity === 'healthy' ? METRIC_HEX[channel] : STATUS_HEX[severity];
 
   return (
     <SegmentedMeter
       label={spec.label}
-      displayValue={formatReading(channel, value)}
+      displayValue={formatReading(machineId, channel, value)}
       fraction={(value - spec.min) / (spec.max - spec.min)}
       color={color}
-      rangeLabel={channelRangeLabel(channel)}
+      rangeLabel={channelRangeLabel(machineId, channel)}
       badge={
         injection && (
           <span

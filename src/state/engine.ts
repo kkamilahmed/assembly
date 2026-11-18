@@ -1,54 +1,54 @@
-// The bridge between the streaming layer and the store - the ONLY file
-// that imports both `streaming/` and `state/store.ts`. Swapping in a real
-// Kafka/Flink backend means replacing the CarProducer/DriftAnalyzer/
-// SensorStream construction below with something exposing the same
-// listener surface (a WebSocket bridge, most likely); nothing in
-// state/store.ts, scene/, or ui/ needs to know the difference.
-import { CarProducer } from '@/streaming/CarProducer';
+// The bridge between the streaming layer and the store - the ONLY file that
+// imports both `streaming/` and `state/store.ts`. Swapping in a real
+// Kafka/Flink backend means replacing the LineProducer/DriftAnalyzer/
+// SensorStream construction below with something exposing the same listener
+// surface (a WebSocket bridge, most likely); nothing in state/store.ts,
+// scene/ or ui/ needs to know the difference.
+import { STATION_S } from '@/scene/layout';
 import { DriftAnalyzer } from '@/streaming/DriftAnalyzer';
-import { PROBLEM_ROBOT_ID, type RobotId } from '@/streaming/lineConfig';
+import { LineProducer } from '@/streaming/LineProducer';
+import { PROBLEM_MACHINE_ID, type MachineId } from '@/streaming/lineConfig';
 import { SensorStream } from '@/streaming/sensorStream';
 import { useStore } from './store';
 
-// Only the weld station measures the cars it works on. Panel, paint and
-// wheel are deterministic, visual-only stations.
-const weldAnalyzer = new DriftAnalyzer(PROBLEM_ROBOT_ID);
-const producer = new CarProducer();
+// Vision inspection scores every loaf the oven bakes.
+const inspection = new DriftAnalyzer(PROBLEM_MACHINE_ID);
+const producer = new LineProducer();
 const sensorStream = new SensorStream();
 
 let initialized = false;
 
-/** Start everything: the conveyor, the weld analyzer and the per-machine
- *  sensor stream. Idempotent. */
+/** Start everything: the line, the inspection analyzer and the sensor
+ *  stream. Idempotent. */
 export function initEngine() {
   if (initialized) return;
   initialized = true;
 
-  producer.init({ [PROBLEM_ROBOT_ID]: weldAnalyzer });
-  producer.onCarSpawn((carId, timestamp) => useStore.getState().ingestCarSpawn(carId, timestamp));
-  producer.onCarAdvance((carId, stationIndex, timestamp) => useStore.getState().advanceCar(carId, stationIndex, timestamp));
-  producer.onCarSiding((carId, timestamp) => useStore.getState().ingestCarRework(carId, timestamp));
-  producer.onCarExit((carId, timestamp) => useStore.getState().ingestCarExit(carId, timestamp));
-  producer.onPauseShift((deltaMs) => useStore.getState().shiftDockedTimestamps(deltaMs));
+  producer.init(
+    { ovenOut: STATION_S.ovenOut, inspect: STATION_S.inspect, reject: STATION_S.reject, pack: STATION_S.pack },
+    inspection,
+  );
+  producer.onSpawn((id, spawnedAt) => useStore.getState().ingestLoafSpawn(id, spawnedAt));
+  producer.onBaked((id, offset) => useStore.getState().ingestLoafBaked(id, offset));
+  producer.onReject((id, timestamp) => useStore.getState().ingestLoafReject(id, timestamp));
+  producer.onPacked((id) => useStore.getState().ingestLoafPacked(id));
+  producer.onPauseShift((deltaMs) => useStore.getState().shiftLoafTimestamps(deltaMs));
 
-  weldAnalyzer.onQCCheck((event) => useStore.getState().ingestQCCheck(event));
-  weldAnalyzer.onWindowStats((event) => useStore.getState().ingestWindowStats(event));
-  weldAnalyzer.onAction((event) => useStore.getState().ingestAction(event));
+  inspection.onQCCheck((event) => useStore.getState().ingestQCCheck(event));
+  inspection.onWindowStats((event) => useStore.getState().ingestWindowStats(event));
+  inspection.onAction((event) => useStore.getState().ingestAction(event));
 
   sensorStream.onFrame((frame, timestamp) => useStore.getState().ingestSensorFrame(frame, timestamp));
 
-  // The store owns no stream state and the streams own no store state: these
-  // subscriptions are the one place that carries line state across.
+  // The store owns no stream state and the streams own no store state: this
+  // subscription is the one place that carries line state across.
   let prevPaused = useStore.getState().paused;
   let prevInjections = useStore.getState().injections;
   useStore.subscribe((state) => {
     if (state.paused !== prevPaused) {
       prevPaused = state.paused;
       producer.configure({ paused: state.paused });
-      // The analyzer's trailing window is wall-clock aged, so it has to be
-      // told about the stop too - otherwise stopping the line to look at a
-      // fault silently ages every sample out from under it.
-      weldAnalyzer.configure({ paused: state.paused });
+      inspection.configure({ paused: state.paused });
       sensorStream.configure({ paused: state.paused });
     }
     if (state.injections !== prevInjections) {
@@ -58,27 +58,29 @@ export function initEngine() {
   });
 
   producer.start();
-  weldAnalyzer.start();
+  inspection.start();
   sensorStream.start();
 }
 
-/** Physical torch offset - the mechanical "true" drift on a robot. Written
- *  by the story director's ramps and by recalibration. */
-export function setRobotBias(robotId: RobotId, biasMm: number) {
-  producer.setRobotBias(robotId, biasMm);
+/** How far over target the oven is baking. Written by the story director's
+ *  ramps and by recalibration. */
+export function setOvenOffset(offset: number) {
+  producer.setOvenOffset(offset);
 }
 
-/** A recalibrated machine is a new process: zero its offset, drop the trend
- *  window that was measuring the old one, and settle its sensors. */
-export function recalibrateMachine(robotId: RobotId) {
-  producer.setRobotBias(robotId, 0);
-  if (robotId === PROBLEM_ROBOT_ID) weldAnalyzer.reset();
-  sensorStream.recover(robotId);
+/** A recalibrated machine is a new process: back on setpoint, the trend
+ *  window that measured the old one dropped, sensors settled. */
+export function recalibrateMachine(machineId: MachineId) {
+  if (machineId === PROBLEM_MACHINE_ID) {
+    producer.setOvenOffset(0);
+    inspection.reset();
+  }
+  sensorStream.recover(machineId);
 }
 
 export function resetLine() {
   producer.reset();
-  weldAnalyzer.reset();
+  inspection.reset();
   sensorStream.reset();
   useStore.getState().reset();
 }

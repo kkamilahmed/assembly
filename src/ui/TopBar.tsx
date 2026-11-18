@@ -1,34 +1,34 @@
 import { machineSeverity, useStore } from '@/state/store';
-import { PROBLEM_ROBOT_ID } from '@/streaming/lineConfig';
+import { PROBLEM_MACHINE_ID } from '@/streaming/lineConfig';
 import { STATUS_HEX } from './colors';
 import { Kbd } from './Kbd';
 
 /** The line's state in one phrase, coloured by how worried to be. */
 function useLineState(): { label: string; color: string } {
   const paused = useStore((s) => s.paused);
-  const severity = useStore((s) => machineSeverity(s, PROBLEM_ROBOT_ID));
+  const severity = useStore((s) => machineSeverity(s, PROBLEM_MACHINE_ID));
   if (paused) return { label: 'Line stopped', color: STATUS_HEX.critical };
-  if (severity === 'critical') return { label: `Running · ${PROBLEM_ROBOT_ID} critical`, color: STATUS_HEX.critical };
-  if (severity === 'warning') return { label: `Running · ${PROBLEM_ROBOT_ID} drifting`, color: STATUS_HEX.warning };
+  if (severity === 'critical') return { label: `Running · oven critical`, color: STATUS_HEX.critical };
+  if (severity === 'warning') return { label: `Running · oven running hot`, color: STATUS_HEX.warning };
   return { label: 'Running', color: STATUS_HEX.healthy };
 }
 
 export function TopBar({ onSwitch }: { onSwitch: () => void }) {
-  const carsBuilt = useStore((s) => s.carsBuilt);
-  const carsScrapped = useStore((s) => s.carsScrapped);
+  const packed = useStore((s) => s.loavesPacked);
+  const rejected = useStore((s) => s.loavesRejected);
   const autopilot = useStore((s) => s.autopilot);
   const setShortcutOverlayOpen = useStore((s) => s.setShortcutOverlayOpen);
   const line = useLineState();
 
-  const total = carsBuilt + carsScrapped;
-  const yieldPct = total > 0 ? (carsBuilt / total) * 100 : 100;
+  const total = packed + rejected;
+  const yieldPct = total > 0 ? (packed / total) * 100 : 100;
 
   return (
     <div className="flex items-center justify-between gap-6 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
       <div className="flex items-center gap-5">
         <div>
-          <div className="text-sm font-semibold">Assembly Plant · Line 2</div>
-          <div className="text-xs text-[var(--text-secondary)]">Body shop · panel, weld, paint, wheels</div>
+          <div className="text-sm font-semibold">Goldcrust Bakery · Line 1</div>
+          <div className="text-xs text-[var(--text-secondary)]">Mix, bake, inspect, pack</div>
         </div>
 
         <span
@@ -56,11 +56,11 @@ export function TopBar({ onSwitch }: { onSwitch: () => void }) {
 
       <div className="flex items-center gap-5">
         <dl className="font-mono-ui flex items-center gap-5 text-xs">
-          <Stat label="Built" value={String(carsBuilt)} />
+          <Stat label="Packed" value={packed.toLocaleString()} />
           <Stat
-            label="Rework"
-            value={String(carsScrapped)}
-            color={carsScrapped > 0 ? STATUS_HEX.critical : undefined}
+            label="Rejected"
+            value={rejected.toLocaleString()}
+            color={rejected > 0 ? STATUS_HEX.critical : undefined}
           />
           <Stat
             label="Yield"
