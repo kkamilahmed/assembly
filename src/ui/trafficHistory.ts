@@ -11,7 +11,7 @@ export const BUCKET_MS = 5_000;
 export const BUCKETS = 24;
 /** The fraud-rate line is the trailing rate over this long, sampled once a
  *  second. */
-const RATE_WINDOW_S = 10;
+const RATE_WINDOW_S = 15;
 const RATE_SAMPLES = 90;
 
 export interface Bucket {

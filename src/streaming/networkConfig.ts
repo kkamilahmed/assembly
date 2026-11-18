@@ -110,7 +110,7 @@ export const TAKEOVER_RISK = 62;
 
 /** How long an attack takes to build. Card testing creeps in, a takeover
  *  wave arrives all at once. */
-export const ATTACK_RAMP_MS = { slight: scaleMs(20000), emergency: scaleMs(1500) } as const;
+export const ATTACK_RAMP_MS = { slight: scaleMs(12000), emergency: scaleMs(1500) } as const;
 /** Once every test charge is declined the testers give up, over this long. */
 export const ATTACK_FADE_MS = scaleMs(5000);
 
