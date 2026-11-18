@@ -1,9 +1,10 @@
 // The look of the plant, in one place.
 //
 // The target is an isometric 3D illustration: a dark diorama slab on seamless
-// white, glossy rounded props, two accent colours (warm orange for heat and
-// the brand, clean blue for people and handling equipment) and crisp bevel
-// highlights on every edge. Every mesh in the scene takes its colours and
+// white with a pale clean-room floor on top, glossy rounded props, one brand
+// accent (Meridian blue, on machines, signs and packaging), a lighter blue
+// for people and handling equipment, and crisp bevel highlights on every
+// edge. Orange is kept for safety kit out in the yard. Every mesh in the scene takes its colours and
 // materials from here, so the whole plant reads as one illustration rather
 // than a pile of separately styled parts.
 //
@@ -19,15 +20,16 @@ export const PALETTE = {
   /** Clear colour. Set a touch above the target so it lands on a clean
    *  off-white after tone mapping. */
   background: '#fbfbfc',
-  slabTop: '#3a3d45',
+  /** Clean-room floor: pale sealed vinyl. */
+  slabTop: '#d4d9df',
   slabSide: '#1b1d21',
   slabEdge: '#3a3d44',
   hazardLight: '#eceef1',
   hazardDark: '#16171a',
   wall: '#2e3036',
   wallTrim: '#34373e',
-  floorWhite: '#f1f2f4',
-  tileLine: '#dcdfe4',
+  floorWhite: '#eef1f4',
+  tileLine: '#c3cad3',
 
   white: '#f6f7f9',
   offWhite: '#e7e9ed',
@@ -37,9 +39,11 @@ export const PALETTE = {
   rubber: '#26272b',
   glass: '#cfe3f1',
 
+  brand: '#1868d6',
+  brandDeep: '#0f4c9e',
+  teal: '#1fa39a',
   orange: '#f2782a',
   orangeDeep: '#d9601a',
-  orangeGlow: '#ff9440',
   blue: '#3b86e3',
   blueDeep: '#2563b8',
   amber: '#f5b53d',
@@ -48,10 +52,15 @@ export const PALETTE = {
   cardboardDark: '#a97a45',
   tape: '#3b86e3',
   palletWood: '#dcb47e',
-  flourSack: '#efe6d3',
+  foil: '#d9dde3',
+  drum: '#2f6fc4',
 
   skinTones: ['#f1c7a5', '#d9a07a', '#a8714f', '#7a4e33'],
   coat: '#f7f8fa',
+  /** Bouffant hood, face mask and overshoes of the clean-room gown. */
+  hood: '#c9dcf3',
+  mask: '#a9cdf0',
+  overshoe: '#b9d3f2',
   hairnet: '#5aa0ea',
   glove: '#3b86e3',
   trousers: '#2f3a4d',
@@ -62,25 +71,14 @@ export const PALETTE = {
   critical: '#e5484d',
 } as const;
 
-/** Bread, from raw dough to charcoal. `bake` 0 is dough, 1 is the perfect
- *  golden crust, 2 is the over-baked limit, 3 is burnt. */
-const CRUST_STOPS: Array<[number, THREE.Color]> = [
-  [0, new THREE.Color('#f1e9da')],
-  [1, new THREE.Color('#d98c38')],
-  [2, new THREE.Color('#9a5a26')],
-  [3, new THREE.Color('#3a2418')],
-];
+/** Tablets, from the press to the blister packer. `coat` 0 is the matte,
+ *  slightly creamy uncoated core straight off the press, 1 is the bright
+ *  film-coated tablet out of the coating drum. */
+const TABLET_RAW = new THREE.Color('#e6e0d4');
+const TABLET_COATED = new THREE.Color('#fdfdfe');
 
-export function crustColor(bake: number, out: THREE.Color = new THREE.Color()): THREE.Color {
-  const b = THREE.MathUtils.clamp(bake, 0, 3);
-  for (let i = 1; i < CRUST_STOPS.length; i++) {
-    const [b1, c1] = CRUST_STOPS[i];
-    if (b <= b1) {
-      const [b0, c0] = CRUST_STOPS[i - 1];
-      return out.copy(c0).lerp(c1, (b - b0) / (b1 - b0));
-    }
-  }
-  return out.copy(CRUST_STOPS[CRUST_STOPS.length - 1][1]);
+export function tabletColor(coat: number, out: THREE.Color = new THREE.Color()): THREE.Color {
+  return out.copy(TABLET_RAW).lerp(TABLET_COATED, THREE.MathUtils.clamp(coat, 0, 1));
 }
 
 const cache = new Map<string, THREE.Material>();
@@ -100,7 +98,7 @@ export function plastic(color: string, roughness = 0.32): THREE.MeshPhysicalMate
   );
 }
 
-/** Brushed stainless: food-grade machine bodies, rails, tunnels. */
+/** Brushed stainless: GMP machine bodies, rails, hoppers. */
 export function metal(color: string = PALETTE.steel, roughness = 0.28): THREE.MeshStandardMaterial {
   return cached(`metal:${color}:${roughness}`, () =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.85, envMapIntensity: 1.2 }),
@@ -112,7 +110,7 @@ export function matte(color: string, roughness = 0.8): THREE.MeshStandardMateria
   return cached(`matte:${color}:${roughness}`, () => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 }));
 }
 
-/** Self-lit: oven mouths, indicator lamps, screens. Not shadow-casting. */
+/** Self-lit: indicator lamps, screens. Not shadow-casting. */
 export function glow(color: string, intensity = 2): THREE.MeshStandardMaterial {
   return cached(`glow:${color}:${intensity}`, () =>
     new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.4, toneMapped: false }),

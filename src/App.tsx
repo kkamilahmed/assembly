@@ -16,9 +16,12 @@ const TRANSITION_MS = 550;
 
 const params = new URLSearchParams(window.location.search);
 /** `?still=1&shot=S02`: the scene alone, full window, no chrome. Used by the
- *  cook harness to render comparison stills. */
+ *  cook harness to render comparison stills. `&target=x,y,z&zoom=n` frames
+ *  a close-up instead of a named shot. */
 const STILL = params.get('still') === '1';
 const STILL_SHOT = (params.get('shot') as ShotId | null) ?? 'S01';
+const STILL_TARGET = params.get('target')?.split(',').map(Number) as [number, number, number] | undefined;
+const STILL_ZOOM = params.get('zoom') ? Number(params.get('zoom')) : undefined;
 
 export default function App() {
   if (STILL) return <StillView />;
@@ -31,7 +34,13 @@ function StillView() {
   }, []);
   return (
     <div className="h-full w-full">
-      <Scene active shot={STILL_SHOT in SHOTS ? STILL_SHOT : 'S01'} interactive={false} />
+      <Scene
+        active
+        shot={STILL_SHOT in SHOTS ? STILL_SHOT : 'S01'}
+        target={STILL_TARGET?.length === 3 ? STILL_TARGET : undefined}
+        zoom={STILL_ZOOM}
+        interactive={false}
+      />
     </div>
   );
 }

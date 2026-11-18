@@ -1,14 +1,15 @@
 // Where everything in the plant is. World units are metres-ish, scaled for
-// an illustration rather than a survey: loaves are a little large so they
-// read from the back of a room.
+// an illustration rather than a survey: trays of tablets are a lot larger
+// than life so they read from the back of a room.
 //
 // Orientation. The camera looks from the (+x, +y, +z) octant, so:
 //   - the walls are on the -x side (screen upper-left) and the -z side
 //     (screen upper-right),
 //   - +x +z is toward the viewer (screen bottom),
 //   - +x -z is screen right.
-// The dark slab is the factory floor. The white floor around it is the
-// outside yard: pallets, forklift and trucks sit there.
+// The slab is the clean room: a pale floor on a dark plinth, glazed on the
+// two open sides. The white floor around it is the outside yard: the cold
+// store, pallets, forklift and trucks sit there.
 import * as THREE from 'three';
 
 export const SLAB = { minX: -12, maxX: 8, minZ: -8, maxZ: 8, thickness: 0.6 } as const;
@@ -20,11 +21,11 @@ export const BELT_WIDTH = 0.9;
 
 /** The line's centreline, in order. Straight runs with rounded corners. */
 const LINE_POINTS: Array<[number, number]> = [
-  [-9, 6.2], // dough divider, under the mixer
-  [-9, -5], // turn toward the oven
-  [3, -5], // oven exit, turn toward inspection
-  [3, 5], // turn toward the packer
-  [6.4, 5], // into the packer
+  [-9, 5.6], // under the press's discharge chute
+  [-9, -5], // turn toward the coating drum
+  [3, -5], // turn toward inspection and the blister packer
+  [3, 5], // turn toward the cartoner
+  [6.4, 5], // into the cartoner
 ];
 const CORNER_RADIUS = 1.6;
 
@@ -71,34 +72,38 @@ function sAt(x: number, z: number): number {
   return best;
 }
 
-/** Machine positions. Each machine sits over the line at its own point. */
+/** Machine positions. The press, the drum, inspection, the blister packer
+ *  and the cartoner sit over the line at their own points; the blender
+ *  stands beside the press it feeds. */
 export const MACHINE_POS = {
-  mixer: new THREE.Vector3(-9, 0, 6.6),
-  ovenStart: new THREE.Vector3(-6.2, 0, -5),
-  ovenEnd: new THREE.Vector3(0.6, 0, -5),
-  vision: new THREE.Vector3(3, 0, -1.4),
-  rejectGate: new THREE.Vector3(3, 0, 0.9),
-  rejectBin: new THREE.Vector3(4.7, 0, 0.9),
-  packer: new THREE.Vector3(6.9, 0, 5),
+  press: new THREE.Vector3(-9, 0, 6.72),
+  blender: new THREE.Vector3(-6.2, 0, 6.0),
+  coaterStart: new THREE.Vector3(-5.8, 0, -5),
+  coaterEnd: new THREE.Vector3(-2.2, 0, -5),
+  vision: new THREE.Vector3(3, 0, -2.45),
+  rejectGate: new THREE.Vector3(3, 0, -0.55),
+  rejectBin: new THREE.Vector3(4.7, 0, -0.55),
+  blisterStart: new THREE.Vector3(3, 0, 0.95),
+  blisterEnd: new THREE.Vector3(3, 0, 3.3),
+  cartoner: new THREE.Vector3(6.9, 0, 5),
 } as const;
 
 /** Where along the line (arc length, m) each thing happens. */
 export const STATION_S = {
-  ovenIn: sAt(MACHINE_POS.ovenStart.x, MACHINE_POS.ovenStart.z),
-  ovenOut: sAt(MACHINE_POS.ovenEnd.x, MACHINE_POS.ovenEnd.z),
+  coatIn: sAt(MACHINE_POS.coaterStart.x, MACHINE_POS.coaterStart.z),
+  coatOut: sAt(MACHINE_POS.coaterEnd.x, MACHINE_POS.coaterEnd.z),
   inspect: sAt(MACHINE_POS.vision.x, MACHINE_POS.vision.z),
   reject: sAt(MACHINE_POS.rejectGate.x, MACHINE_POS.rejectGate.z),
+  /** Trays tip into the blister packer's feeder here... */
+  blisterIn: sAt(MACHINE_POS.blisterStart.x, MACHINE_POS.blisterStart.z),
+  /** ...and sealed blister cards come out here. */
+  blisterOut: sAt(MACHINE_POS.blisterEnd.x, MACHINE_POS.blisterEnd.z),
   pack: LINE_LENGTH - 0.6,
 } as const;
 
-/** The outside yard, on the white floor past the slab's +x edge. */
-export const YARD = {
-  /** Pallet the packer's boxes are stacked onto, just off the slab. */
-  outfeedPallet: new THREE.Vector3(9.6, 0, 5),
-  trucks: [new THREE.Vector3(14.5, 0, 6.5), new THREE.Vector3(15.5, 0, 1.2)],
-  forklift: new THREE.Vector3(11.5, 0, -1.5),
-  racks: new THREE.Vector3(12, 0, -6),
-} as const;
+/** Where the cartoner's shippers are palletised, out in the yard (on the
+ *  yard floor, one slab thickness down). */
+export const OUTFEED_PALLET = new THREE.Vector3(9.7, 0, 5.2);
 
 /** Framings, matched to the cook shot list (cook/SHOTS.md). S01 is the
  *  presenter's default view: the whole plant. */
