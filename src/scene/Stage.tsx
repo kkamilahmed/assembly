@@ -1,7 +1,7 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Environment, Lightformer, MapControls, OrthographicCamera } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ISO_DIR } from './layout';
 import { PostFX } from './PostFX';
@@ -31,7 +31,7 @@ export function Stage({
   active?: boolean;
   /** Pan and zoom, never rotate: the isometric angle is the look. */
   controls?: boolean;
-  onCreated?: (gl: THREE.WebGLRenderer) => void;
+  onCreated?: (gl: THREE.WebGLRenderer, scene: THREE.Scene) => void;
 }) {
   const [tx, ty, tz] = target;
   const t = useMemo(() => new THREE.Vector3(tx, ty, tz), [tx, ty, tz]);
@@ -40,15 +40,19 @@ export function Stage({
     <Canvas
       frameloop={active ? 'always' : 'never'}
       shadows={{ type: THREE.PCFSoftShadowMap }}
-      dpr={[1, 2]}
+      // Capped at 1.5: on a retina laptop 2x quadruples the pixels every
+      // post-processing pass has to touch, for a difference nobody can see
+      // on a projector.
+      dpr={[1, 1.5]}
       gl={{ antialias: false, toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true }}
-      onCreated={({ gl }) => onCreated?.(gl)}
+      onCreated={({ gl, scene }) => onCreated?.(gl, scene)}
     >
       {/* Slightly over 1.0 in linear light: tone mapping rolls a plain
           white off to light grey. PostFX's white point finishes the job;
           this stays under the bloom threshold so it never haloes. */}
       <color attach="background" args={[1.3, 1.3, 1.3]} />
       <FitZoom zoom={zoom} />
+      <ThrottledShadows />
       <OrthographicCamera
         makeDefault
         position={camPos.toArray()}
@@ -66,7 +70,7 @@ export function Stage({
         intensity={3.1}
         color="#fffaf3"
         castShadow
-        shadow-mapSize={[4096, 4096]}
+        shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0002}
         shadow-normalBias={0.03}
         shadow-radius={3.5}
@@ -116,6 +120,24 @@ export function Stage({
  *  view beside the sidebar) scales the zoom down so it shows the same
  *  framing instead of a tighter crop. */
 const DESIGN_HEIGHT = 990;
+
+/** Re-render the shadow map every other frame instead of every frame. Almost
+ *  everything in the plant is static and what moves (loaves, workers) moves
+ *  slowly, so the difference is invisible while the shadow pass, a full
+ *  redraw of the scene, costs half as much. */
+function ThrottledShadows() {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    get().gl.shadowMap.autoUpdate = false;
+    get().gl.shadowMap.needsUpdate = true;
+  }, [get]);
+  const flip = useRef(false);
+  useFrame(() => {
+    flip.current = !flip.current;
+    if (flip.current) get().gl.shadowMap.needsUpdate = true;
+  });
+  return null;
+}
 
 function FitZoom({ zoom }: { zoom: number }) {
   const get = useThree((s) => s.get);

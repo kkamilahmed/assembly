@@ -12,8 +12,10 @@ import { WhitePointEffect } from './WhitePoint';
 export function PostFX() {
   // Background 1.3 lands at about 0.926 after Neutral tone mapping.
   const whitePoint = useMemo(() => new WhitePointEffect(0.925), []);
+  // No separate normal pass: N8AO reconstructs normals from depth, and a
+  // normal pass re-renders the whole scene a second time.
   return (
-    <EffectComposer multisampling={0} enableNormalPass>
+    <EffectComposer multisampling={0}>
       <N8AO quality="high" aoRadius={1.5} intensity={3.2} distanceFalloff={0.6} denoiseSamples={8} color="black" />
       <Bloom luminanceThreshold={1.6} luminanceSmoothing={0.25} intensity={0.7} mipmapBlur />
       <SMAA />

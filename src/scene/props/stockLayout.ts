@@ -30,7 +30,9 @@ export function palletGeometry(): THREE.BufferGeometry {
     const gap = (1.0 - n * sw) / (n - 1);
     for (let i = 0; i < n; i++) out.push({ size: [1.2, 0.022, sw], pos: [0, 0.133, -0.5 + sw / 2 + i * (sw + gap)], r });
     return out;
-  });
+    // One bevel segment: a 7mm bevel on a board a few pixels tall needs no
+    // more, and pallets are drawn by the hundred.
+  }, 1);
 }
 
 export function cartonGeometries(size: [number, number, number]) {
@@ -65,7 +67,9 @@ export function sackGeometries() {
     // Crimped, stitched ends.
     { size: [0.05, 0.03, SACK.w - 0.04], pos: [SACK.l / 2 - 0.035, 0, 0], r: 0.012 },
     { size: [0.05, 0.03, SACK.w - 0.04], pos: [-SACK.l / 2 + 0.035, 0, 0], r: 0.012 },
-  ], 5);
+    // Three bevel segments keep the soft pillow edge; five cost 4,400
+    // triangles a sack, and there are hundreds of sacks.
+  ], 2);
   const print = merged('sackPrint', () => {
     const g = quad(0.36, 0.225).clone();
     g.rotateX(-Math.PI / 2);

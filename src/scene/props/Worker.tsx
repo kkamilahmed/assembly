@@ -365,7 +365,10 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
   );
 
   return (
-    <group {...props}>
+    // Only walking workers are `dynamic` (kept out of the scene's static
+    // batcher). A standing worker's idle sway is invisible at the plant's
+    // zoom, and batching the crew saves hundreds of draw calls a frame.
+    <group {...props} userData={{ dynamic: pose === 'walk' }}>
       <group scale={look.scale}>
         {leg(thighR, shinR, bootR)}
         {leg(thighL, shinL, bootL)}
