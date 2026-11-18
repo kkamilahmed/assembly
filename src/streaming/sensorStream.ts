@@ -3,8 +3,9 @@
 //
 // Every machine publishes three channels. The channel keys are generic
 // (temperature, load, vibration) so the stream, the store and the cards can
-// treat every machine alike; what each one means on a given machine (oven
-// zone temperature, burner output, fan vibration...) lives in SENSOR_SPECS.
+// treat every machine alike; what each one means on a given machine (the
+// welder's optics temperature, power below setpoint, lens fogging...) lives
+// in SENSOR_SPECS.
 //
 // Generation is a mean-reverting random walk so a long-idle session never
 // wanders off and pins at a limit nobody injected.
@@ -53,26 +54,37 @@ const vib = (label: string, base: number, jitter: number): ChannelSpec => ({
   label, unit: 'mm/s', unitGap: true, min: 0, max: 10, warn: 5.5, critical: 7.2, decimals: 2, base, jitter,
 });
 
+/** A 0-100 scale that reads as a percentage, for channels that are not a
+ *  load (lens fogging). */
+const share = (label: string, warn: number, critical: number, base: number, jitter: number): ChannelSpec => ({
+  label, unit: '%', unitGap: false, min: 0, max: 100, warn, critical, decimals: 0, base, jitter,
+});
+
 export const SENSOR_SPECS: Record<MachineId, MachineSpecs> = {
-  'MIXER-01': {
-    temperature: temp('Dough temp', 18, 34, 28, 30, 24.5, 0.25),
-    load: pct('Motor load', 82, 92, 58, 2.5),
-    vibration: vib('Bowl vibration', 2.6, 0.25),
+  'STK-2': {
+    temperature: temp('Servo temp', 20, 90, 65, 75, 41, 0.35),
+    load: pct('Press force', 82, 92, 57, 2.2),
+    vibration: vib('Arm vibration', 2.4, 0.22),
   },
-  'OVEN-01': {
-    temperature: temp('Zone 2 temp', 180, 300, 234, 250, 220, 0.9),
-    load: pct('Burner output', 85, 95, 62, 1.6),
-    vibration: vib('Fan vibration', 2.2, 0.2),
+  'LW-3': {
+    temperature: temp('Optics temp', 20, 90, 55, 65, 38, 0.4),
+    // How far the delivered laser power sits under its setpoint. A fogging
+    // lens absorbs power before it reaches the weld, so this and the lens
+    // reading climb together.
+    load: {
+      label: 'Power below setpoint', unit: '%', unitGap: false, min: 0, max: 20, warn: 5, critical: 12, decimals: 1, base: 0, jitter: 0.12,
+    },
+    vibration: share('Lens fogging', 30, 55, 8, 0.8),
   },
-  'VISION-01': {
-    temperature: temp('Camera temp', 20, 70, 50, 58, 36, 0.4),
-    load: pct('Inference load', 85, 95, 41, 3),
-    vibration: vib('Gantry vibration', 0.8, 0.1),
+  'CAS-4': {
+    temperature: temp('Adhesive temp', 40, 130, 98, 108, 78, 0.6),
+    load: pct('Robot load', 82, 92, 49, 2.5),
+    vibration: vib('Arm vibration', 2.1, 0.2),
   },
-  'PACK-01': {
-    temperature: temp('Seal jaw temp', 120, 220, 186, 196, 165, 0.8),
-    load: pct('Motor load', 82, 92, 54, 2.5),
-    vibration: vib('Frame vibration', 3.1, 0.3),
+  'EOL-5': {
+    temperature: temp('Hottest cell', 15, 80, 45, 55, 28, 0.3),
+    load: pct('Test load', 85, 95, 44, 2.5),
+    vibration: vib('Fixture vibration', 1.1, 0.12),
   },
 };
 
@@ -92,7 +104,7 @@ export function formatReading(machineId: MachineId, channel: SensorChannel, valu
   return `${value.toFixed(spec.decimals)}${spec.unitGap ? ' ' : ''}${spec.unit}`;
 }
 
-/** "180-300°C · limits 234 / 250" - a reading means nothing without the
+/** "20-90°C · limits 55 / 65" - a reading means nothing without the
  *  scale it sits on and the lines it is judged against. */
 export function channelRangeLabel(machineId: MachineId, channel: SensorChannel): string {
   const spec = channelSpec(machineId, channel);
@@ -109,7 +121,7 @@ export interface SensorReading {
 
 export type SensorFrame = Record<MachineId, SensorReading>;
 
-const CYCLES_BASE: Record<MachineId, number> = { 'MIXER-01': 1240, 'OVEN-01': 8610, 'VISION-01': 8590, 'PACK-01': 1075 };
+const CYCLES_BASE: Record<MachineId, number> = { 'STK-2': 18240, 'LW-3': 18236, 'CAS-4': 18229, 'EOL-5': 18221 };
 
 export function initialSensorFrame(): SensorFrame {
   return Object.fromEntries(
@@ -139,8 +151,8 @@ export interface FaultInjection {
   intensity: number;
   startedAt: number;
   /** `manual` came from the fault-injection panel. `scenario` is the
-   *  physical side effect of the presenter's D / E deviation: an oven running
-   *  hot shows it in its zone temperature and burner output. Only manual injections
+   *  physical side effect of the presenter's D / E deviation: a laser
+   *  drifting low shows it in its power and its fogging lens. Only manual injections
    *  are badged on the dashboard, because a scenario fault is meant to read
    *  as the machine genuinely misbehaving. */
   source: 'manual' | 'scenario';

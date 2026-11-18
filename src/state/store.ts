@@ -6,6 +6,8 @@ import {
   MIN_TREND_SAMPLES,
   PROBLEM_MACHINE_ID,
   WARN_TREND,
+  WELD_MIN_N,
+  WELD_NOMINAL_N,
   type MachineId,
 } from '@/streaming/lineConfig';
 import {
@@ -31,17 +33,18 @@ export interface TrendSample {
   v: number;
 }
 
-/** What the inspection pipeline knows about one machine's output. Only the
- *  oven's loaves are scored, so for the others this stays at rest. */
+/** What the weld-check pipeline knows about one machine's output. Only the
+ *  welder's modules are scored, so for the others this stays at rest. */
 export interface MachineState {
   id: MachineId;
   label: string;
   /** Derived from `trend`, never set directly. */
   status: Severity;
-  /** Windowed mean browning offset of the loaves this machine produced. */
+  /** Windowed mean weld-strength offset (N) of the modules this machine
+   *  welded. Negative is weaker. */
   trend: number;
   history: TrendSample[];
-  /** The most recent single loaf's offset. */
+  /** The most recent single module's offset. */
   lastOffset: number | null;
   recalibrationRecommended: boolean;
   lastRecalibratedAt: number | null;
@@ -49,23 +52,24 @@ export interface MachineState {
 }
 
 /**
- * One loaf on the line.
- *  verdict none - not inspected yet
- *          pass - inside tolerance, heading for the packer
- *          fail - over-baked, kicked into the reject bin at the gate
+ * One battery module on the line.
+ *  verdict none - not checked yet
+ *          pass - welds hold, heading for the casing, tester and AGVs
+ *          fail - weak welds: flagged red, diverted to scrap at the reject
+ *                 station
  */
-export type LoafVerdict = 'none' | 'pass' | 'fail';
+export type ModuleVerdict = 'none' | 'pass' | 'fail';
 
-export interface Loaf {
+export interface LineModule {
   id: string;
-  /** Effective spawn time. Shifted forward by every stop, so a loaf's
+  /** Effective spawn time. Shifted forward by every stop, so a module's
    *  distance along the belt is always (now - spawnedAt) * BELT_SPEED. */
   spawnedAt: number;
-  /** Browning offset, known once the loaf leaves the oven. */
+  /** Weld-strength offset, N, known once the module leaves the welder. */
   offset: number | null;
-  verdict: LoafVerdict;
-  /** Set when the reject gate kicks it off the belt. */
-  rejectedAt: number | null;
+  verdict: ModuleVerdict;
+  /** Set when the reject station pushes it off the belt. */
+  scrappedAt: number | null;
 }
 
 export interface FeedItem {
@@ -81,15 +85,15 @@ export interface FeedItem {
  * audience sees is measured rather than asserted.
  */
 export interface Incident {
-  /** Ground zero: when the oven fault started. Only the story director
+  /** Ground zero: when the welder fault started. Only the story director
    *  knows this, because it causes it. */
   faultStartedAt: number;
-  /** When the stream first flagged the oven as anything but healthy, from
-   *  its sensors or its loaves' browning trend, whichever came first. */
+  /** When the stream first flagged the welder as anything but healthy, from
+   *  its sensors or its modules' weld-strength trend, whichever came first. */
   detectedAt: number | null;
   stoppedAt: number | null;
   resolvedAt: number | null;
-  /** Loaves inspected since the fault started, and how many failed. */
+  /** Modules checked since the fault started, and how many failed. */
   inspected: number;
   rejected: number;
   resolvedBy: 'operator' | 'autopilot' | null;
@@ -146,7 +150,7 @@ function fmtLatency(ms: number): string {
   return ms < 100 ? '<0.1' : (ms / 1000).toFixed(1);
 }
 
-/** Stamp detection the first time the oven leaves healthy while an
+/** Stamp detection the first time the welder leaves healthy while an
  *  incident is open. */
 function withDetection(state: StoreState, next: Partial<StoreState>, now: number): Partial<StoreState> {
   const incident = state.incident;
@@ -190,7 +194,7 @@ interface ActionPayload {
 
 export interface StoreState {
   machines: Record<MachineId, MachineState>;
-  loaves: Loaf[];
+  modules: LineModule[];
   feed: FeedItem[];
 
   /** The line is stopped: belt, machines and analyzer window freeze
@@ -199,13 +203,13 @@ export interface StoreState {
   /** Wall clock the line was stopped at, so the scene can freeze its own
    *  clock at the same instant. */
   pausedAt: number | null;
-  /** Standing policy: recalibrate the oven the moment the stream flags it.
+  /** Standing policy: recalibrate the welder the moment the stream flags it.
    *  Not cleared by reset(): it is a rule the line now runs under. */
   autopilot: boolean;
 
-  loavesPacked: number;
-  loavesRejected: number;
-  /** Wall clock of the last reject gate kick, for the pusher animation. */
+  modulesPassed: number;
+  modulesScrapped: number;
+  /** Wall clock of the last reject push, for the pusher animation. */
   lastKickAt: number | null;
   incident: Incident | null;
   autopilotCatch: AutopilotCatch | null;
@@ -219,11 +223,11 @@ export interface StoreState {
   faultPanelOpen: boolean;
 
   // ---- ingestion actions, called only from state/engine.ts ----
-  ingestLoafSpawn: (id: string, spawnedAt: number) => void;
-  ingestLoafBaked: (id: string, offset: number) => void;
-  ingestLoafReject: (id: string, timestamp: number) => void;
-  ingestLoafPacked: (id: string) => void;
-  shiftLoafTimestamps: (deltaMs: number) => void;
+  ingestModuleSpawn: (id: string, spawnedAt: number) => void;
+  ingestModuleWelded: (id: string, offset: number) => void;
+  ingestModuleScrap: (id: string, timestamp: number) => void;
+  ingestModuleShipped: (id: string) => void;
+  shiftModuleTimestamps: (deltaMs: number) => void;
   ingestQCCheck: (event: QCCheckPayload) => void;
   ingestWindowStats: (event: WindowStatsPayload) => void;
   ingestAction: (event: ActionPayload) => void;
@@ -254,21 +258,21 @@ function feed(state: StoreState, item: FeedItem): FeedItem[] {
   return [item, ...state.feed].slice(0, FEED_MAX);
 }
 
-/** Rejected loaves linger long enough to fly into the bin, then leave the
- *  list; the bin draws its pile from the count. */
-const REJECT_LINGER_MS = 1500;
+/** Scrapped modules linger long enough to slide into the scrap cage, then
+ *  leave the list; the cage draws its pile from the count. */
+const SCRAP_LINGER_MS = 1500;
 
 export const useStore = create<StoreState>((set) => ({
   machines: makeInitialMachines(),
-  loaves: [],
+  modules: [],
   feed: [],
 
   paused: false,
   pausedAt: null,
   autopilot: false,
 
-  loavesPacked: 0,
-  loavesRejected: 0,
+  modulesPassed: 0,
+  modulesScrapped: 0,
   lastKickAt: null,
   incident: null,
   autopilotCatch: null,
@@ -281,36 +285,36 @@ export const useStore = create<StoreState>((set) => ({
   sensorPipeline: { readings: 0, anomalies: 0 },
   faultPanelOpen: false,
 
-  ingestLoafSpawn: (id, spawnedAt) =>
+  ingestModuleSpawn: (id, spawnedAt) =>
     set((state) => ({
-      loaves: [
-        ...state.loaves.filter((l) => l.rejectedAt === null || spawnedAt - l.rejectedAt < REJECT_LINGER_MS),
-        { id, spawnedAt, offset: null, verdict: 'none', rejectedAt: null },
+      modules: [
+        ...state.modules.filter((m) => m.scrappedAt === null || spawnedAt - m.scrappedAt < SCRAP_LINGER_MS),
+        { id, spawnedAt, offset: null, verdict: 'none', scrappedAt: null },
       ],
     })),
 
-  ingestLoafBaked: (id, offset) =>
-    set((state) => ({ loaves: state.loaves.map((l) => (l.id === id ? { ...l, offset } : l)) })),
+  ingestModuleWelded: (id, offset) =>
+    set((state) => ({ modules: state.modules.map((m) => (m.id === id ? { ...m, offset } : m)) })),
 
-  ingestLoafReject: (id, timestamp) =>
+  ingestModuleScrap: (id, timestamp) =>
     set((state) => ({
-      loaves: state.loaves.map((l) => (l.id === id ? { ...l, rejectedAt: timestamp } : l)),
-      loavesRejected: state.loavesRejected + 1,
+      modules: state.modules.map((m) => (m.id === id ? { ...m, scrappedAt: timestamp } : m)),
+      modulesScrapped: state.modulesScrapped + 1,
       lastKickAt: timestamp,
     })),
 
-  ingestLoafPacked: (id) =>
+  ingestModuleShipped: (id) =>
     set((state) => ({
-      loaves: state.loaves.filter((l) => l.id !== id),
-      loavesPacked: state.loavesPacked + 1,
+      modules: state.modules.filter((m) => m.id !== id),
+      modulesPassed: state.modulesPassed + 1,
     })),
 
-  shiftLoafTimestamps: (deltaMs) =>
+  shiftModuleTimestamps: (deltaMs) =>
     set((state) => ({
-      loaves: state.loaves.map((l) => ({
-        ...l,
-        spawnedAt: l.spawnedAt + deltaMs,
-        rejectedAt: l.rejectedAt === null ? null : l.rejectedAt + deltaMs,
+      modules: state.modules.map((m) => ({
+        ...m,
+        spawnedAt: m.spawnedAt + deltaMs,
+        scrappedAt: m.scrappedAt === null ? null : m.scrappedAt + deltaMs,
       })),
       lastKickAt: state.lastKickAt === null ? null : state.lastKickAt + deltaMs,
     })),
@@ -318,8 +322,8 @@ export const useStore = create<StoreState>((set) => ({
   ingestQCCheck: (event) =>
     set((state) => {
       const machine = state.machines[event.machine_id];
-      const loaves = state.loaves.map((l) =>
-        l.id === event.item_id ? { ...l, verdict: (event.suspect ? 'fail' : 'pass') as LoafVerdict } : l,
+      const modules = state.modules.map((m) =>
+        m.id === event.item_id ? { ...m, verdict: (event.suspect ? 'fail' : 'pass') as ModuleVerdict } : m,
       );
       const incident =
         state.incident && state.incident.resolvedAt === null
@@ -330,15 +334,15 @@ export const useStore = create<StoreState>((set) => ({
             }
           : state.incident;
       const machines = { ...state.machines, [event.machine_id]: { ...machine, lastOffset: event.offset } };
-      if (!event.suspect) return { loaves, incident, machines };
+      if (!event.suspect) return { modules, incident, machines };
       return {
-        loaves,
+        modules,
         incident,
         machines,
         feed: feed(state, {
           id: `${event.item_id}-qc`,
           timestamp: event.timestamp,
-          text: `Loaf ${event.item_id} over-baked (browning +${event.offset.toFixed(1)}) - rejected`,
+          text: `Module ${event.item_id} weak welds (${(WELD_NOMINAL_N + event.offset).toFixed(0)} N, min ${WELD_MIN_N}) - flagged for scrap`,
           tone: 'critical',
         }),
       };
@@ -360,9 +364,9 @@ export const useStore = create<StoreState>((set) => ({
     set((state) => {
       const machine = state.machines[event.machine_id];
       const text = {
-        drift_warning: `${event.machine_id} loaves browning over target - oven drifting`,
-        drift_critical: `${event.machine_id} loaves burning - stop and recalibrate`,
-        drift_cleared: `${event.machine_id} browning back on target`,
+        drift_warning: `${event.machine_id} weld strength falling - laser power drifting`,
+        drift_critical: `${event.machine_id} welds failing - stop and recalibrate`,
+        drift_cleared: `${event.machine_id} weld strength back on nominal`,
       }[event.action];
       const tone = ({ drift_warning: 'warning', drift_critical: 'critical', drift_cleared: 'success' } as const)[event.action];
       return {
@@ -445,8 +449,8 @@ export const useStore = create<StoreState>((set) => ({
           timestamp,
           text:
             by === 'autopilot'
-              ? `Autopilot recalibrated ${machineId} - zone temperature back on setpoint`
-              : `${machineId} recalibrated - zone temperature back on setpoint`,
+              ? `Autopilot recalibrated ${machineId} - laser power back on setpoint`
+              : `${machineId} recalibrated - laser power back on setpoint`,
           tone: 'success',
         }),
       };
@@ -499,12 +503,12 @@ export const useStore = create<StoreState>((set) => ({
   reset: () =>
     set({
       machines: makeInitialMachines(),
-      loaves: [],
+      modules: [],
       feed: [],
       paused: false,
       pausedAt: null,
-      loavesPacked: 0,
-      loavesRejected: 0,
+      modulesPassed: 0,
+      modulesScrapped: 0,
       lastKickAt: null,
       incident: null,
       autopilotCatch: null,

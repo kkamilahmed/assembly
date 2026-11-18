@@ -2,24 +2,25 @@
 // serialize these same shapes over a WebSocket/SSE bridge - see README.
 import type { MachineId } from './lineConfig';
 
-/** Vision inspection's reading for one loaf: how far its crust browning is
- *  from the target bake. */
+/** The weld check's reading for one module: how far its weakest busbar weld
+ *  is from nominal pull strength, in newtons. */
 export interface MeasurementEvent {
   topic: 'measurements';
   machine_id: MachineId;
   item_id: string;
   timestamp: number;
-  /** Browning index minus target. Positive is over-baked. */
+  /** Weld strength minus nominal, N. Negative is weaker. */
   offset: number;
 }
 
-/** The QC verdict for one loaf. Every loaf is inspected as it streams past. */
+/** The QC verdict for one module. Every module is checked as it streams past. */
 export interface QCCheckEvent {
   topic: 'qc-checks';
   machine_id: MachineId;
   item_id: string;
   timestamp: number;
-  /** Out of tolerance: the loaf is kicked into the reject bin. */
+  /** Under the weld minimum: the module is flagged and scrapped at the
+   *  reject station. */
   suspect: boolean;
   offset: number;
 }
@@ -35,18 +36,18 @@ export interface DriftActionEvent {
   reason: string;
 }
 
-/** Windowed rollup, emitted every second. Drives the trend sparkline. */
+/** Windowed rollup, emitted every half second. Drives the trend chart. */
 export interface WindowStatsEvent {
   topic: 'machine-metrics';
   kind: 'window-stats';
   machine_id: MachineId;
   timestamp: number;
-  /** Windowed mean browning offset. */
+  /** Windowed mean weld-strength offset, N. */
   trend: number;
   sampleCount: number;
-  /** Least-squares slope of the offset across the window, per second. */
+  /** Least-squares slope of the offset across the window, N per second. */
   trendSlopePerSec: number;
-  /** Projected ms until the trend reaches the tolerance at the current
+  /** Projected ms until the trend reaches the weld minimum at the current
    *  slope, or null when it isn't heading there. */
   projectedBreachMs: number | null;
 }

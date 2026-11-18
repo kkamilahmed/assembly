@@ -1,13 +1,16 @@
 // The presenter's controls, as plain functions the keyboard and the on-screen
 // action bar both call:
 //
-//   D  slight deviation  - the oven's zone 2 creeps over setpoint. Some loaves
-//                          come out over-baked and are rejected.
-//   E  emergency         - burner runaway. Every loaf burns.
+//   D  slight deviation  - the laser welder's power drifts about 9% low as its
+//                          lens fogs. Some welds come out weak; those modules
+//                          are flagged and scrapped.
+//   E  emergency         - laser power collapses: every weld fails and the
+//                          end-of-line tester sees a cell overheating.
 //   S  stop / start line
-//   C  recalibrate the oven
-//   A  run on autopilot  - the line recalibrates itself the moment the stream
-//                          flags the oven
+//   C  recalibrate the laser
+//   A  run on autopilot  - the line puts the laser back on setpoint the
+//                          moment the stream flags it, the way it trims power
+//                          as a lens ages
 //
 // Nothing here runs on its own: the line stays healthy until a key is
 // pressed, so the presenter decides when the story moves.
@@ -16,31 +19,44 @@ import {
   DEVIATION_OFFSET,
   DEVIATION_RAMP_MS,
   PROBLEM_MACHINE_ID,
+  TESTER_MACHINE_ID,
   type DeviationLevel,
+  type MachineId,
 } from '@/streaming/lineConfig';
 import type { SensorChannel } from '@/streaming/sensorStream';
-import { recalibrateMachine, resetLine, setOvenOffset } from './engine';
+import { recalibrateMachine, recoverSensors, resetLine, setWeldOffset } from './engine';
 import { machineSeverity, useStore } from './store';
 
 /**
- * What an oven running hot does to its own sensors. A loaf's browning is only
- * measured once it has travelled from the oven to the camera, but the zone
- * temperature and the burner output move within a second or two - which is
- * why the machines screen lights up before the first over-baked loaf reaches
- * inspection, and why the autopilot can act before a pile of them does.
+ * What a laser drifting low does to the sensors. A module's weld strength is
+ * only measured once it has travelled from the welder to the weld check, but
+ * the delivered power and the lens reading move within a second or two -
+ * which is why the machines screen lights up before the first weak module
+ * reaches the camera, and why the autopilot can act before a pile of them
+ * does. An emergency also shows downstream: a cell joined by a weld that
+ * barely penetrated runs hot on the end-of-line tester.
  *
  * Intensities are on the fault-injection scale (1-20, a fraction of each
  * channel's headroom): slight settles in the warning band, emergency in
  * critical.
  */
-const SENSOR_SIGNATURE: Record<DeviationLevel, Partial<Record<SensorChannel, number>>> = {
-  slight: { temperature: 5, load: 11 },
-  emergency: { temperature: 14, load: 17, vibration: 9 },
+const SENSOR_SIGNATURE: Record<DeviationLevel, Array<[MachineId, SensorChannel, number]>> = {
+  slight: [
+    [PROBLEM_MACHINE_ID, 'load', 9],
+    [PROBLEM_MACHINE_ID, 'vibration', 6],
+    [PROBLEM_MACHINE_ID, 'temperature', 3],
+  ],
+  emergency: [
+    [PROBLEM_MACHINE_ID, 'load', 17],
+    [PROBLEM_MACHINE_ID, 'vibration', 12],
+    [PROBLEM_MACHINE_ID, 'temperature', 12],
+    [TESTER_MACHINE_ID, 'temperature', 14],
+  ],
 };
 
 const FAULT_TEXT: Record<DeviationLevel, string> = {
-  slight: `${PROBLEM_MACHINE_ID} zone 2 starting to run hot`,
-  emergency: `${PROBLEM_MACHINE_ID} burner runaway`,
+  slight: `${PROBLEM_MACHINE_ID} laser power starting to drift low`,
+  emergency: `${PROBLEM_MACHINE_ID} laser power collapse - overheating cell on ${TESTER_MACHINE_ID}`,
 };
 
 let rampTimers: number[] = [];
@@ -60,26 +76,26 @@ function rampOffset(to: number, durationMs: number) {
     rampTimers.push(
       window.setTimeout(() => {
         currentOffset = from + ((to - from) * i) / steps;
-        setOvenOffset(currentOffset);
+        setWeldOffset(currentOffset);
       }, (i / steps) * durationMs),
     );
   }
 }
 
-/** D / E. Drifts the oven to the level's offset and puts the matching
- *  physical signature on its sensors. Pressing E during a slight deviation
+/** D / E. Drifts the laser to the level's offset and puts the matching
+ *  physical signature on the sensors. Pressing E during a slight deviation
  *  escalates it. */
 export function injectDeviation(level: DeviationLevel) {
   const store = useStore.getState();
   store.openIncident(Date.now(), FAULT_TEXT[level]);
   store.clearInjections('scenario');
-  for (const [channel, intensity] of Object.entries(SENSOR_SIGNATURE[level])) {
-    store.injectFaults([PROBLEM_MACHINE_ID], [channel as SensorChannel], intensity, 'scenario');
+  for (const [machineId, channel, intensity] of SENSOR_SIGNATURE[level]) {
+    store.injectFaults([machineId], [channel], intensity, 'scenario');
   }
   rampOffset(DEVIATION_OFFSET[level], DEVIATION_RAMP_MS[level]);
 }
 
-/** C. Puts the oven back on setpoint: zero offset, sensors settle, trend
+/** C. Puts the laser back on setpoint: zero offset, sensors settle, trend
  *  window restarts, incident closed. */
 export function recalibrate(by: 'operator' | 'autopilot' = 'operator') {
   clearRamp();
@@ -87,6 +103,7 @@ export function recalibrate(by: 'operator' | 'autopilot' = 'operator') {
   const store = useStore.getState();
   store.clearInjections('scenario');
   recalibrateMachine(PROBLEM_MACHINE_ID);
+  recoverSensors(TESTER_MACHINE_ID);
   store.markRecalibrated(PROBLEM_MACHINE_ID, Date.now(), by);
 }
 
@@ -122,15 +139,16 @@ export function resetDemo() {
 
 /** How long autopilot takes to act once the machine is flagged: long enough
  *  that the flagged state is visible for a beat on screen, short enough that
- *  the next loaf out of the oven is already back on target. */
+ *  the next module out of the welder is already back on nominal. */
 const AUTOPILOT_REACTION_MS = scaleMs(600);
 
 /**
  * The autopilot acts on what the pipeline has *detected*, not on what the
- * story director knows it caused: it waits for OVEN-01 to leave healthy on
- * the same readings the dashboard shows, then recalibrates. That is the
- * honest version of the claim - real-time analysis is what lets the line
- * fix itself before a stream of burnt loaves comes off it.
+ * story director knows it caused: it waits for LW-3 to leave healthy on the
+ * same readings the dashboard shows, then trims the laser back onto its
+ * setpoint. That is the honest version of the claim - real-time analysis is
+ * what lets the line fix itself before a stream of scrapped modules comes
+ * off it.
  */
 function maybeAutoRecalibrate() {
   const state = useStore.getState();

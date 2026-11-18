@@ -1,4 +1,4 @@
-// Seedable PRNG for the bake process-noise stream.
+// Seedable PRNG for the weld process-noise stream.
 //
 // CarProducer used Math.random() directly, which makes every run different:
 // the defect count, the detection latency and the "shipped undetected" gap

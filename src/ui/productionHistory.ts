@@ -1,5 +1,5 @@
 // Short rolling history of the line's output, for the dashboard screen:
-// good and rejected loaves per interval. Derived from the store's stream as
+// modules that passed and failed the weld check, per interval. Derived from the store's stream as
 // it arrives, outside React, so the screen just reads the latest snapshot.
 import { useSyncExternalStore } from 'react';
 import { useStore, type StoreState } from '@/state/store';
@@ -31,12 +31,12 @@ function emit(next: History) {
 
 function onStore(state: StoreState, prev: StoreState) {
   // A reset zeroes the counters: start the chart over with it.
-  if (state.loavesPacked < prev.loavesPacked || state.loavesRejected < prev.loavesRejected) {
+  if (state.modulesPassed < prev.modulesPassed || state.modulesScrapped < prev.modulesScrapped) {
     emit({ buckets: [], current: { good: 0, rejected: 0 }, currentStart: Date.now() });
     return;
   }
-  const good = state.loavesPacked - prev.loavesPacked;
-  const rejected = state.loavesRejected - prev.loavesRejected;
+  const good = state.modulesPassed - prev.modulesPassed;
+  const rejected = state.modulesScrapped - prev.modulesScrapped;
   // A stopped line produces nothing; its chart stops with it rather than
   // filling up with empty intervals.
   const now = state.paused ? history.currentStart : Date.now();
