@@ -72,7 +72,7 @@ export const SENSOR_SPECS: Record<MachineId, MachineSpecs> = {
     // lens absorbs power before it reaches the weld, so this and the lens
     // reading climb together.
     load: {
-      label: 'Power below setpoint', unit: '%', unitGap: false, min: 0, max: 20, warn: 5, critical: 12, decimals: 1, base: 0, jitter: 0.12,
+      label: 'Power below setpoint', unit: '%', unitGap: false, min: 0, max: 20, warn: 5, critical: 12, decimals: 0, base: 0, jitter: 0.12,
     },
     vibration: share('Lens fogging', 30, 55, 8, 0.8),
   },

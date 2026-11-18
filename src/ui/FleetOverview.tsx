@@ -69,7 +69,7 @@ export function FleetOverview({ active, view, onNavigate }: { active: boolean; v
               which resized all four WebGL canvases at once: a visible jump
               mid-presentation, and a multi-second main-thread stall on a
               slow GPU that delayed everything else on the line. */}
-          <div className="h-36 shrink-0">
+          <div className="h-40 shrink-0">
             <Diagnosis />
           </div>
           <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
@@ -206,17 +206,21 @@ function Diagnosis() {
             </ul>
             {welderFault && (
               <p className="mt-2 max-w-3xl text-xs leading-snug text-[var(--text-secondary)]">
-                Delivered power falling while the lens reading climbs, followed by weaker welds at the weld check, is the
-                signature of a fogging lens: it soaks up laser power before it reaches the busbar, so the weld does not
-                penetrate deep enough to hold.
-                {cellHot && ' A cell running hot on the tester is what a weld like that does under load: stop the line now.'}
+                {cellHot
+                  ? 'Laser power has collapsed behind a fogged lens, so welds barely penetrate, and a cell joined by one is already running hot on the tester. Stop the line now.'
+                  : 'Delivered power falling while the lens reading climbs, followed by weaker welds at the weld check, is the signature of a fogging lens: it soaks up laser power before it reaches the busbar, so the weld does not penetrate deep enough to hold.'}
               </p>
             )}
           </div>
 
           {welderFault && (
             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
-              {open && (
+              {open && incident.inspected === 0 && (
+                <div className="max-w-[13rem] text-xs leading-snug text-[var(--text-secondary)]">
+                  Waiting for the first modules to reach the weld check
+                </div>
+              )}
+              {open && incident.inspected > 0 && (
                 <div>
                   <div className="font-mono-ui text-2xl font-semibold leading-none" style={{ color: incident.rejected ? STATUS_HEX.critical : undefined }}>
                     {incident.rejected} / {incident.inspected}
