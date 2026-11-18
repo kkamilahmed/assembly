@@ -1,4 +1,4 @@
-// Close-up of the hygiene zone, glass partition and floor paint.
+// Close-up of the dry room, glass partition and floor paint.
 import { Diorama } from '@/scene/Diorama';
 import { SLAB } from '@/scene/layout';
 import PlaceholderLine from './shell-placeholder';

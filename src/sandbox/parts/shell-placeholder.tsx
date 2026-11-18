@@ -22,11 +22,11 @@ export default function PlaceholderLine() {
       {segments.map((s, i) => (
         <RoundedBox key={i} args={[s.len, BELT_Y, 1.1]} radius={0.04} smoothness={2} position={[s.p.x, BELT_Y / 2, s.p.z]} rotation-y={s.yaw} material={plastic(PALETTE.graphite)} castShadow receiveShadow />
       ))}
-      <RoundedBox args={[2.2, 3.2, 2.2]} radius={0.15} position={[MACHINE_POS.mixer.x, 1.6, MACHINE_POS.mixer.z]} material={metal()} castShadow receiveShadow />
-      <RoundedBox args={[6.8, 2.3, 2]} radius={0.15} position={[-2.8, 1.15, -5]} material={metal()} castShadow receiveShadow />
+      <RoundedBox args={[2.2, 2.6, 2.2]} radius={0.15} position={[MACHINE_POS.sorter.x, 1.3, MACHINE_POS.sorter.z]} material={metal()} castShadow receiveShadow />
+      <RoundedBox args={[3.8, 2.3, 2]} radius={0.15} position={[-4.4, 1.15, -5]} material={metal()} castShadow receiveShadow />
       <RoundedBox args={[1.6, 2.4, 1.6]} radius={0.12} position={[MACHINE_POS.vision.x, 1.2, MACHINE_POS.vision.z]} material={plastic(PALETTE.white)} castShadow receiveShadow />
       <RoundedBox args={[1, 1, 1]} radius={0.08} position={[MACHINE_POS.rejectBin.x, 0.5, MACHINE_POS.rejectBin.z]} material={plastic(PALETTE.orange)} castShadow receiveShadow />
-      <RoundedBox args={[1.9, 2, 2.1]} radius={0.12} position={[MACHINE_POS.packer.x, 1, MACHINE_POS.packer.z]} material={plastic(PALETTE.white)} castShadow receiveShadow />
+      <RoundedBox args={[1.3, 2.1, 3]} radius={0.12} position={[MACHINE_POS.transfer.x, 1.05, MACHINE_POS.transfer.z + 0.8]} material={plastic(PALETTE.white)} castShadow receiveShadow />
     </group>
   );
 }

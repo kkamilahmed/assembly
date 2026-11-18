@@ -1,16 +1,17 @@
 // A small yard: both trucks, a forklift bringing a pallet, stocked racks,
 // loose stock and five workers, to judge the props together.
 import {
+  Agv,
   CartonStack,
   Cone,
-  FlourSackStack,
+  ModuleStack,
   Forklift,
   HandTruck,
   Pallet,
   PalletJack,
   PALLET_JACK_OPERATOR_X,
   Rack,
-  Trolley,
+  CellCart,
   Truck,
   Worker,
 } from '@/scene/props';
@@ -34,17 +35,18 @@ export default function PropsAll() {
 
       <CartonStack position={[-8, 0, 0.2]} seed={2} rotation-y={0.05} />
       <CartonStack position={[-8.1, 0, 1.7]} seed={6} count={7} rotation-y={-0.04} />
-      <FlourSackStack position={[-9.6, 0, -2.4]} seed={4} layers={5} />
-      <FlourSackStack position={[-9.7, 0, -3.9]} seed={5} count={12} />
+      <ModuleStack position={[-9.6, 0, -2.4]} seed={4} layers={3} />
+      <ModuleStack position={[-9.7, 0, -3.9]} seed={5} count={9} />
       <Pallet position={[-6.2, 0, 3.4]} rotation-y={0.5} />
       <Pallet position={[-6.15, 0.144, 3.45]} rotation-y={0.42} />
 
       <group position={[-2.6, 0, 3]} rotation-y={0.5}>
-        <PalletJack load="sacks" seed={9} />
+        <PalletJack load="modules" seed={9} />
         <Worker pose="push" skin={2} seed={4} vest position={[PALLET_JACK_OPERATOR_X, 0, 0]} />
       </group>
       <HandTruck cartons={2} position={[0.2, 0, 6.6]} rotation-y={-0.7} />
-      <Trolley position={[-0.2, 0, 1.6]} rotation-y={0.3} />
+      <Agv position={[2.4, 0, 3.4]} rotation-y={0.4} load />
+      <CellCart position={[-0.2, 0, 1.6]} rotation-y={0.3} />
 
       <Worker pose="tablet" skin={0} seed={2} position={[-7.0, 0, -5.0]} rotation-y={-0.6} />
       <Worker pose="carry" skin={3} seed={7} position={[-1.6, 0, 7.4]} rotation-y={0.5} />

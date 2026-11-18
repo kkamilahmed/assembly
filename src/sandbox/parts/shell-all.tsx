@@ -13,10 +13,10 @@ export default function ShellAll() {
     <group position-y={SLAB.thickness}>
       <Diorama />
       <PlaceholderLine />
-      <StatusTag position={[-2.8, 2.6, -4.4]} label="Oven zone 2" value="221 °C" tone="healthy" icon="thermo" />
-      <StatusTag position={[MACHINE_POS.vision.x + 0.9, 2.7, MACHINE_POS.vision.z]} label="Vision check" value="Pass" tone="healthy" icon="eye" facing="x" />
-      <StatusTag position={[MACHINE_POS.rejectBin.x, 1.3, MACHINE_POS.rejectBin.z]} label="Rejects" value={14} tone="warning" />
-      <StatusTag position={[MACHINE_POS.packer.x, 2.3, MACHINE_POS.packer.z]} label="Packed" value={1245} tone="neutral" icon="box" />
+      <StatusTag position={[-5.6, 3.0, -5]} label="Laser power" value="100%" tone="healthy" icon="bolt" />
+      <StatusTag position={[MACHINE_POS.vision.x, 3.0, MACHINE_POS.vision.z]} label="Weld strength" value="240 N" tone="healthy" icon="eye" />
+      <StatusTag position={[MACHINE_POS.rejectBin.x, 1.3, MACHINE_POS.rejectBin.z]} label="Scrapped" value={14} tone="warning" />
+      <StatusTag position={[MACHINE_POS.transfer.x, 2.3, MACHINE_POS.transfer.z]} label="Passed" value={1245} tone="neutral" icon="battery" />
     </group>
   );
 }

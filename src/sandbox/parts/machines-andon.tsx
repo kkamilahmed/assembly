@@ -14,7 +14,8 @@ export default function MachinesAndon() {
       <Andon severity="critical" position={[-0.3, 0, 0.3]} />
       <ControlBox kind="hmi" position={[0.2, 0.4, 0]} />
       <ControlBox kind="vision" accent={PALETTE.blue} position={[0.8, 0.4, 0]} />
-      <ControlBox kind="pack" position={[0.5, 0.4, -0.7]} />
+      <ControlBox kind="tester" position={[0.5, 0.4, -0.7]} />
+      <ControlBox kind="laser" position={[1.1, 0.4, -0.7]} />
     </group>
   );
 }

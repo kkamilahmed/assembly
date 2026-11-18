@@ -11,10 +11,9 @@ export default function ShellDock() {
     <group position-y={SLAB.thickness}>
       <Diorama />
       <PlaceholderLine />
-      <StatusTag position={[MACHINE_POS.vision.x + 0.9, 2.7, MACHINE_POS.vision.z]} label="Vision check" value="Pass" tone="healthy" icon="eye" facing="x" />
-      <StatusTag position={[MACHINE_POS.rejectBin.x, 1.3, MACHINE_POS.rejectBin.z]} label="Rejects" value={14} tone="warning" />
-      <StatusTag position={[MACHINE_POS.packer.x, 2.3, MACHINE_POS.packer.z]} label="Packed" value={1245} tone="neutral" icon="box" />
-      <StatusTag position={[4.4, 0.4, 5.6]} label="Oven zone 3" value="251 °C" tone="critical" icon="thermo" facing="camera" />
+      <StatusTag position={[MACHINE_POS.rejectBin.x, 1.3, MACHINE_POS.rejectBin.z]} label="Scrapped" value={14} tone="warning" />
+      <StatusTag position={[MACHINE_POS.transfer.x, 2.3, MACHINE_POS.transfer.z]} label="Passed" value={1245} tone="neutral" icon="battery" />
+      <StatusTag position={[4.4, 0.4, 5.6]} label="Hottest cell" value="64 °C" tone="critical" icon="thermo" facing="camera" />
     </group>
   );
 }
