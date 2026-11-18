@@ -193,7 +193,7 @@ function PackagingStore() {
       <FilmRollPallet position={[6.65, 0, -4.2]} rotation-y={FACE.nz} top={3} />
       <CartonStack position={[6.65, 0, -2.8]} rotation-y={FACE.nz} rows={2} cols={2} layers={2} count={7} seed={12} />
       <ToteStacks stacks={STORE_TOTES} seed={11} />
-      <Mover path={[[5.6, -5.6], [5.6, -1.7]]} offset={2.5}>
+      <Mover path={[[5.6, -5.6], [5.6, -2.4]]} offset={2.5}>
         <Worker pose="walkCarry" carrying="box" seed={44} skin={0} vest />
       </Mover>
 

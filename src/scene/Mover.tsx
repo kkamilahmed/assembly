@@ -89,7 +89,12 @@ export function Mover({
 
   return (
     <GaitContext.Provider value={gait}>
-      <group ref={ref}>{children}</group>
+      {/* `dynamic`: everything riding on a mover (the trolley or pallet jack as
+          well as the worker) must stay out of the scene's static batcher,
+          or a frozen copy of it is left standing where the route began. */}
+      <group ref={ref} userData={{ dynamic: true }}>
+        {children}
+      </group>
     </GaitContext.Provider>
   );
 }
