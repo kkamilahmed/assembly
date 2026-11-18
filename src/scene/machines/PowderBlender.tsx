@@ -15,6 +15,9 @@ const AXIS_Y = 1.5;
 export const BLENDER_PILLAR_Z = 0.98;
 const PILLAR_Z = BLENDER_PILLAR_Z;
 export const BLENDER_PILLAR_TOP = 2.42;
+/** Top of the receiver on the +z pillar, where the press's transfer line
+ *  lands. */
+export const BLENDER_RECEIVER_TOP = BLENDER_PILLAR_TOP + 0.37;
 /** Square bin body, and the depth of its tapered outlet. */
 const BIN = 0.82;
 const BIN_H = 0.7;
@@ -40,15 +43,16 @@ export function PowderBlender({
     const bright = metal(PALETTE.offWhite, 0.18);
     const dark = plastic(PALETTE.graphite);
     const white = plastic(PALETTE.white);
-    const brand = plastic(PALETTE.brand);
+    const brandDeep = plastic(PALETTE.brandDeep);
     const amber = plastic(PALETTE.amber);
 
     for (const sz of [1, -1]) {
       const z = sz * PILLAR_Z;
-      // Pillar: white drive housing on a plinth, with the brand band.
       k.box(dark, [0.62, 0.06, 0.4], [0, 0.03, z], 0.02);
-      k.box(white, [0.56, BLENDER_PILLAR_TOP - 0.06, 0.32], [0, BLENDER_PILLAR_TOP / 2 + 0.03, z], 0.06);
-      k.box(brand, [0.566, 0.05, 0.326], [0, BLENDER_PILLAR_TOP - 0.2, z], 0.018);
+      // Pillar: drive housing on a plinth, in the brand blue so the two
+      // uprights frame the tumbling steel bin and read at the plant's zoom.
+      k.box(brandDeep, [0.56, BLENDER_PILLAR_TOP - 0.06, 0.32], [0, BLENDER_PILLAR_TOP / 2 + 0.03, z], 0.06);
+      k.box(white, [0.566, 0.05, 0.326], [0, BLENDER_PILLAR_TOP - 0.2, z], 0.018);
       for (let j = 0; j < 4; j++) k.box(dark, [0.012, 0.02, 0.2], [0.285, 0.5 + j * 0.05, z], 0.005);
       // Bearing and the drive shaft stub into the bin cradle.
       k.cyl(bright, 0.13, 0.08, [0, AXIS_Y, z - sz * 0.19], 'z', 0.02, 0.13, 20);

@@ -28,7 +28,7 @@ const GLASS_X = SLAB.maxX - 0.22;
 const GLASS_Z = SLAB.maxZ - 0.22;
 const GLASS_H = 2.3;
 /** Glazed compression suite around the blender and the press. */
-const SUITE = { x0: -11.5, x1: -4.5, z0: 3.2, z1: GLASS_Z } as const;
+const SUITE = { x0: -11.5, x1: -4.2, z0: 3.2, z1: GLASS_Z } as const;
 /** The suite's door, on its +x side. */
 const SUITE_DOOR = { z0: 4.85, z1: 6.25 } as const;
 /** Airlock just inside the steps: outer door onto the steps, inner door
@@ -135,7 +135,7 @@ function buildPaint() {
   const dash = { dash: 0.3, gap: 0.2 };
   const bays = [
     { x0: -1.85, x1: 1.95, z0: -0.62, z1: 1.5 },
-    { x0: -4.4, x1: -3.25, z0: 6.15, z1: 7.3 },
+    { x0: -4.12, x1: -3.06, z0: 6.15, z1: 7.3 },
   ];
   for (const b of bays) {
     amber.line(b.x0, b.z0, b.x1, b.z0, 0.06, dash).line(b.x0, b.z1, b.x1, b.z1, 0.06, dash);

@@ -77,7 +77,7 @@ function sAt(x: number, z: number): number {
  *  stands beside the press it feeds. */
 export const MACHINE_POS = {
   press: new THREE.Vector3(-9, 0, 6.72),
-  blender: new THREE.Vector3(-6.2, 0, 6.0),
+  blender: new THREE.Vector3(-5.95, 0, 6.0),
   coaterStart: new THREE.Vector3(-5.8, 0, -5),
   coaterEnd: new THREE.Vector3(-2.2, 0, -5),
   vision: new THREE.Vector3(3, 0, -2.45),

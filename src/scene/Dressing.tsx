@@ -117,8 +117,8 @@ function MaterialStaging() {
 function CompressionSuite() {
   return (
     <group>
-      <FloorMat position={[-7.55, 0, 6.5]} size={[0.75, 1.1]} />
-      <Worker position={[-7.55, 0, 6.5]} rotation-y={FACE.nx} pose="tablet" seed={2} skin={0} />
+      <FloorMat position={[-7.42, 0, 6.5]} size={[0.75, 1.1]} />
+      <Worker position={[-7.42, 0, 6.5]} rotation-y={FACE.nx} pose="tablet" seed={2} skin={0} />
       <Worker position={[-7.5, 0, 4.3]} rotation-y={FACE.px + 0.5} pose="tablet" clipboard seed={9} skin={3} />
 
       <group position={[-11.05, 0, 4.7]} rotation-y={FACE.nz}>
@@ -140,9 +140,9 @@ function SuiteDoor() {
   return (
     <group>
       {/* Handwash on the way into the suite. */}
-      <HandwashStation position={[-4.16, 0, 3.9]} />
-      <FloorMat position={[-3.5, 0, 3.9]} size={[0.7, 1.0]} />
-      <Worker position={[-3.5, 0, 3.9]} rotation-y={FACE.nx} pose="inspect" seed={37} skin={2} />
+      <HandwashStation position={[-3.86, 0, 3.9]} />
+      <FloorMat position={[-3.2, 0, 3.9]} size={[0.7, 1.0]} />
+      <Worker position={[-3.2, 0, 3.9]} rotation-y={FACE.nx} pose="inspect" seed={37} skin={2} />
       {/* A cart of drums on its way in for the next blend. */}
       <Mover path={[[-1.2, 5.55], [-3.55, 5.55]]} speed={WORKER_WALK_SPEED * 0.7} offset={1} turn={false}>
         <DrumCart drums={4} />
@@ -168,8 +168,8 @@ function SuiteDoor() {
 function GoodsIn() {
   return (
     <group>
-      <DrumPallet position={[-3.85, 0, 6.72]} rotation-y={FACE.nz} seed={3} />
-      <Mover path={[[-1.0, 6.7], [-2.65, 6.7]]} speed={WORKER_WALK_SPEED * 0.75} offset={5} turn={false}>
+      <DrumPallet position={[-3.6, 0, 6.72]} rotation-y={FACE.nz} seed={3} />
+      <Mover path={[[-0.9, 6.7], [-2.42, 6.7]]} speed={WORKER_WALK_SPEED * 0.75} offset={5} turn={false}>
         <PalletJack load="drums" seed={8} />
         <Worker position={[PALLET_JACK_OPERATOR_X, 0, 0]} pose="walkPush" seed={39} skin={1} />
       </Mover>

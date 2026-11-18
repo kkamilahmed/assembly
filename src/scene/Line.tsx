@@ -6,7 +6,7 @@ import { BlisterPacker } from './machines/BlisterPacker';
 import { Cartoner } from './machines/Cartoner';
 import { CoatingDrum } from './machines/CoatingDrum';
 import { Conveyor } from './machines/Conveyor';
-import { BLENDER_PILLAR_Z, PowderBlender } from './machines/PowderBlender';
+import { BLENDER_PILLAR_Z, BLENDER_RECEIVER_TOP, PowderBlender } from './machines/PowderBlender';
 import { RejectStation } from './machines/RejectStation';
 import { TabletPress } from './machines/TabletPress';
 import { VisionInspection } from './machines/VisionInspection';
@@ -17,9 +17,14 @@ const COATER_MID = mid(MACHINE_POS.coaterStart, MACHINE_POS.coaterEnd);
 const BLISTER_MID = mid(MACHINE_POS.blisterStart, MACHINE_POS.blisterEnd);
 /** The blender's receiver, in the press's own frame (the press is turned a
  *  quarter turn, so world +x is its +z and world -z its +x). */
-const RECEIVER: [number, number] = [
-  -(MACHINE_POS.blender.z + BLENDER_PILLAR_Z - MACHINE_POS.press.z),
-  MACHINE_POS.blender.x - MACHINE_POS.press.x,
+/** Both suite machines are drawn larger than the rest so they read at the
+ *  overview zoom from behind the suite's glass. */
+const PRESS_SCALE = 1.2;
+const BLENDER_SCALE = 1.15;
+const RECEIVER: [number, number, number] = [
+  -(MACHINE_POS.blender.z + BLENDER_PILLAR_Z * BLENDER_SCALE - MACHINE_POS.press.z) / PRESS_SCALE,
+  (MACHINE_POS.blender.x - MACHINE_POS.press.x) / PRESS_SCALE,
+  (BLENDER_RECEIVER_TOP * BLENDER_SCALE) / PRESS_SCALE,
 ];
 
 /** The line's machines, driven from the live store: the press turret turns
@@ -48,10 +53,11 @@ export function Line() {
   return (
     <group>
       <Conveyor running={running} />
-      <PowderBlender position={MACHINE_POS.blender} running={running} severity={blendSev} />
+      <PowderBlender position={MACHINE_POS.blender} scale={BLENDER_SCALE} running={running} severity={blendSev} />
       <TabletPress
         position={MACHINE_POS.press}
         rotation={[0, Math.PI / 2, 0]}
+        scale={PRESS_SCALE}
         running={running}
         jamming={jamming}
         severity={pressSev}

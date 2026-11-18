@@ -33,7 +33,8 @@ export const PRESS_CHUTE_X = 1.12;
  * Inside the glazed chamber the turret turns with its ring of punches,
  * riding the cam track up and down. `running` turns it; `jamming` makes it
  * stall and lurch the way a press does when tablets stick in the dies.
- * `severity` drives the stack light. `blenderAt` (local x, z) routes the
+ * `severity` drives the stack light. `blenderAt` (local x, z, and the
+ * height of the receiver's top) routes the
  * powder transfer line over to the blender's receiver; without it the
  * hopper just has its inlet stub.
  */
@@ -47,10 +48,11 @@ export function TabletPress({
   running?: boolean;
   jamming?: boolean;
   severity?: Severity;
-  blenderAt?: [number, number];
+  blenderAt?: [number, number, number];
 } & ThreeElements['group']) {
   const bx = blenderAt?.[0];
   const bz = blenderAt?.[1];
+  const by = blenderAt?.[2] ?? 2.8;
   const pieces = useMemo(() => {
     const k = new Kit();
     const steel = metal(PALETTE.steel);
@@ -58,12 +60,15 @@ export function TabletPress({
     const dark = plastic(PALETTE.graphite);
     const white = plastic(PALETTE.white);
     const brand = plastic(PALETTE.brand);
+    const brandDeep = plastic(PALETTE.brandDeep);
     const pane = glass();
 
     // Plinth and lower cabinet with service doors on the two camera sides.
     k.box(dark, [HS * 2 - 0.06, PLINTH, HS * 2 - 0.06], [0, PLINTH / 2, 0], 0.025);
-    k.box(white, [HS * 2, CAB_TOP - PLINTH, HS * 2], [0, (CAB_TOP + PLINTH) / 2, 0], 0.06);
-    k.box(brand, [HS * 2 + 0.008, 0.05, HS * 2 + 0.008], [0, CAB_TOP - 0.06, 0], 0.02);
+    // The cabinet and head are in the brand blue, so the press reads as a
+    // solid shape against the white suite at the plant's zoom.
+    k.box(brandDeep, [HS * 2, CAB_TOP - PLINTH, HS * 2], [0, (CAB_TOP + PLINTH) / 2, 0], 0.06);
+    k.box(white, [HS * 2 + 0.008, 0.05, HS * 2 + 0.008], [0, CAB_TOP - 0.06, 0], 0.02);
     for (const sz of [1, -1]) {
       k.box(white, [0.5, 0.56, 0.014], [-0.26, 0.47, sz * (HS + 0.003)], 0.012);
       k.box(dark, [0.03, 0.16, 0.034], [-0.07, 0.47, sz * (HS + 0.02)], 0.012);
@@ -96,8 +101,8 @@ export function TabletPress({
     k.box(bright, [0.34, 0.03, 0.04], [0.32, TABLE_Y + 0.07, -0.12], 0.01, [0, -0.5, 0]);
 
     // Head: white housing with the brand band, an access panel and vents.
-    k.box(white, [HS * 2, HEAD_TOP - CHAMBER_TOP, HS * 2], [0, (CHAMBER_TOP + HEAD_TOP) / 2, 0], 0.06);
-    k.box(brand, [HS * 2 + 0.008, 0.05, HS * 2 + 0.008], [0, CHAMBER_TOP + 0.05, 0], 0.02);
+    k.box(brand, [HS * 2, HEAD_TOP - CHAMBER_TOP, HS * 2], [0, (CHAMBER_TOP + HEAD_TOP) / 2, 0], 0.06);
+    k.box(white, [HS * 2 + 0.008, 0.05, HS * 2 + 0.008], [0, CHAMBER_TOP + 0.05, 0], 0.02);
     for (let j = 0; j < 5; j++) k.box(dark, [0.012, 0.018, 0.4], [-HS - 0.004, 1.92 + j * 0.035, -0.2], 0.005);
     k.box(steel, [0.3, 0.06, 0.3], [0.25, HEAD_TOP + 0.03, -0.25], 0.02);
 
@@ -112,9 +117,10 @@ export function TabletPress({
 
     // Powder transfer line from the blender's receiver into the hopper.
     if (bx !== undefined && bz !== undefined) {
-      const top = 3.05;
-      k.tube(bright, [[hx, HEAD_TOP + 0.73, hz], [hx, top, hz], [bx, top, bz], [bx, top - 0.25, bz]], 0.055, 0.22);
-      for (const [x, z] of [[hx, hz], [bx, bz]]) k.cyl(steel, 0.075, 0.05, [x, top - 0.05, z], 'y', 0.012, 0.075, 14);
+      const top = Math.max(3.05, by + 0.25);
+      k.tube(bright, [[hx, HEAD_TOP + 0.73, hz], [hx, top, hz], [bx, top, bz], [bx, by, bz]], 0.055, 0.22);
+      k.cyl(steel, 0.075, 0.05, [hx, top - 0.05, hz], 'y', 0.012, 0.075, 14);
+      k.cyl(steel, 0.075, 0.05, [bx, by + 0.03, bz], 'y', 0.012, 0.075, 14);
     } else {
       k.cyl(bright, 0.06, 0.12, [hx, HEAD_TOP + 0.79, hz], 'y', 0.01, 0.06, 14);
     }
@@ -131,7 +137,7 @@ export function TabletPress({
     // Arm for the HMI.
     k.box(steel, [0.06, 0.06, 0.18], [0.2, 1.38, HS + 0.09], 0.014);
     return k.build();
-  }, [bx, bz]);
+  }, [bx, by, bz]);
   useDispose(pieces);
 
   // The turret: die table, the punches above and below it, and a few
