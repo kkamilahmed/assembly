@@ -79,7 +79,7 @@ export function Line() {
         scale={1.7}
       />
       <StatusTag
-        position={[MACHINE_POS.vision.x, BELT_Y + 2.2, MACHINE_POS.vision.z]}
+        position={[MACHINE_POS.vision.x + 0.2, BELT_Y + 2.3, MACHINE_POS.vision.z - 1.5]}
         label="Tablet weight"
         value={`${weight.toFixed(1)} mg`}
         tone={qualityStatus}
@@ -88,7 +88,7 @@ export function Line() {
         scale={1.7}
       />
       <StatusTag
-        position={[MACHINE_POS.rejectBin.x + 0.2, 1.7, MACHINE_POS.rejectBin.z]}
+        position={[MACHINE_POS.rejectBin.x + 1.1, 1.2, MACHINE_POS.rejectBin.z - 1.0]}
         label="Rejected"
         value={(rejected * TABLETS_PER_TRAY).toLocaleString()}
         tone={rejected > 0 ? 'critical' : 'neutral'}
