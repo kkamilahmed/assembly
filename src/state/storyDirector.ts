@@ -1,161 +1,149 @@
-// Orchestrates the scripted weld-drift story for the "problem" robot.
-// Deliberately driven by real setTimeout timers, not requestAnimationFrame
-// or a useFrame loop, so the narrative's pacing stays correct regardless of
-// how fast the tab is actually rendering.
+// The presenter's controls, as plain functions the keyboard and the on-screen
+// action bar both call:
+//
+//   D  slight deviation   - WELD-01's torch creeps off the seam. Some cars fail.
+//   E  emergency          - the torch jumps well off the seam. Every car fails.
+//   S  stop / start line
+//   C  recalibrate WELD-01
+//   A  run on autopilot   - the line recalibrates itself the moment the
+//                           pipeline flags a deviation
+//
+// Nothing here runs on its own: the line stays healthy until a key is
+// pressed, so the presenter decides when the story moves.
 import { scaleMs } from '@/presenter/presenterConfig';
-import { PROBLEM_ROBOT_ID, type RobotId } from '@/streaming/lineConfig';
-import { setRobotBias } from './engine';
-import { useStore } from './store';
-
-// ---- Ramp shape ----
-// These four constants and the three thresholds in streaming/lineConfig.ts
-// are ONE tuned system, not independent knobs. Together they have to satisfy
-// the claim the whole demo rests on: `drift_critical` must fire while every
-// weld is still inside WELD_TOLERANCE_MM, with enough lead time left to
-// actually do something about it.
-//
-// The previous values (peak 1.55mm over 50s, thresholds 0.55/0.85) failed
-// that test outright: because a trailing-window mean lags the physical drift
-// by roughly half the window, `drift_critical` landed in the same 4.8s line
-// cycle as the first out-of-spec weld — zero warning — and 58% of all cars
-// built came out as scrap. A ramp that is gentler relative to the window,
-// against control limits set well below the spec limit, is what buys the
-// lead time back.
-//
-// Current shape: median ~24s (worst case ~19s) of warning before the first
-// weld can breach tolerance, ~14% of cars affected if the warning is ignored
-// all the way through, and a peak that never breaches spec on drift alone —
-// defects come from drift *plus* normal process variation stacking, which is
-// how this actually fails on a real line.
-const DRIFT_PEAK_MM = 1.25;
-// Scaled with the line cadence (see presenter/presenterConfig.ts). The ramp
-// and the analyzer window have to scale by the same factor or the lead time
-// the thresholds were tuned for disappears.
-const RAMP_UP_MS = scaleMs(60_000);
-const HOLD_MS = scaleMs(12_000);
-const RAMP_DOWN_MS = scaleMs(6_000);
-// If nobody recalibrates manually, the story still resolves on its own so
-// an unattended/looping demo never gets stuck waiting for a click.
-const AUTO_RECAL_GRACE_MS = scaleMs(10_000);
-
-type Schedule = (ms: number, fn: () => void) => void;
-
-let driftTimers: number[] = [];
-function afterDrift(ms: number, fn: () => void) {
-  driftTimers.push(window.setTimeout(fn, ms));
-}
-function clearDriftTimers() {
-  driftTimers.forEach((id) => clearTimeout(id));
-  driftTimers = [];
-}
-
-function rampBias(schedule: Schedule, robotId: RobotId, from: number, to: number, durationMs: number) {
-  const steps = Math.max(Math.round(durationMs / 800), 1);
-  for (let i = 1; i <= steps; i++) {
-    schedule((i / steps) * durationMs, () => setRobotBias(robotId, from + ((to - from) * i) / steps));
-  }
-}
-
-let cycleActive = false;
-
-function runDriftCycle() {
-  if (cycleActive) return;
-  cycleActive = true;
-  const target = PROBLEM_ROBOT_ID;
-
-  // Stamp the moment the physical fault actually begins. Everything the
-  // incident screen reports about detection latency is measured from here —
-  // this is the only place in the app that knows ground-zero, because it's
-  // the only place that causes it.
-  useStore.getState().markFaultStarted(target, Date.now());
-
-  rampBias(afterDrift, target, 0, DRIFT_PEAK_MM, RAMP_UP_MS);
-  afterDrift(RAMP_UP_MS + HOLD_MS + AUTO_RECAL_GRACE_MS, () => resolveWhenSomeoneIsWatching(target));
-}
-
-/** How often to re-check whether anyone has started watching again. */
-const RESOLVE_RECHECK_MS = 2000;
+import {
+  DEVIATION_OFFSET_MM,
+  DEVIATION_RAMP_MS,
+  PROBLEM_ROBOT_ID,
+  type DeviationLevel,
+} from '@/streaming/lineConfig';
+import type { SensorChannel } from '@/streaming/sensorStream';
+import { recalibrateMachine, resetLine, setRobotBias } from './engine';
+import { machineSeverity, useStore } from './store';
 
 /**
- * The drift only heals itself once inspection is actually live.
+ * What a misaligned torch does to the arm's own sensors. The weld offset is
+ * only measured once per car, but the arm fighting its own mis-set wrist
+ * shows up in vibration and temperature within a second or two - which is
+ * why the machines screen lights up before the first bad car comes off the
+ * weld station, and why the autopilot can act before one does.
  *
- * The auto-resolve exists so an unattended demo never gets stuck waiting for
- * a click. But under spot checks nobody has been told anything, so a fault
- * quietly fixing itself is narratively backwards — and it broke the reveal
- * in practice: the drift would ramp, ship a handful of defects, and recover
- * on a timer, leaving roughly a thirteen-second window in which the shipped
- * bay still held a defective car for the reveal to turn red. That is not a
- * window a presenter should have to hit.
- *
- * Holding at peak until someone is watching is both truer (nothing gets
- * fixed while nobody knows) and removes the timing pressure entirely: the
- * line keeps producing defects for as long as the blind window lasts.
+ * Intensities are on the fault-injection scale (1-20, a fraction of each
+ * channel's headroom): slight settles in the warning band, emergency in
+ * critical.
  */
-function resolveWhenSomeoneIsWatching(target: RobotId) {
-  if (!useStore.getState().liveVisionQC) {
-    afterDrift(RESOLVE_RECHECK_MS, () => resolveWhenSomeoneIsWatching(target));
+const SENSOR_SIGNATURE: Record<DeviationLevel, Partial<Record<SensorChannel, number>>> = {
+  slight: { vibration: 9, temperature: 6 },
+  emergency: { vibration: 18, temperature: 16, pressure: 12 },
+};
+
+const FAULT_TEXT: Record<DeviationLevel, string> = {
+  slight: `${PROBLEM_ROBOT_ID} torch alignment starting to drift`,
+  emergency: `${PROBLEM_ROBOT_ID} torch knocked off the seam`,
+};
+
+let rampTimers: number[] = [];
+let autopilotTimer: number | undefined;
+let currentBiasMm = 0;
+
+function clearRamp() {
+  rampTimers.forEach((id) => window.clearTimeout(id));
+  rampTimers = [];
+}
+
+function rampBias(to: number, durationMs: number) {
+  clearRamp();
+  const from = currentBiasMm;
+  const steps = Math.max(Math.round(durationMs / 250), 1);
+  for (let i = 1; i <= steps; i++) {
+    rampTimers.push(
+      window.setTimeout(() => {
+        currentBiasMm = from + ((to - from) * i) / steps;
+        setRobotBias(PROBLEM_ROBOT_ID, currentBiasMm);
+      }, (i / steps) * durationMs),
+    );
+  }
+}
+
+/** D / E. Drifts the weld torch to the level's offset and puts the matching
+ *  physical signature on the arm's sensors. Pressing E during a slight
+ *  deviation escalates it. */
+export function injectDeviation(level: DeviationLevel) {
+  const store = useStore.getState();
+  store.openIncident(Date.now(), FAULT_TEXT[level]);
+  store.clearInjections('scenario');
+  for (const [channel, intensity] of Object.entries(SENSOR_SIGNATURE[level])) {
+    store.injectFaults([PROBLEM_ROBOT_ID], [channel as SensorChannel], intensity, 'scenario');
+  }
+  rampBias(DEVIATION_OFFSET_MM[level], DEVIATION_RAMP_MS[level]);
+}
+
+/** C. Puts the torch back on the seam: zero offset, sensors settle, trend
+ *  window restarts, incident closed. */
+export function recalibrate(by: 'operator' | 'autopilot' = 'operator') {
+  clearRamp();
+  currentBiasMm = 0;
+  const store = useStore.getState();
+  store.clearInjections('scenario');
+  recalibrateMachine(PROBLEM_ROBOT_ID);
+  store.markRecalibrated(PROBLEM_ROBOT_ID, Date.now(), by);
+}
+
+/** S. Stops the line, or restarts it in whatever mode it was in. */
+export function toggleLine() {
+  const store = useStore.getState();
+  store.setPaused(!store.paused);
+}
+
+/** A. Turns autopilot on and makes sure the line is running. Pressed while
+ *  autopilot is already on, it turns it back off. */
+export function toggleAutopilot() {
+  const store = useStore.getState();
+  if (store.autopilot) {
+    store.setAutopilot(false);
     return;
   }
-  rampBias(afterDrift, target, DRIFT_PEAK_MM, 0, RAMP_DOWN_MS);
-  afterDrift(RAMP_DOWN_MS + 500, () => {
-    cycleActive = false;
-  });
+  store.setAutopilot(true);
+  if (store.paused) store.setPaused(false);
+  // An incident already detected when autopilot is switched on is exactly
+  // the case the policy exists for.
+  maybeAutoRecalibrate();
 }
 
-let started = false;
-
-/** How long the line runs clean before the scripted fault begins. The drift
- *  used to start 2.5s in, which meant the line had built almost nothing
- *  before the incident dominated every counter on screen — the header
- *  opened on a double-digit scrap rate with no healthy baseline to compare
- *  it against. Long enough now to bank a run of good cars first, and short
- *  enough that an unattended demo still gets to the story on its own.
- *  Pressing D triggers the cycle immediately regardless. */
-const BASELINE_MS = scaleMs(34_000);
-
-export function initStoryDirector() {
-  if (started) return;
-  started = true;
-  afterDrift(BASELINE_MS, runDriftCycle);
+/** R. Back to a clean, healthy, running line. Autopilot stays as it was. */
+export function resetDemo() {
+  clearRamp();
+  window.clearTimeout(autopilotTimer);
+  autopilotTimer = undefined;
+  currentBiasMm = 0;
+  resetLine();
 }
 
-export function stopStoryDirector() {
-  started = false;
-  cycleActive = false;
-  clearDriftTimers();
+/** How long autopilot takes to act once the machine is flagged: long enough
+ *  that the flagged state is visible for a beat on screen, short enough that
+ *  the next car through the weld station is already back in spec. */
+const AUTOPILOT_REACTION_MS = scaleMs(600);
+
+/**
+ * The autopilot acts on what the pipeline has *detected*, not on what the
+ * story director knows it caused: it waits for WELD-01 to leave healthy on
+ * the same readings the dashboard shows, then recalibrates. That is the
+ * honest version of the claim - real-time analysis is what lets the line
+ * fix itself before a stream of bad cars comes off it.
+ */
+function maybeAutoRecalibrate() {
+  const state = useStore.getState();
+  const incident = state.incident;
+  if (!state.autopilot || state.paused || !incident || incident.resolvedAt !== null) return;
+  if (machineSeverity(state, PROBLEM_ROBOT_ID) === 'healthy') return;
+  if (autopilotTimer !== undefined) return;
+  autopilotTimer = window.setTimeout(() => {
+    const now = useStore.getState();
+    // Still marked pending while recalibrating, so the store updates the
+    // recalibration itself makes don't schedule a second one.
+    if (now.autopilot && now.incident && now.incident.resolvedAt === null) recalibrate('autopilot');
+    autopilotTimer = undefined;
+  }, AUTOPILOT_REACTION_MS);
 }
 
-/** Manual re-trigger (keyboard shortcut) — a no-op while a cycle is
- * already in flight. */
-export function triggerDriftCycle() {
-  runDriftCycle();
-}
-
-/** The "Recalibrate" action: cancels any in-flight scripted ramp for this
- * robot so it can't fight the manual fix, snaps the physical bias back to
- * true, and records the recalibration. */
-export function recalibrateRobot(robotId: RobotId) {
-  if (robotId === PROBLEM_ROBOT_ID && cycleActive) {
-    clearDriftTimers();
-    cycleActive = false;
-  }
-  setRobotBias(robotId, 0);
-  useStore.getState().markRecalibrated(robotId, Date.now());
-}
-
-// Auto-recalibrate policy watcher — module-scoped (not gated by
-// init/stopStoryDirector) so it's registered exactly once for the app's
-// lifetime and survives Reset. Fires on the rising edge of
-// recalibrationRecommended (never on every render where it's still true),
-// and only when the policy toggle (set from the incident-replay screen) is
-// on. recalibrationRecommended can only ever become true while live vision
-// QC is on (see store.ts's ingestAction) — so this can't silently "fix"
-// something nobody was watching; the policy only ever closes a loop that
-// was already being observed.
-let prevRecommended = false;
-useStore.subscribe((state) => {
-  const recommended = state.robots[PROBLEM_ROBOT_ID].recalibrationRecommended;
-  const justRecommended = recommended && !prevRecommended;
-  prevRecommended = recommended;
-  if (justRecommended && state.autoRecalibrate) recalibrateRobot(PROBLEM_ROBOT_ID);
-});
+useStore.subscribe(maybeAutoRecalibrate);

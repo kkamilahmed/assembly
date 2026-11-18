@@ -1,23 +1,23 @@
 import { forwardRef, useImperativeHandle, useState, type ReactNode } from 'react';
 
 /** A stack/rack of N identical items that depletes by one per pick and
- *  refills when empty — shared by the Panel station's shell rack and the
+ *  refills when empty - shared by the Panel station's shell rack and the
  *  Wheel station's tyre stack so the two don't get two bespoke impls.
  *  Purely visual component state; nothing outside the owning RobotArm needs
  *  to know the count, per the plan. */
 export interface PropStackHandle {
-  /** Decrement the top `n` items at once (grip) — one atomic state update,
+  /** Decrement the top `n` items at once (grip) - one atomic state update,
    *  so a machine that grabs a pair in a single motion doesn't lose one
    *  decrement to React batching two separate calls into one re-render. A
    *  single-item pick (the default, n=1) keeps auto-refilling the instant
-   *  it empties the rack, as before — imperceptible at one-per-dwell. A
+   *  it empties the rack, as before - imperceptible at one-per-dwell. A
    *  multi-item pick instead floors at 0 and stays there: auto-refilling a
    *  whole pair the moment they're grabbed would flash duplicates in right
    *  next to the gripper still holding the originals. Call `refill()`
    *  once the caller's ready to show it restocked. */
   pick: (n?: number) => void;
   /** Reset to full. For a multi-item picker (pick(n>1), which doesn't
-   *  auto-refill) — call once the grabbed items have visibly moved on. */
+   *  auto-refill) - call once the grabbed items have visibly moved on. */
   refill: () => void;
 }
 
@@ -27,7 +27,7 @@ export interface PropStackProps {
   /** How many items sit on the rack at full. */
   count: number;
   /** Local offset of item `index` (0..count-1) from the stack's base position
-   *  — vertical stacking for flat slabs, a spread row for an upright rack. */
+   *  - vertical stacking for flat slabs, a spread row for an upright rack. */
   itemOffset: (index: number) => [number, number, number];
   /** Render one item, given its index from the bottom/start (0..count-1). */
   renderItem: (index: number) => ReactNode;
@@ -46,8 +46,8 @@ export const PropStack = forwardRef<PropStackHandle, PropStackProps>(function Pr
         const next = r - n;
         if (next > 0) return next;
         // Emptied (or would go negative): a single-item pick auto-refills
-        // immediately, as before. A multi-item pick floors at 0 instead —
-        // see the handle doc for why — and waits for an explicit refill().
+        // immediately, as before. A multi-item pick floors at 0 instead -
+        // see the handle doc for why - and waits for an explicit refill().
         return n === 1 ? count : 0;
       });
     },

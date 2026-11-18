@@ -2,10 +2,10 @@ import { useMemo, useRef, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
-import { useStore } from '@/state/store';
+import { machineSeverity, useStore } from '@/state/store';
 import { ROBOT_IDS, WORK_MS, type RobotId } from '@/streaming/lineConfig';
 import { COLORS, CONVEYOR_Y, ROBOT_X, ROBOT_Z, SHOULDER_Y, SNAP_TRANSITION_MS, STATUS_COLOR } from './constants';
-import { solveTwoBoneIK, smoothstep, triangleEnvelope } from './ik';
+import { solveTwoBoneIK, smoothstep } from './ik';
 import {
   carFrameToRobotLocal,
   PANEL_PLACEMENT,
@@ -45,18 +45,16 @@ export interface MachineSpec {
   forearmLen: number;
   linkWidth: number;
   endEffector: 'torch' | 'spot' | 'spray' | 'gripper';
-  /** Static parked pose offsets (rad) — the arm eases back to this between
+  /** Static parked pose offsets (rad) - the arm eases back to this between
    *  cars and blends away from it toward the IK solution while reaching. */
   baseYaw: number;
   upperTilt: number;
   foreTilt: number;
   job: StationJob;
-  /** Weld spark pulse duration (weld station only). */
-  pulseMs: number;
 }
 
 // Unified industrial safety-yellow fleet (matching a real body-shop floor)
-// instead of four differently-branded colors — brand/job identity now comes
+// instead of four differently-branded colors - brand/job identity now comes
 // through in shape (box vs cylinder links), end-effector, and the accent
 // trim color alone, not the whole arm.
 const ARM_YELLOW = '#f5c400';
@@ -85,40 +83,40 @@ const MACHINES: Record<RobotId, MachineSpec> = {
     brand: 'ABB', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#3a6ea5',
     linkShape: 'box', upperArmLen: 1.95, forearmLen: 1.6, linkWidth: 0.5,
     endEffector: 'gripper', baseYaw: 0.12, upperTilt: 0.42, foreTilt: -1.25,
-    job: 'panel', pulseMs: 420,
+    job: 'panel',
   },
   // KUKA-style: box links, C-frame spot-weld gun. 3 seam darts per car.
   'WELD-01': {
     brand: 'KUKA', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#2fb574',
     linkShape: 'box', upperArmLen: 2.05, forearmLen: 1.5, linkWidth: 0.56,
     endEffector: 'spot', baseYaw: 0.36, upperTilt: 0.3, foreTilt: -1.1,
-    job: 'weld', pulseMs: 260,
+    job: 'weld',
   },
   // FANUC-style: cylindrical links, spray gun, sweeps front-to-back.
   'PAINT-01': {
     brand: 'FANUC', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#2fb574',
     linkShape: 'cyl', upperArmLen: 1.8, forearmLen: 1.62, linkWidth: 0.42,
     endEffector: 'spray', baseYaw: -0.36, upperTilt: 0.5, foreTilt: -1.35,
-    job: 'paint', pulseMs: 560,
+    job: 'paint',
   },
   // Yaskawa/Motoman-style: box links, gripper, mounts wheels (one machine per
-  // wheel — see RobotArm's `wheelCorner` prop).
+  // wheel - see RobotArm's `wheelCorner` prop).
   'WHEEL-01': {
     brand: 'YASKAWA', linkColor: ARM_YELLOW, baseColor: PEDESTAL_DARK, accent: '#e8a82c',
     linkShape: 'box', upperArmLen: 2.0, forearmLen: 1.55, linkWidth: 0.48,
     // Parked folded forward over its own hub rather than stood upright. At
     // the old 0.18/-0.7 the longer links left both near-side wheel machines
     // standing almost vertical in the foreground, crossing each other in an
-    // X — a pose no wheel-mount robot rests in, and the most visually
+    // X - a pose no wheel-mount robot rests in, and the most visually
     // dominant thing in the settle shot.
     endEffector: 'gripper', baseYaw: 0, upperTilt: 0.62, foreTilt: -1.5,
-    job: 'wheel', pulseMs: 480,
+    job: 'wheel',
   },
 };
 
 // How far the tool arcs upward while carrying a tyre from stack to hub, and
 // how many full turns it spins over that same carry (easing out into the
-// mount) — purely presentational, so kept local to the renderer rather than
+// mount) - purely presentational, so kept local to the renderer rather than
 // stationTargets.ts's shared timing/frame logic.
 const WHEEL_CARRY_LIFT = 0.4;
 const WHEEL_CARRY_SPIN_TURNS = 1.5;
@@ -156,7 +154,7 @@ function Joint({ radius, color }: { radius: number; color: string }) {
 }
 
 /** End-effector at the tool tip. Different guns read as different machines
- *  even from a distance — and for 'spot'/'gripper', `jawRef` wraps the two
+ *  even from a distance - and for 'spot'/'gripper', `jawRef` wraps the two
  *  jaw meshes so the caller can animate them pinching shut by scaling the
  *  group toward its centre. */
 function EndEffector({
@@ -235,7 +233,7 @@ function EndEffector({
     );
   }
   // Default: MIG/MAG welding torch (kept for completeness; no station uses
-  // it this phase — welding uses the spot gun above).
+  // it this phase - welding uses the spot gun above).
   return (
     <group position={[0, -0.1, 0]}>
       <mesh castShadow>
@@ -246,7 +244,7 @@ function EndEffector({
   );
 }
 
-/** A compact stack light bolted directly to the pedestal's top rim — a real
+/** A compact stack light bolted directly to the pedestal's top rim - a real
  *  andon tower is a ~0.5-1m mast mounted on the machine itself, not a
  *  free-standing pole planted in the floor a metre away (which is what this
  *  read as before: a 2.6m rod with no visual connection to the robot). The
@@ -290,8 +288,8 @@ function AndonLight({ status }: { status: 'healthy' | 'warning' | 'critical' }) 
   );
 }
 
-/** A real wheel — the car's own rim/tire/brake-disc/lug-nut meshes, not a
- *  stand-in — for the Wheel station's rack and the one riding the gripper
+/** A real wheel - the car's own rim/tire/brake-disc/lug-nut meshes, not a
+ *  stand-in - for the Wheel station's rack and the one riding the gripper
  *  during carry. `held` swings it from the rack's upright/standing pose to
  *  ride the tool pointed toward the car. */
 function WheelProp({ held = false }: { held?: boolean }) {
@@ -309,7 +307,7 @@ function Pedestal({ spec }: { spec: MachineSpec }) {
     <group>
       {/* Every offset here is expressed against SHOULDER_Y rather than
           hardcoded, so the pedestal always spans floor to shoulder. These
-          were literals tuned for a 0.7m pedestal — raising the shoulder
+          were literals tuned for a 0.7m pedestal - raising the shoulder
           left the cone sunk through the floor and ending short of the
           joint it is supposed to be carrying. */}
       <mesh position={[0, SHOULDER_Y / 2, 0]} castShadow receiveShadow>
@@ -338,7 +336,7 @@ interface ChoreoState {
   sparkTint: boolean;
   spin: boolean;
   heldItem: 'panel' | 'wheel' | null;
-  /** Extra spin (rad) applied to a carried wheel, on top of its held pose —
+  /** Extra spin (rad) applied to a carried wheel, on top of its held pose -
    *  sells "carrying/aligning a tire" instead of a rigid prop sliding
    *  through the air. 0 outside the wheel-carry beat. */
   wheelSpin: number;
@@ -366,20 +364,21 @@ export function RobotArm({
 }: {
   robotId: RobotId;
   wheelCorner?: WheelName;
-  /** Panel's shell rack / Wheel's tyre stack — on by default for the real
+  /** Panel's shell rack / Wheel's tyre stack - on by default for the real
    *  scene. The fleet overview's standalone per-machine preview cards turn
    *  this off so an isolated arm doesn't drag a nearby rack into a tightly
    *  framed shot. */
   showProps?: boolean;
 }) {
-  const status = useStore((s) => s.robots[robotId].status);
-  const lastWeldAt = useStore((s) => s.robots[robotId].lastWeldAt);
-  const recalibrationRecommended = useStore((s) => s.robots[robotId].recalibrationRecommended);
+  // The andon shows the same verdict as the machine cards: the worst of the
+  // weld trend and the arm's own sensors, so it lights the moment the arm
+  // starts shaking rather than a few cars later.
+  const status = useStore((s) => machineSeverity(s, robotId));
   const spec = useMemo(() => MACHINES[robotId], [robotId]);
   const stationIndex = ROBOT_IDS.indexOf(robotId);
   const dockedCar = useStore((s) => s.activeCars.find((c) => c.stationIndex === stationIndex));
   const wheelHubs = useWheelHubOffsets();
-  // The Wheel station is four machines, one per corner — `wheelCorner` picks
+  // The Wheel station is four machines, one per corner - `wheelCorner` picks
   // which wheel this instance mounts, which side of the car it stands on
   // (WHEEL_CORNER_MIRRORED) and, via the hub's own carFrame x, how far
   // toward the front or rear it's shifted from the station's nominal x (see
@@ -401,8 +400,6 @@ export function RobotArm({
   const heldWheelRef = useRef<THREE.Group>(null);
   const propRef = useRef<PropStackHandle>(null);
 
-  const prevWeldAt = useRef<number | null>(null);
-  const pulseStart = useRef<number>(-Infinity);
   const effNowRef = useRef<number>(0);
   // Track phase transitions so a prop pick fires exactly once per grip.
   const prevPanelPhase = useRef<string>('idle');
@@ -411,7 +408,7 @@ export function RobotArm({
   // threshold, so the held wheel props stay hidden for the rest of that
   // pulse. mountPulse is a symmetric rise-then-fall triangle (see
   // wheelMountPhase), so a live `mountPulse > 0.5` comparison flips true
-  // then false again as it decays — without this latch the held props
+  // then false again as it decays - without this latch the held props
   // would reappear riding the gripper for the pulse's tail, alongside the
   // wheels they just handed off to the car (which itself only ever latches
   // on, via CarShell's isWheelMounted check, so this brings the gripper
@@ -421,27 +418,19 @@ export function RobotArm({
   const wheelMountReleased = useRef(false);
 
   useFrame((state, delta) => {
-    if (lastWeldAt !== prevWeldAt.current) {
-      prevWeldAt.current = lastWeldAt;
-      pulseStart.current = state.clock.elapsedTime;
-    }
     const t = state.clock.elapsedTime;
     // All four wheel machines share robotId/ROBOT_X, so without a phase
-    // offset they'd idle-sway in perfect lockstep — mirrored contributes a
+    // offset they'd idle-sway in perfect lockstep - mirrored contributes a
     // half-cycle split (near vs far side) and xOffset a further per-corner
     // one (front vs rear), so all four read as independent machines instead
     // of two mirrored pairs.
     const idlePhase = ROBOT_X[robotId] + xOffset + (mirrored ? Math.PI : 0);
     const idleSway = Math.sin(t * 0.65 + idlePhase) * 0.16;
-    // A second, faster/smaller wobble on the shoulder — out of phase with
-    // the base sway — so idle machines read as gently alive rather than a
+    // A second, faster/smaller wobble on the shoulder - out of phase with
+    // the base sway - so idle machines read as gently alive rather than a
     // single slow twist that's easy to miss at a glance.
     const idleBreath = Math.sin(t * 0.9 + idlePhase + 1.2) * 0.045;
 
-    // Legacy weld-pulse bookkeeping — still drives the weld station's per-
-    // dart spark via the choreography below; harmless to the other jobs.
-    const pulseAge = (t - pulseStart.current) * 1000;
-    void triangleEnvelope(pulseAge, 0, spec.pulseMs);
 
     if (!useStore.getState().paused) effNowRef.current = Date.now();
     const elapsed = dockedCar ? effNowRef.current - dockedCar.dockedAt : -1;
@@ -491,7 +480,7 @@ export function RobotArm({
         }
         case 'wheel': {
           // All four machines call this with the same `elapsed`, so they're
-          // always on the same cycle — each one carries + mounts its own
+          // always on the same cycle - each one carries + mounts its own
           // single wheel, so all 4 land on the car at the same instant.
           const ph = wheelMountPhase(elapsed);
           const hub = wheelHub;
@@ -500,7 +489,7 @@ export function RobotArm({
             if (intoCycle < WHEEL_REACH) {
               wheelPicked.current = false;
               wheelMountReleased.current = false;
-              // Reach to the stack top — this fires once per dwell, right
+              // Reach to the stack top - this fires once per dwell, right
               // after the car docks, so `blend` is still easing up from the
               // idle/rest pose and a constant target reads fine (no prior
               // "at the car" position to glide back from, unlike the old
@@ -517,7 +506,7 @@ export function RobotArm({
             } else if (intoCycle < WHEEL_REACH + WHEEL_GRIP + WHEEL_CARRY) {
               // Carry to the hub. A straight lerp reads as the tyre sliding
               // through the air on rails; real pick-and-place lifts clear of
-              // the rack/hub first — add a parabolic arc so the tool visibly
+              // the rack/hub first - add a parabolic arc so the tool visibly
               // rises off the stack then descends onto the car, and spin the
               // wheel (decelerating into the mount, like it's being rolled/
               // aligned to the bolt pattern) instead of holding one rigid
@@ -536,7 +525,7 @@ export function RobotArm({
               // Mount pulse at the hub, release the wheel. Keep it riding the
               // tool through the whole pulse and only hand off to the car's
               // own (now-visible) wheel once isWheelMounted's exact
-              // threshold (CarShell.tsx, stationTargets.ts) is crossed —
+              // threshold (CarShell.tsx, stationTargets.ts) is crossed -
               // matching that condition exactly closes what was otherwise a
               // visible gap where neither the carried nor the mounted wheel
               // was on screen for a frame or two. That same instant is also
@@ -579,7 +568,7 @@ export function RobotArm({
             choreo.jawScale = ph.reveal >= 0.9 ? 1 : 0.3;
             choreo.heldItem = ph.reveal < 0.9 ? 'panel' : null;
           } else {
-            // retract — ease back toward rest (target null)
+            // retract - ease back toward rest (target null)
             choreo.target = null;
           }
           if (ph.phase !== 'grip') prevPanelPhase.current = ph.phase;
@@ -639,7 +628,7 @@ export function RobotArm({
     if (heldWheelRef.current) {
       heldWheelRef.current.visible = choreo.heldItem === 'wheel';
       // Applied to this wrapper, not WheelProp's own inner group (which
-      // sets its static "held" pose each render) — the two rotations
+      // sets its static "held" pose each render) - the two rotations
       // compose independently, so the spin doesn't fight the held pose.
       heldWheelRef.current.rotation.x = choreo.wheelSpin;
     }
@@ -720,7 +709,7 @@ export function RobotArm({
         <PropStack
           ref={propRef}
           position={[WHEEL_STACK_PICK.x, 0, WHEEL_STACK_PICK.z - 0.4]}
-          // One machine, one wheel — its own rack stocks just the one.
+          // One machine, one wheel - its own rack stocks just the one.
           count={1}
           itemOffset={() => [0, 0.08 + 0.34, -0.02]}
           stand={<RackFrame width={0.6} height={1.05} />}
@@ -729,13 +718,6 @@ export function RobotArm({
       )}
 
       <AndonLight status={status} />
-
-      {recalibrationRecommended && (
-        <mesh position={[0.9, 2.6, -0.7]}>
-          <coneGeometry args={[0.16, 0.32, 4]} />
-          <meshStandardMaterial color={COLORS.warning} emissive={COLORS.warning} emissiveIntensity={0.6} />
-        </mesh>
-      )}
     </group>
   );
 }

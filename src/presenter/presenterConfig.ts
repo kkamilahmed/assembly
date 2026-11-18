@@ -22,7 +22,7 @@ const params = readParams();
 /** Simulation rate multiplier. Everything time-based in the streaming layer
  *  and the story director divides by this, so the whole narrative compresses
  *  or stretches together and the tuned relationships between ramp, window
- *  and thresholds are preserved — see `scaleMs`. */
+ *  and thresholds are preserved - see `scaleMs`. */
 export const SPEED = (() => {
   const raw = Number(params.get('speed'));
   if (!Number.isFinite(raw) || raw <= 0) return 1;
@@ -33,7 +33,7 @@ export const SPEED = (() => {
 })();
 
 /** Scale a duration by the presenter speed. Applied to schedules and
- *  windows, never to geometry — station spacing is derived from a transit
+ *  windows, never to geometry - station spacing is derived from a transit
  *  time that must stay put or the 3D line physically changes shape. */
 export function scaleMs(ms: number): number {
   return Math.round(ms / SPEED);

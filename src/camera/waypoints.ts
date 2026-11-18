@@ -34,7 +34,7 @@ const SUBJECT_SPAN = SUBJECT_MAX_X - SUBJECT_MIN_X;
 // Slightly under 1.0 on purpose: the outermost metre or two at each end is
 // conveyor with no car on it, so cropping it buys real size on the part of
 // the line that matters. At a 1.36 aspect, fitting a 30m line edge-to-edge
-// leaves 22m of vertical frame for a subject about 4m tall — every metre of
+// leaves 22m of vertical frame for a subject about 4m tall - every metre of
 // horizontal slack is paid for in empty floor and empty wall.
 const SETTLE_DISTANCE = (SUBJECT_SPAN * 0.97) / 2 / Math.tan(THREE.MathUtils.degToRad(27.5));
 // Shallow on purpose. At 27 degrees the camera looked down onto the aisle
@@ -64,7 +64,7 @@ const problemX = ROBOT_X[PROBLEM_ROBOT_ID];
 
 // A short scripted intro: a wide establishing pass down the line from the
 // entry end, a push into the problem robot's station, then a pull back to
-// the exact overview OrbitControls takes over at — so the hand-off is a
+// the exact overview OrbitControls takes over at - so the hand-off is a
 // continuation rather than a cut. Coords are metres (real-world scale).
 export const SHOTS: ShotDef[] = [
   {

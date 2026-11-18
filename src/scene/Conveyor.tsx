@@ -2,21 +2,21 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useStore } from '@/state/store';
-import { CONVEYOR_WIDTH, CONVEYOR_Y, COLORS, DESPAWN_X, LINE_START_X, REWORK_SIDING_Z, REWORK_STOP_X } from './constants';
+import { CONVEYOR_WIDTH, CONVEYOR_Y, COLORS, DESPAWN_X, LINE_START_X } from './constants';
 
 // Both belt ends used to just fade into fog a fixed render-length past
-// LINE_START/REWORK_STOP, hoping the camera could never get close enough to
-// see the raw edge. It could: looking at the first station up close — an
-// entirely natural thing to do — put the camera well inside partial-fog
+// LINE_START/DESPAWN, hoping the camera could never get close enough to
+// see the raw edge. It could: looking at the first station up close - an
+// entirely natural thing to do - put the camera well inside partial-fog
 // range of that "hidden" tail. Anchoring the ends to the end-cap walls
 // (Backdrop.tsx) instead fixed the distance problem, but not the underlying
 // one: free orbit can put the camera on the far side of either wall just as
 // easily as the near side, and from there the wall doesn't occlude
-// anything — it's behind the camera, not in front of the belt. There's no
+// anything - it's behind the camera, not in front of the belt. There's no
 // camera position that trick works from unconditionally.
 //
 // So: stop hiding the ends and cap them instead, the way a real belt
-// conveyor actually ends — a roller drum the belt visibly wraps around
+// conveyor actually ends - a roller drum the belt visibly wraps around
 // (RollerCap below). That reads as finished, deliberate geometry from any
 // angle, which no amount of distance or occlusion trickery can claim.
 // INFEED_MARGIN is just enough belt showing before the first car spawns
@@ -26,8 +26,8 @@ import { CONVEYOR_WIDTH, CONVEYOR_Y, COLORS, DESPAWN_X, LINE_START_X, REWORK_SID
 const INFEED_MARGIN = 2.6;
 const OUTFEED_MARGIN = 2.6;
 
-// CONVEYOR_Y is documented (constants.ts) and used everywhere else — every
-// car's own ride height — as the belt's top surface. A box mesh centers on
+// CONVEYOR_Y is documented (constants.ts) and used everywhere else - every
+// car's own ride height - as the belt's top surface. A box mesh centers on
 // its `position`, so pinning the slab's actual top there (rather than its
 // center) means shifting the mesh down by half its own thickness; skipping
 // that shift is what put the real top surface 0.07 higher than every
@@ -37,7 +37,7 @@ const BELT_THICKNESS = 0.14;
 const BELT_CENTER_Y = CONVEYOR_Y - BELT_THICKNESS / 2;
 const ROLLER_RADIUS = 0.22;
 
-/** The drum a real belt conveyor wraps around at each end — a tail pulley
+/** The drum a real belt conveyor wraps around at each end - a tail pulley
  *  at the infeed, a head pulley at the outfeed. Reads as a finished,
  *  intentional terminus from any viewing angle (a rounded profile doesn't
  *  vanish end-on the way a flat box edge does), which is the point: nothing
@@ -46,7 +46,7 @@ const ROLLER_RADIUS = 0.22;
 function RollerCap({ x }: { x: number }) {
   return (
     <group position={[x, BELT_CENTER_Y, 0]}>
-      {/* Axis along Z (the belt's width) via a rotation around X — not the
+      {/* Axis along Z (the belt's width) via a rotation around X - not the
           [0,0,PI/2] the wall pipes (FactoryStructure.tsx) use, which lays a
           cylinder's axis along X instead and would point this one straight
           down the belt's length like a rod poking out past the end, not
@@ -55,7 +55,7 @@ function RollerCap({ x }: { x: number }) {
         <cylinderGeometry args={[ROLLER_RADIUS, ROLLER_RADIUS, CONVEYOR_WIDTH - 0.06, 20]} />
         <meshStandardMaterial color={COLORS.frame} metalness={0.55} roughness={0.35} />
       </mesh>
-      {/* Bearing blocks at each end, bolting the drum to the side rails —
+      {/* Bearing blocks at each end, bolting the drum to the side rails -
           without them it reads as a loose cylinder rather than a mounted
           roller. */}
       {[CONVEYOR_WIDTH / 2, -CONVEYOR_WIDTH / 2].map((z) => (
@@ -109,11 +109,6 @@ export function Conveyor() {
           <meshStandardMaterial color={COLORS.frame} metalness={0.3} roughness={0.5} />
         </mesh>
       ))}
-      {/* Rework siding pad — flush with the belt, where flagged cars park */}
-      <mesh position={[REWORK_STOP_X - midX, BELT_CENTER_Y, REWORK_SIDING_Z]} receiveShadow>
-        <boxGeometry args={[3.5, BELT_THICKNESS, 2.6]} />
-        <meshStandardMaterial color={COLORS.frame} metalness={0.15} roughness={0.85} />
-      </mesh>
       <RollerCap x={startX - midX} />
       <RollerCap x={endX - midX} />
     </group>

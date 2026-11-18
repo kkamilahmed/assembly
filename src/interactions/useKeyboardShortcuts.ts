@@ -1,66 +1,69 @@
 import { useEffect } from 'react';
-import { presenterRecalibrate, runAct } from '@/presenter/acts';
-import { resetLine } from '@/state/engine';
 import { useStore } from '@/state/store';
-import { initStoryDirector, stopStoryDirector, triggerDriftCycle } from '@/state/storyDirector';
+import { injectDeviation, recalibrate, resetDemo, toggleAutopilot, toggleLine } from '@/state/storyDirector';
 
-export function useKeyboardShortcuts(enabled: boolean) {
+export type View = 'plant' | 'machines';
+
+/**
+ * Every presenter key, in one place, live on both screens - the story moves
+ * between the plant and the machines and the keys have to work from either.
+ */
+export function useKeyboardShortcuts(view: View, setView: (v: View) => void) {
   useEffect(() => {
-    if (!enabled) return;
-
     function onKeyDown(e: KeyboardEvent) {
-      const store = useStore.getState();
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Never steal keys from a focused control, e.g. the fault panel's
+      // intensity slider.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-      // Presenter acts. Each stages its own preconditions deterministically
-      // (see presenter/acts.ts) so a beat can be re-run mid-talk without
-      // reassembling it by hand.
-      if (e.key >= '1' && e.key <= '4') {
-        runAct(Number(e.key));
-        return;
-      }
-      if (e.key === 'p' || e.key === 'P') {
-        store.setPresenterCueOpen(!store.presenterCueOpen);
-        return;
-      }
-      if (e.key === 'c' || e.key === 'C') {
-        presenterRecalibrate();
-        return;
-      }
-      if (e.key === 'd' || e.key === 'D') {
-        triggerDriftCycle();
-        return;
-      }
-      if (e.key === 'r' || e.key === 'R') {
-        stopStoryDirector();
-        resetLine();
-        initStoryDirector();
-        return;
-      }
-      if (e.key === ' ') {
-        e.preventDefault();
-        store.togglePause();
-        return;
-      }
-      if (e.key === 'q' || e.key === 'Q') {
-        store.toggleLiveVisionQC();
-        return;
-      }
-      if (e.key === 'i' || e.key === 'I') {
-        store.setReplayOpen(!store.replayOpen);
-        return;
-      }
-      if (e.key === 'Escape') {
-        if (store.shortcutOverlayOpen) store.setShortcutOverlayOpen(false);
-        else if (store.replayOpen) store.setReplayOpen(false);
-        else store.setSelectedRobot(null);
-        return;
-      }
-      if (e.key === '?') {
-        store.setShortcutOverlayOpen(!store.shortcutOverlayOpen);
+      const store = useStore.getState();
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+      switch (key) {
+        case 'd':
+          injectDeviation('slight');
+          return;
+        case 'e':
+          injectDeviation('emergency');
+          return;
+        case 's':
+          toggleLine();
+          return;
+        case 'c':
+          recalibrate('operator');
+          return;
+        case 'a':
+          toggleAutopilot();
+          return;
+        case 'r':
+          resetDemo();
+          return;
+        case 'm':
+          setView(view === 'plant' ? 'machines' : 'plant');
+          return;
+        case 'ArrowRight':
+          e.preventDefault();
+          setView('machines');
+          return;
+        case 'ArrowLeft':
+          e.preventDefault();
+          setView('plant');
+          return;
+        case 'f':
+          if (view === 'machines') store.setFaultPanelOpen(!store.faultPanelOpen);
+          return;
+        case '?':
+          store.setShortcutOverlayOpen(!store.shortcutOverlayOpen);
+          return;
+        case 'Escape':
+          if (store.shortcutOverlayOpen) store.setShortcutOverlayOpen(false);
+          else if (store.faultPanelOpen) store.setFaultPanelOpen(false);
+          else if (store.autopilotCatch) store.dismissAutopilotCatch();
+          return;
       }
     }
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [enabled]);
+  }, [view, setView]);
 }

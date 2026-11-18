@@ -15,7 +15,7 @@ export function EventFeed() {
     <ul
       className="scroll-thin flex max-h-64 flex-col gap-1 overflow-y-auto pb-1"
       // Rows are one or two lines depending on the message, so no fixed
-      // max-height lands on a row boundary — the last visible row was
+      // max-height lands on a row boundary - the last visible row was
       // always sliced through its own text. The mask fades whatever is
       // clipped instead of chopping it, which also reads as "scrolls".
       style={{

@@ -1,16 +1,16 @@
 import { useStore } from '@/state/store';
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['1 – 4', 'Stage keynote act 1-4'],
-  ['P', 'Presenter cue card'],
+  ['D', 'Slight deviation on WELD-01'],
+  ['E', 'Emergency: WELD-01 knocked off the seam'],
+  ['S', 'Stop / start the line'],
   ['C', 'Recalibrate WELD-01'],
-  ['←', 'Back to fleet overview'],
-  ['D', 'Inject the weld-drift fault now'],
-  ['R', 'Reset the simulation'],
-  ['Space', 'Pause / resume'],
-  ['Q', 'Switch inspection mode (every weld / 1 in 7)'],
-  ['I', 'Open incident replay'],
-  ['Esc', 'Close this overlay'],
+  ['A', 'Run on autopilot (press again to turn off)'],
+  ['→ / ←', 'Machines screen / plant'],
+  ['M', 'Toggle plant / machines'],
+  ['F', 'Fault injection panel (machines screen)'],
+  ['R', 'Reset the demo'],
+  ['Esc', 'Close the topmost overlay'],
   ['?', 'Toggle this overlay'],
 ];
 
@@ -21,14 +21,14 @@ export function ShortcutOverlay() {
   if (!open) return null;
 
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/20" onClick={() => setOpen(false)}>
-      <div className="animate-fade-in w-96 rounded-xl bg-[var(--surface)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setOpen(false)}>
+      <div className="animate-fade-in w-[26rem] rounded-xl bg-[var(--surface)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 text-sm font-semibold">Keyboard shortcuts</div>
         <dl className="flex flex-col gap-2">
           {SHORTCUTS.map(([key, desc]) => (
-            <div key={key} className="flex items-center justify-between text-xs">
+            <div key={key} className="flex items-center justify-between gap-4 text-xs">
               <dt className="font-mono-ui rounded bg-black/5 px-1.5 py-0.5">{key}</dt>
-              <dd className="text-[var(--text-secondary)]">{desc}</dd>
+              <dd className="text-right text-[var(--text-secondary)]">{desc}</dd>
             </div>
           ))}
         </dl>

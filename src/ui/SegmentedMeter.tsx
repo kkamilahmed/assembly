@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 const SEGMENTS = 12;
 
 interface SegmentedMeterProps {
@@ -9,23 +11,30 @@ interface SegmentedMeterProps {
   /** Ends of the scale, so a reading means something against its range
    *  instead of being a bar filled to an unstated fraction of nothing. */
   rangeLabel: string;
+  /** Optional marker beside the label - used to mark a channel a fault has
+   *  been injected into, so a high reading is attributable rather than
+   *  mysterious. */
+  badge?: ReactNode;
 }
 
 /** A segmented bar gauge for one sensor channel.
  *
- *  Previously six segments labelled J0-J5, one per robot axis — which
+ *  Previously six segments labelled J0-J5, one per robot axis - which
  *  claimed the card was showing a per-joint breakdown of temperature,
  *  pressure and vibration. It wasn't: each meter is a single scalar
  *  reading, so twelve of those eighteen tiny labels were asserting
  *  structure that does not exist in the data. The segments are now just a
  *  bar's worth of resolution, and the range is stated instead. */
-export function SegmentedMeter({ label, displayValue, fraction, color, rangeLabel }: SegmentedMeterProps) {
+export function SegmentedMeter({ label, displayValue, fraction, color, rangeLabel, badge }: SegmentedMeterProps) {
   const clamped = Math.min(1, Math.max(0, fraction));
   const filled = Math.round(clamped * SEGMENTS);
   return (
     <div>
-      <div className="flex items-baseline justify-between text-[10px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">
-        <span>{label}</span>
+      <div className="flex items-baseline justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate">{label}</span>
+          {badge}
+        </span>
         <span className="font-mono-ui text-xs font-semibold" style={{ color }}>
           {displayValue}
         </span>

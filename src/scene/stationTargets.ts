@@ -2,35 +2,35 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { WORK_MS } from '@/streaming/lineConfig';
 import { CAR_HEIGHT, CAR_LENGTH, CAR_WIDTH, ROBOT_Z, SNAP_TRANSITION_MS } from './constants';
-import { fitObject3D, useFerrariModel } from './models';
+import { buildWheel, WHEEL_HUB_OFFSETS, WHEEL_NAMES, type WheelName } from './carModel';
 import { smoothstep } from './ik';
 
 // This file is the single source of truth for *where* each station reaches
 // and *when* each beat of its choreography fires. Both RobotArm (the reach)
-// and CarShell (the reaction — body reveal, paint colour, wheel visibility)
+// and CarShell (the reaction - body reveal, paint colour, wheel visibility)
 // read the same phase functions here, so the two can never disagree about
 // timing: a wheel flips visible the instant the arm's mount pulse peaks, the
 // body reveals the instant the arm reaches the placement point, the paint
 // colour fills in lockstep with the sweep.
 //
 // Two coordinate frames are used:
-//   carFrame  — axis-aligned with the world, origin at the docked car's group
+//   carFrame  - axis-aligned with the world, origin at the docked car's group
 //               (x along the line/length, y up from the group, z across the
 //               width; −z is the near side, toward the robot at ROBOT_Z).
-//   robotLocal — origin at a robot's ground pivot ([ROBOT_X, 0, ROBOT_Z]); the
+//   robotLocal - origin at a robot's ground pivot ([ROBOT_X, 0, ROBOT_Z]); the
 //               frame solveTwoBoneIK takes its target in.
 // A car docked at station i sits at world x = ROBOT_X[i], z = 0, so a carFrame
 // point (x,y,z) maps to robotLocal (x, carGroupY + y, z − ROBOT_Z) for the
-// matching robot — the carFrame.x term cancels because the car is at this
+// matching robot - the carFrame.x term cancels because the car is at this
 // robot's own station x. (During the 800ms glide-in the car is still moving,
 // but the reach only ramps up after SNAP_TRANSITION_MS, by which point it's
 // settled; the minor inaccuracy during the ramp is invisible.) `carGroupY` is
-// always CONVEYOR_Y — every car rides at the same height for its whole time
+// always CONVEYOR_Y - every car rides at the same height for its whole time
 // on the line, wheels or not.
 
 // ---- car-frame target geometry (metres) ----
 // Near-side (toward the robot) weld seam points one side-mounted arm can
-// plausibly reach — a deliberate reduction from "4 arms split the car".
+// plausibly reach - a deliberate reduction from "4 arms split the car".
 export const WELD_SEAM_POINTS: THREE.Vector3[] = [
   new THREE.Vector3(-0.6, 0.55, -CAR_WIDTH / 2), // near-side door seam, low
   new THREE.Vector3(0.1, 1.05, -CAR_WIDTH / 2), // near-side B-pillar / roofline
@@ -41,7 +41,7 @@ export const WELD_SEAM_POINTS: THREE.Vector3[] = [
 export const PAINT_SWEEP_FRONT = new THREE.Vector3(-CAR_LENGTH / 2 + 0.3, CAR_HEIGHT * 0.85, 0);
 export const PAINT_SWEEP_REAR = new THREE.Vector3(CAR_LENGTH / 2 - 0.3, CAR_HEIGHT * 0.85, 0);
 
-// Where the panel arm lowers the shell onto the chassis — body-centre, just
+// Where the panel arm lowers the shell onto the chassis - body-centre, just
 // above the eventual ride height.
 export const PANEL_PLACEMENT = new THREE.Vector3(0, CAR_HEIGHT * 0.8, 0);
 
@@ -103,14 +103,14 @@ export function weldDartPhase(elapsed: number): WeldDartPhase {
     const pulse = Math.sin(holdT * Math.PI);
     return { pointIndex: dartIndex, arrive: 1, pulse };
   }
-  // Tail of this dart before the next begins — hold position, spark fading.
+  // Tail of this dart before the next begins - hold position, spark fading.
   const pulse = Math.max(0, 1 - (intoDart - WELD_DART_REACH - WELD_DART_HOLD) / 100);
   return { pointIndex: dartIndex, arrive: 1, pulse };
 }
 
 export interface WheelMountPhase {
   /** True for the single reach→grip→carry→mount pass each dwell. All four
-   *  wheel machines (one per corner — see WHEEL_CORNER_MIRRORED below) run
+   *  wheel machines (one per corner - see WHEEL_CORNER_MIRRORED below) run
    *  this exact same elapsed-driven schedule, so all 4 wheels land at the
    *  same instant. */
   active: boolean;
@@ -130,7 +130,7 @@ const WHEEL_MOUNT = 100;
 /** Each machine's wheel-mount choreography: one reach-to-stack → grip →
  *  carry-to-hub → mount-pulse pass for its own single wheel. All four
  *  machines call this with the same `elapsed`, so their passes stay in
- *  lockstep — all 4 wheels mounting simultaneously. */
+ *  lockstep - all 4 wheels mounting simultaneously. */
 export function wheelMountPhase(elapsed: number): WheelMountPhase {
   if (elapsed < WHEEL_CYCLE_START) return { active: false, cycleT: 0, mountPulse: 0 };
   const into = elapsed - WHEEL_CYCLE_START;
@@ -186,7 +186,7 @@ export function panelPhase(elapsed: number): PanelPhaseState {
  *  machine's plain z − ROBOT_Z.
  *
  *  `xOffset` is for a machine whose own ground pivot isn't at the station's
- *  nominal x — the Wheel station's four machines each stand shifted toward
+ *  nominal x - the Wheel station's four machines each stand shifted toward
  *  their own corner's hub (RobotArm.tsx), not centred on the car. Once the
  *  pivot itself moves by `xOffset`, "the carFrame.x term cancels" (see the
  *  module doc above) no longer holds on its own; subtracting it first
@@ -203,10 +203,9 @@ export function carFrameToRobotLocal(
   return new THREE.Vector3(localX, carGroupY + p.y, p.z - ROBOT_Z);
 }
 
-const WHEEL_NAMES = ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr'] as const;
-export type WheelName = (typeof WHEEL_NAMES)[number];
+export type { WheelName };
 
-/** Which side of the car each wheel corner's own machine stands on — left
+/** Which side of the car each wheel corner's own machine stands on - left
  *  wheels (fl/rl) get a near, non-mirrored machine at world z = ROBOT_Z;
  *  right wheels (fr/rr) get a far, mirrored one at z = −ROBOT_Z. Four
  *  machines now, one per corner (RobotArm.tsx's `wheelCorner` prop), each
@@ -219,91 +218,33 @@ export const WHEEL_CORNER_MIRRORED: Record<WheelName, boolean> = {
   wheel_rr: true,
 };
 
-let hubCache: { value: Partial<Record<WheelName, THREE.Vector3>> | null } = { value: null };
-
-/** Each wheel's carFrame offset (x along length, y up, z across), read once
- *  from the model and cached at module scope — every car instance shares
- *  identical offsets (the GLB's node transforms are identical). */
-export function useWheelHubOffsets(): Partial<Record<WheelName, THREE.Vector3>> {
-  const gltf = useFerrariModel();
-  if (hubCache.value) return hubCache.value;
-  const root = gltf.scene.clone(true);
-  root.rotation.y = -Math.PI / 2;
-  // Must match CarShell.tsx's centered fit exactly, or wheel hub offsets
-  // (read from this same model) won't line up with where the body actually
-  // renders.
-  const fit = fitObject3D(root, { axis: 'x', size: CAR_LENGTH });
-  root.scale.setScalar(fit.scale);
-  root.position.set(fit.position[0], fit.position[1], fit.position[2]);
-  root.updateMatrixWorld(true);
-  const origin = new THREE.Vector3(fit.position[0], fit.position[1], fit.position[2]);
-  const v = new THREE.Vector3();
-  const off: Partial<Record<WheelName, THREE.Vector3>> = {};
-  for (const name of WHEEL_NAMES) {
-    const o = root.getObjectByName(name);
-    if (!o) continue;
-    o.getWorldPosition(v);
-    off[name] = new THREE.Vector3().subVectors(v, origin);
-  }
-  hubCache.value = off;
-  return off;
+/** Each wheel's carFrame hub offset. The car is parametric (carModel.ts), so
+ *  these are declared there rather than measured off a loaded mesh - the
+ *  arms reach for the same points the wheels are mounted at. */
+export function useWheelHubOffsets(): Record<WheelName, THREE.Vector3> {
+  return WHEEL_HUB_OFFSETS;
 }
 
-let wheelPropTemplate: { value: THREE.Object3D | null | undefined } = { value: undefined };
-
-/** A detached template of one real wheel — its rim/tire/brake-disc/lug-nut
- *  meshes and materials, straight off the same GLB the car itself mounts —
- *  at the real-world scale the car body is fitted to, built once and cached
- *  at module scope. Never added to the scene graph itself (an Object3D can
- *  only live in one place at a time); every caller clones it. Uses the
- *  node's own authored rotation (which already stands it upright on its
- *  tread) rather than the whole-car −90°-Y line-alignment rotation, which
- *  only matters for aligning the car's length and is irrelevant to a
- *  freestanding prop. */
-function getWheelPropTemplate(gltf: ReturnType<typeof useFerrariModel>): THREE.Object3D | null {
-  if (wheelPropTemplate.value !== undefined) return wheelPropTemplate.value;
-  const wheelSource = gltf.scene.getObjectByName('wheel_fl');
-  if (!wheelSource) {
-    wheelPropTemplate.value = null;
-    return null;
-  }
-  // Same fit the whole car body is scaled to (see useWheelHubOffsets above)
-  // so a standalone prop reads at the exact size it'll be once mounted.
-  const probe = gltf.scene.clone(true);
-  probe.rotation.y = -Math.PI / 2;
-  const fit = fitObject3D(probe, { axis: 'x', size: CAR_LENGTH });
-  const clone = wheelSource.clone(true);
-  clone.position.set(0, 0, 0);
-  clone.scale.setScalar(fit.scale);
-  clone.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    }
-  });
-  wheelPropTemplate.value = clone;
-  return clone;
-}
-
-/** A fresh clone of a real wheel — the same rim/tire/brake-disc/lug-nut
- *  meshes and materials the car itself gets mounted with — for standalone
- *  props (the Wheel station's rack, the wheel riding the gripper during
- *  carry). Every call returns its own clone; an Object3D can't be shared
- *  across multiple places in the scene graph at once. */
-export function useWheelPropModel(): THREE.Object3D | null {
-  const gltf = useFerrariModel();
+/** A fresh wheel for the Wheel station's rack and the one riding the
+ *  gripper. Same geometry and materials the car mounts. Turned so its axle
+ *  runs along x here; RobotArm's held pose swings it a quarter turn to face
+ *  the car. */
+export function useWheelPropModel(): THREE.Object3D {
   return useMemo(() => {
-    const template = getWheelPropTemplate(gltf);
-    return template ? template.clone(true) : null;
-  }, [gltf]);
+    const wheel = buildWheel();
+    wheel.rotation.y = Math.PI / 2;
+    const holder = new THREE.Group();
+    holder.add(wheel);
+    return holder;
+  }, []);
 }
 
-const WHEEL_ORDER: WheelName[] = ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr'];
+const WHEEL_ORDER: readonly WheelName[] = WHEEL_NAMES;
 export { WHEEL_ORDER };
 
 /** True once the mount pulse has crossed its hand-off threshold. All 4
  *  wheels share this one phase (see wheelMountPhase), so they all cross it
- *  on the same frame — CarShell only ever acts on `true` (it never re-hides
+ *  on the same frame - CarShell only ever acts on `true` (it never re-hides
  *  a wheel), so a live, non-latched comparison here is fine. */
 export function isWheelMounted(phase: WheelMountPhase): boolean {
   return phase.mountPulse > 0.5;

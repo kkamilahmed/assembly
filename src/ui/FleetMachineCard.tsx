@@ -4,13 +4,21 @@ import { ContactShadows, Environment } from '@react-three/drei';
 import { ROBOT_X, ROBOT_Z } from '@/scene/constants';
 import { RobotArm } from '@/scene/RobotArm';
 import { useStore } from '@/state/store';
-import { ROBOT_LABELS, type RobotId } from '@/streaming/lineConfig';
+import { PROBLEM_ROBOT_ID, ROBOT_LABELS, WELD_TOLERANCE_MM, type RobotId } from '@/streaming/lineConfig';
+import {
+  CHANNEL_SPECS,
+  channelRangeLabel,
+  channelSeverity,
+  formatReading,
+  SENSOR_CHANNELS,
+  type SensorChannel,
+} from '@/streaming/sensorStream';
 import { METRIC_HEX, STATUS_HEX } from './colors';
-import { useFleetTelemetry } from './fleetTelemetry';
+import { useChannelInjection, useMachineSeverity, useSensorReading } from './fleetTelemetry';
 import { SegmentedMeter } from './SegmentedMeter';
 
 // R3F points the default camera at the world origin, which is ground level
-// at the arm's pedestal base — too low to frame a ~3m machine with headroom.
+// at the arm's pedestal base - too low to frame a ~3m machine with headroom.
 // Re-aim it at roughly the arm's mid-height instead, once, on mount.
 function AimCamera({ target }: { target: [number, number, number] }) {
   const camera = useThree((s) => s.camera);
@@ -20,30 +28,21 @@ function AimCamera({ target }: { target: [number, number, number] }) {
   return null;
 }
 
-function BarChartIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" className={className}>
-      <rect x="2" y="8" width="3" height="6" rx="0.5" fill="currentColor" />
-      <rect x="6.5" y="4" width="3" height="10" rx="0.5" fill="currentColor" />
-      <rect x="11" y="1" width="3" height="13" rx="0.5" fill="currentColor" />
-    </svg>
-  );
-}
-
 /** One machine's arm rendered alone in its own canvas. RobotArm places
  *  itself at this station's world position on the full line (ROBOT_X/
- *  ROBOT_Z, scene/constants.ts) — the inner group cancels that offset so
+ *  ROBOT_Z, scene/constants.ts) - the inner group cancels that offset so
  *  every card frames its arm at the origin regardless of which station it
  *  is. No docked car ever reaches these standalone canvases, so each arm
  *  just idles at its authored rest pose (RobotArm.tsx's `reachBlend`
  *  requires a docked car to blend into any IK pose). */
-function MachinePreview({ robotId }: { robotId: RobotId }) {
+function MachinePreview({ robotId, active }: { robotId: RobotId; active: boolean }) {
   return (
     <Canvas
+      frameloop={active ? 'always' : 'never'}
       dpr={[1, 1.5]}
       shadows
       gl={{ antialias: true, alpha: true }}
-      // Pulled back and raised to match the larger machines — at the old
+      // Pulled back and raised to match the larger machines - at the old
       // distance the taller arms clipped straight out of the top of the
       // card, which is what made WHEEL-01's preview look cropped.
       camera={{ fov: 32, near: 0.1, far: 40, position: [6.0, 3.6, 7.6] }}
@@ -61,41 +60,56 @@ function MachinePreview({ robotId }: { robotId: RobotId }) {
   );
 }
 
-export function MachinePreviewCard({ robotId, onEnter }: { robotId: RobotId; onEnter: () => void }) {
-  const status = useStore((s) => s.robots[robotId].status);
-  const color = STATUS_HEX[status];
+export function MachinePreviewCard({ robotId, active }: { robotId: RobotId; active: boolean }) {
+  // Same reading as the telemetry card below it - the two cards describe the
+  // same machine, so they must never disagree about whether it is healthy.
+  const severity = useMachineSeverity(robotId);
+  const color = STATUS_HEX[severity];
+  const alarmed = severity !== 'healthy';
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-      <button
-        onClick={onEnter}
-        aria-label={`Enter the 3D assembly line, ${robotId}`}
-        className="group relative min-h-0 flex-1 cursor-pointer"
-        style={{ background: 'linear-gradient(180deg, #dbe8f4 0%, #eef3f8 100%)' }}
+    <div
+      className="flex h-full flex-col overflow-hidden rounded-lg border bg-[var(--surface)] transition-colors"
+      style={{ borderColor: alarmed ? color : 'var(--border)', boxShadow: alarmed ? `0 0 0 3px ${color}26` : undefined }}
+    >
+      <div
+        className="relative min-h-0 flex-1"
+        style={{
+          background: alarmed
+            ? `linear-gradient(180deg, ${color}33 0%, #eef3f8 100%)`
+            : 'linear-gradient(180deg, #dbe8f4 0%, #eef3f8 100%)',
+        }}
       >
         <span
           className="absolute left-2.5 top-2.5 z-10 h-2 w-2 rounded-full"
           style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}33` }}
         />
-        <span className="absolute right-2.5 top-2.5 z-10 rounded-md bg-white/70 p-1 text-[var(--text-secondary)] backdrop-blur transition-colors group-hover:bg-white/90 group-hover:text-[var(--text-primary)]">
-          <BarChartIcon className="h-3.5 w-3.5" />
-        </span>
-        <MachinePreview robotId={robotId} />
-      </button>
-      <div className="font-mono-ui shrink-0 border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-        {robotId}
+        <MachinePreview robotId={robotId} active={active} />
+      </div>
+      <div className="flex shrink-0 items-center justify-between border-t border-[var(--border)] px-3 py-2 text-xs">
+        <span className="font-mono-ui text-[var(--text-secondary)]">{robotId}</span>
+        <span className="text-[var(--text-secondary)]">{ROBOT_LABELS[robotId]}</span>
       </div>
     </div>
   );
 }
 
 export function TelemetryCard({ robotId }: { robotId: RobotId }) {
-  const status = useStore((s) => s.robots[robotId].status);
-  const color = STATUS_HEX[status];
-  const telemetry = useFleetTelemetry(robotId);
+  const severity = useMachineSeverity(robotId);
+  const reading = useSensorReading(robotId);
+  const color = STATUS_HEX[severity];
+  const alarmed = severity !== 'healthy';
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+    <div
+      className="flex flex-col gap-2.5 rounded-lg border bg-[var(--surface)] p-3 transition-colors"
+      style={{
+        // An out-of-limits machine is findable across the grid at a glance,
+        // rather than only from the one small pill in its corner.
+        borderColor: alarmed ? `${color}66` : 'var(--border)',
+        boxShadow: alarmed ? `0 0 0 3px ${color}14` : undefined,
+      }}
+    >
       <div className="flex items-center justify-between">
         <div>
           <div className="font-mono-ui text-xs font-semibold">{robotId}</div>
@@ -106,33 +120,64 @@ export function TelemetryCard({ robotId }: { robotId: RobotId }) {
           style={{ color, backgroundColor: `${color}1f` }}
         >
           <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
-          {status}
+          {severity}
         </span>
       </div>
 
-      <SegmentedMeter
-        label="Temperature"
-        displayValue={`${telemetry.temperature.toFixed(1)}°C`}
-        fraction={telemetry.temperature / 100}
-        color={METRIC_HEX.temperature}
-        rangeLabel="20-100°C"
-      />
-      <SegmentedMeter
-        label="Pressure"
-        displayValue={`${telemetry.pressure.toFixed(1)} psi`}
-        fraction={telemetry.pressure / 10}
-        color={METRIC_HEX.pressure}
-        rangeLabel="0-10 psi"
-      />
-      <SegmentedMeter
-        label="Vibration"
-        displayValue={`${telemetry.vibration.toFixed(2)} mm/s`}
-        fraction={telemetry.vibration / 10}
-        color={METRIC_HEX.vibration}
-        rangeLabel="0-10 mm/s"
-      />
+      {robotId === PROBLEM_ROBOT_ID && <WeldOffsetMeter />}
+      {SENSOR_CHANNELS.map((channel) => (
+        <ChannelMeter key={channel} robotId={robotId} channel={channel} value={reading[channel]} />
+      ))}
 
-      <div className="font-mono-ui text-[11px] text-[var(--text-secondary)]">Cycles: {Math.round(telemetry.cycles)}</div>
+      <div className="font-mono-ui text-[11px] text-[var(--text-secondary)]">Cycles: {Math.round(reading.cycles)}</div>
     </div>
+  );
+}
+
+/** The weld station's quality signal, alongside its process sensors: the
+ *  windowed weld offset the analyzer computes from every car. */
+function WeldOffsetMeter() {
+  const robot = useStore((s) => s.robots[PROBLEM_ROBOT_ID]);
+  const color = robot.status === 'healthy' ? METRIC_HEX.offset : STATUS_HEX[robot.status];
+  return (
+    <SegmentedMeter
+      label="Weld offset"
+      displayValue={`${robot.trendMm.toFixed(2)} mm`}
+      fraction={robot.trendMm / 2.5}
+      color={color}
+      rangeLabel={`0-2.5 mm · spec ±${WELD_TOLERANCE_MM}`}
+    />
+  );
+}
+
+/** One sensor channel. Healthy readings keep the channel's own hue so the
+ *  three meters read apart; once a reading crosses a limit the bar switches
+ *  to the status colour, because at that point which sensor it is matters
+ *  less than that it is out of range. */
+function ChannelMeter({ robotId, channel, value }: { robotId: RobotId; channel: SensorChannel; value: number }) {
+  const injection = useChannelInjection(robotId, channel);
+  const severity = channelSeverity(channel, value);
+  const spec = CHANNEL_SPECS[channel];
+  const color = severity === 'healthy' ? METRIC_HEX[channel] : STATUS_HEX[severity];
+
+  return (
+    <SegmentedMeter
+      label={spec.label}
+      displayValue={formatReading(channel, value)}
+      fraction={(value - spec.min) / (spec.max - spec.min)}
+      color={color}
+      rangeLabel={channelRangeLabel(channel)}
+      badge={
+        injection && (
+          <span
+            className="font-mono-ui shrink-0 rounded-sm px-1 py-px text-[9px] font-semibold tracking-normal"
+            style={{ color: 'var(--brand-orange)', backgroundColor: 'rgba(232, 98, 44, 0.12)' }}
+            title={`Fault injected at level ${injection.intensity}`}
+          >
+            INJ L{injection.intensity}
+          </span>
+        )
+      }
+    />
   );
 }

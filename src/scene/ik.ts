@@ -17,11 +17,11 @@ export interface TwoBoneSolution {
 
 /** Triangle (sine) envelope: 0 → 1 → 0 across `[startMs, startMs + durationMs]`,
  *  peaking at the midpoint, and exactly 0 outside the window. One beat of a
- *  station's choreography — a weld dart, a wheel mount, a paint sweep — is a
+ *  station's choreography - a weld dart, a wheel mount, a paint sweep - is a
  *  sequence of these instead of one rigid per-event pulse, which is what
  *  lets the existing `animStyle` machinery extend to multi-beat sequences.
  *
- *  `elapsedMs` and `startMs` share one clock (wall or render — the caller's
+ *  `elapsedMs` and `startMs` share one clock (wall or render - the caller's
  *  choice); the helper is unit-agnostic. Mirrors the previous inline
  *  `dab = sin(pulseT * PI)` math from RobotArm's useFrame, extracted so every
  *  station can reuse it. */
@@ -36,7 +36,7 @@ export function triangleEnvelope(elapsedMs: number, startMs: number, durationMs:
  *  the authored rest poses in RobotArm.tsx): `baseYaw` rotates about Y to aim
  *  the arm horizontally at the target; the upper link and forearm then move
  *  in the single vertical plane between +Y (straight up) and +Z (forward,
- *  post-yaw) — the same assumption already baked into today's hand-tuned
+ *  post-yaw) - the same assumption already baked into today's hand-tuned
  *  poses, so base yaw + two tilts fully describe the reach.
  *
  *  `targetLocal` is relative to the robot's ground origin (the outer group
@@ -46,7 +46,7 @@ export function triangleEnvelope(elapsedMs: number, startMs: number, durationMs:
  *  `0.98·(upper+fore)` so an unreachable target never yields `NaN` from
  *  `acos`, and floored at `|upper-fore|` so a target inside the linkage's
  *  inner dead zone still produces a sane folded pose. Elbow config is fixed
- *  to "elbow up" — the natural reaching pose for an industrial arm coming
+ *  to "elbow up" - the natural reaching pose for an industrial arm coming
  *  down onto a car (elbow high, forearm reaching forward/down to the target). */
 export function solveTwoBoneIK(
   targetLocal: THREE.Vector3,

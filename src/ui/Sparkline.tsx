@@ -4,7 +4,7 @@ import { STATUS_HEX } from './colors';
 /** A trend line is only readable against the limits it's being judged
  *  against. This used to be a bare polyline with a hardcoded `max` that
  *  didn't match any real threshold, so a trend could visibly climb without
- *  the shape telling you whether that mattered — or clip silently once it
+ *  the shape telling you whether that mattered - or clip silently once it
  *  passed the ceiling. The bands are the reference frame. */
 interface SparklineProps {
   data: TrendSample[];

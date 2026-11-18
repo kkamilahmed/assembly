@@ -11,7 +11,7 @@ import {
 
 export interface CarProducerConfig {
   paused: boolean;
-  /** Per-robot signed deviation bias, mm — the mechanical "true" drift.
+  /** Per-robot signed deviation bias, mm - the mechanical "true" drift.
    * The story director ramps this up/down for the problem robot. */
   robotBiasMm: Record<RobotId, number>;
   /** Baseline per-weld process variation (1 sigma, mm), independent of
@@ -26,7 +26,7 @@ const DEFAULT_CONFIG: CarProducerConfig = {
   noiseMm: WELD_PROCESS_SIGMA_MM,
 };
 
-/** The one station that actually measures/QCs a weld this phase — see the
+/** The one station that actually measures/QCs a weld this phase - see the
  * plan doc. Slot index derived from ROBOT_IDS so a future reorder can't
  * silently desync it from the station it's meant to point at. */
 const WELD_ROBOT_ID: RobotId = 'WELD-01';
@@ -39,7 +39,7 @@ export type CarExitListener = (carId: string, timestamp: number) => void;
 export type PauseShiftListener = (deltaMs: number) => void;
 
 /** Box-Muller. Draws from the seedable stream, not Math.random, so a run is
- *  reproducible — see presenter/rng.ts. */
+ *  reproducible - see presenter/rng.ts. */
 function gaussian(mean: number, stddev: number): number {
   const u = 1 - random();
   const v = random();
@@ -49,7 +49,7 @@ function gaussian(mean: number, stddev: number): number {
 
 /**
  * A minimal in-browser stand-in for a Kafka producer scoped to the
- * assembly line — a walking-beam conveyor: every occupied station's car
+ * assembly line - a walking-beam conveyor: every occupied station's car
  * advances one slot in lockstep on a shared cadence (STATION_CYCLE_MS),
  * dwells, then advances again. `slots[0..ROBOT_IDS.length-1]` are the real
  * stations; `slots[EXIT_STATION_INDEX]` is a one-cycle "exit lane" holding
@@ -102,7 +102,7 @@ export class CarProducer {
     // therefore produced a "fresh" line whose robot was still physically
     // misaligned: the trend jumped straight back above the control limit
     // from a standing start, and the incident timeline reported crossings
-    // at negative offsets — before the fault it was measuring had begun.
+    // at negative offsets - before the fault it was measuring had begun.
     this.config.robotBiasMm = Object.fromEntries(
       ROBOT_IDS.map((id) => [id, 0]),
     ) as unknown as Record<RobotId, number>;
@@ -121,7 +121,7 @@ export class CarProducer {
     const { robotBiasMm, paused, ...rest } = partial;
 
     // Shift the index deadline forward by however long we were paused, so
-    // resuming doesn't fire a burst of backlogged index steps — and tell
+    // resuming doesn't fire a burst of backlogged index steps - and tell
     // listeners the same delta so in-flight dwell timers (CarShell's
     // dockedAt) can shift too, or a paused animation would jump on resume.
     if (paused !== undefined && paused !== this.config.paused) {
@@ -194,7 +194,7 @@ export class CarProducer {
       if (carId === null) continue;
 
       if (i === WELD_SLOT_INDEX && this.flaggedCarIds.delete(carId)) {
-        // QC caught this one while it dwelled here — divert to the rework
+        // QC caught this one while it dwelled here - divert to the rework
         // siding instead of continuing down the line.
         this.slots[i] = null;
         this.carSidingListeners.forEach((l) => l(carId, time));

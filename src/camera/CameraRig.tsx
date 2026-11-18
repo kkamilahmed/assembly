@@ -35,7 +35,7 @@ export function CameraRig() {
     if (cinematicDone) return;
     if (startedAtRef.current === null) startedAtRef.current = performance.now();
     const t = (performance.now() - startedAtRef.current) / 1000;
-    // Still clamped, but only for the damping term below — a single long
+    // Still clamped, but only for the damping term below - a single long
     // frame should not be allowed to snap the smoothing all the way to its
     // target, which would show up as a visible jolt.
     const delta = Math.min(rawDelta, 0.1);
@@ -66,7 +66,7 @@ export function CameraRig() {
       // Land on the intended framing exactly, rather than wherever the
       // damping happened to have got to. The smoothing lags its target by
       // roughly velocity x its time constant, and that lag is never repaid
-      // because control hands over immediately — on a slow renderer the
+      // because control hands over immediately - on a slow renderer the
       // camera was stopping ~9m short of the settle shot, so the framing
       // OrbitControls inherited depended on the frame rate. Snapping here
       // costs nothing visually (the ideal is already within a frame or two
@@ -86,7 +86,7 @@ export function CameraRig() {
       minDistance={6}
       // Derived from the settle shot rather than hardcoded, so the handoff
       // framing is always comfortably inside the orbit range with room to
-      // pull back — a fixed 40 used to sit almost exactly on top of it.
+      // pull back - a fixed 40 used to sit almost exactly on top of it.
       maxDistance={MAX_ORBIT_DISTANCE}
       maxPolarAngle={Math.PI / 2 - 0.02}
       // Same point the cinematic ends on, so taking over doesn't re-aim

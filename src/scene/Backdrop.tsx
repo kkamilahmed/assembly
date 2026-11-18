@@ -1,21 +1,21 @@
 import { COLORS, DESPAWN_X, LINE_END_X, LINE_START_X } from './constants';
 
-// Was 15 — from a close, near-level orbit (easier to reach now that WALL_Z
+// Was 15 - from a close, near-level orbit (easier to reach now that WALL_Z
 // is closer, see below) the frustum routinely looked out over the top edge.
 // Above it was just background color, which is deliberately identical to
 // the wall's own upper-band color (constants.ts COLORS.backdrop), so that
-// edge was never visible anyway — the wall didn't get cut off, it just
+// edge was never visible anyway - the wall didn't get cut off, it just
 // dissolved into the same flat void the fog uses, reading as bottomless
 // instead of built. Taller buys real headroom against ordinary framings;
 // the cap band below is the actual fix, giving that edge a visible line
 // regardless of how far up the camera ends up looking.
 const WALL_HEIGHT = 22;
-// Was -19 — that read as a huge, mostly-empty stretch of floor between the
+// Was -19 - that read as a huge, mostly-empty stretch of floor between the
 // robot line/gantry (world z ≈ -9.8, FactoryStructure.tsx's GANTRY_Z) and
 // the back wall, fading into fog with nothing in it. Pulled in to -16, the
 // closest that still clears the scripted flythrough's z=-14 excursion
 // (camera/waypoints.ts) with a 2-unit margin past the camera's own near
-// plane (0.5) — plenty, since that shot also looks down from y=12-16, well
+// plane (0.5) - plenty, since that shot also looks down from y=12-16, well
 // above where the wall would fill the frame.
 export const WALL_Z = -16;
 // Matches WALL_Z: half of this (18) needs to clear both the new |WALL_Z|
@@ -27,7 +27,7 @@ const CAP_DEPTH = 36;
 const WAINSCOT_H = 1.7;
 const PILASTER_GAP = 6.5;
 
-// Exported so Conveyor.tsx can anchor the belt's own end caps to these —
+// Exported so Conveyor.tsx can anchor the belt's own end caps to these -
 // real opaque geometry a camera can't see past, unlike the fog-distance
 // trick that used to do this job and failed for the very natural framing of
 // looking at the first station up close (spawn is only ~20m from the old
@@ -36,7 +36,7 @@ export const SPAWN_WALL_X = LINE_START_X - 6;
 export const EXIT_WALL_X = DESPAWN_X + 6;
 
 /** One wall as two coplanar bands (a painted-concrete wainscot below, a
- *  lighter upper wall above — real factory walls are two-tone, not one flat
+ *  lighter upper wall above - real factory walls are two-tone, not one flat
  *  color) plus a steel baseboard and evenly-spaced pilasters standing
  *  slightly proud of the face. `width`/`height` match the old single-plane
  *  wall exactly; everything here is local to the wall's own position +
@@ -70,7 +70,7 @@ function Wall({
         <meshStandardMaterial color={COLORS.steelDark} metalness={0.4} roughness={0.6} />
       </mesh>
       {/* Roofline cap, proud of the face like the baseboard is at the
-          bottom — without it the wall's top edge is invisible on any close
+          bottom - without it the wall's top edge is invisible on any close
           or near-level framing (its own color matches the background
           exactly, by design, so there was nothing marking where it stopped;
           see WALL_HEIGHT's doc). A darker steel band reads as a real
@@ -97,7 +97,7 @@ function Wall({
 /** Studio backdrop so the line doesn't read as floating in a white void: one
  *  back wall behind the robots (with pilasters for structural rhythm), two
  *  end-cap walls past the line's X extremes. Deliberately no wall on the +Z
- *  (rework-siding) side — the camera roams too far that direction for a
+ *  (rework-siding) side - the camera roams too far that direction for a
  *  wall to avoid clipping. Fog used to paper over the floor's edge showing
  *  on that open side; now that edge is just pushed out past where a camera
  *  can practically reach (Floor.tsx's Z_HALF_DEPTH), so there's nothing
