@@ -2,17 +2,18 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
-import { crustColor, matte, metal, PALETTE, plastic } from '../style';
+import { matte, metal, PALETTE, plastic } from '../style';
+import { tabletMaterial, trayGeometry, trayTabletsGeometry } from '../props/tablet';
 import { Kit, rejectLabelMaterial, useDispose } from './kit';
 import { Pieces } from './Pieces';
 
 const STROKE = 0.9;
 const KICK_MS = 400;
-const MAX_LOAVES = 12;
+const MAX_TRAYS = 12;
 const BIN_W = 0.95;
 const BIN_D = 0.9;
 const BIN_TOP = 0.66;
-/** Raised floor of the bin, so even one loaf is visible from above. */
+/** Raised floor of the bin, so even one tray is visible from above. */
 const BIN_FLOOR = 0.36;
 
 /** Out fast, short dwell, back slower. 0 at rest, 1 at full stroke. */
@@ -23,32 +24,33 @@ function kickProfile(t: number): number {
   return 1 - r * r * (3 - 2 * r);
 }
 
-/** Where each rejected loaf lands: [x, y, z offset from the bin centre, yaw, tilt]. */
+/** Where each diverted tray lands: [x, y, z offset from the bin centre, yaw, tilt].
+ *  Four to a layer, slewed a little, as trays slid in from the gate. */
 const PILE: Array<[number, number, number, number, number]> = [
-  [-0.2, 0.07, 0.08, 0.3, 0.05],
-  [0.2, 0.07, -0.18, -0.5, -0.06],
-  [0.16, 0.07, 0.24, 1.2, 0.04],
-  [-0.22, 0.07, -0.24, -0.2, 0.08],
-  [0.02, 0.2, 0.02, 0.9, 0.22],
-  [-0.24, 0.2, 0.26, 1.5, -0.2],
-  [0.24, 0.2, 0.04, 0.1, 0.25],
-  [-0.06, 0.2, -0.26, -0.8, -0.18],
-  [0.1, 0.32, 0.18, 0.5, 0.2],
-  [-0.16, 0.32, -0.04, -1.1, -0.25],
-  [0.18, 0.32, -0.2, 1.4, 0.15],
-  [-0.02, 0.43, 0.06, 0.2, -0.12],
+  [-0.19, 0.0, 0.17, 0.08, 0.02],
+  [0.19, 0.0, 0.18, -0.06, -0.02],
+  [-0.2, 0.0, -0.17, -0.1, 0.03],
+  [0.18, 0.0, -0.18, 0.12, -0.02],
+  [0.0, 0.06, 0.02, 0.5, 0.06],
+  [-0.17, 0.11, 0.16, -0.3, -0.05],
+  [0.2, 0.11, -0.12, 0.25, 0.07],
+  [-0.15, 0.16, -0.18, 1.3, 0.04],
+  [0.17, 0.17, 0.18, 1.5, -0.06],
+  [0.02, 0.22, -0.02, -0.7, 0.08],
+  [-0.16, 0.27, 0.12, 0.9, -0.05],
+  [0.15, 0.28, -0.16, -1.2, 0.06],
 ];
 
 /**
- * Reject station: a pneumatic pusher that kicks a loaf off the belt, down a
- * chute and into a red bin. Local frame: origin on the floor under the belt
+ * Reject station: a pneumatic pusher that diverts a flagged tray off the
+ * belt, down a chute and into the red reject bin. Local frame: origin on the floor under the belt
  * centreline at the kick point, belt along +x at BELT_Y. The pusher stands
  * on +z and pushes toward -z; the bin is centred `binOffset` away on -z.
  * At the layout position use rotation y = -PI / 2, which puts the bin at
  * MACHINE_POS.rejectBin.
  *
  * `kickAt` is any value that changes per reject (a timestamp); each change
- * plays one 400 ms push. `binCount` loaves are shown in the bin, up to 12.
+ * plays one 400 ms push. `binCount` trays are shown in the bin, up to 12.
  */
 export function RejectStation({
   kickAt = null,
@@ -85,7 +87,7 @@ export function RejectStation({
     k.box(blue, [0.075, 0.035, 0.155], [0.115, 0.735, 1.15], 0.012);
     k.tube(blue, [[0.11, 0.74, 1.1], [0.11, 1.22, 1.1], [0.06, 1.22, 0.68], [0.06, 1.12, 0.68]], 0.013, 0.05);
     k.tube(blue, [[0.11, 0.74, 1.2], [0.11, 1.27, 1.2], [0.06, 1.27, 1.6], [0.06, 1.12, 1.6]], 0.013, 0.05);
-    // Photo-eye that confirms the loaf left the belt.
+    // Photo-eye that confirms the tray left the belt.
     k.box(steel, [0.03, 0.26, 0.03], [0.36, 0.93, 0.62], 0.01);
     k.box(blue, [0.07, 0.08, 0.07], [0.36, 1.06, 0.6], 0.018);
 
@@ -126,40 +128,38 @@ export function RejectStation({
     const bright = metal(PALETTE.offWhite, 0.18);
     k.cyl(bright, 0.026, 0.98, [0, 1.0, 1.06], 'z', 0.005, 0.026, 10);
     k.cyl(bright, 0.055, 0.05, [0, 1.0, 0.6], 'z', 0.012, 0.055, 12);
-    k.box(plastic(PALETTE.orange), [0.62, 0.2, 0.06], [0, 0.995, 0.55], 0.022);
+    k.box(plastic(PALETTE.brand), [0.62, 0.2, 0.06], [0, 0.995, 0.55], 0.022);
     k.box(plastic(PALETTE.white), [0.57, 0.15, 0.016], [0, 0.995, 0.515], 0.006);
     return k.build();
   }, []);
   useDispose(pusher);
 
-  const loaf = useMemo(() => {
-    const g = new THREE.CapsuleGeometry(0.1, 0.22, 6, 14);
-    g.rotateZ(Math.PI / 2);
-    g.scale(1, 0.82, 1);
-    return g;
-  }, []);
-  useEffect(() => () => loaf.dispose(), [loaf]);
+  const trayGeo = useMemo(() => trayGeometry(), []);
+  const tabletsGeo = useMemo(() => trayTabletsGeometry(), []);
 
-  const loavesRef = useRef<THREE.InstancedMesh>(null);
+  const traysRef = useRef<THREE.InstancedMesh>(null);
+  const tabletsRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
-    const mesh = loavesRef.current;
-    if (!mesh) return;
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const e = new THREE.Euler();
     const p = new THREE.Vector3();
     const s = new THREE.Vector3(1, 1, 1);
-    const c = new THREE.Color();
-    PILE.forEach(([x, y, z, yaw, tilt], i) => {
-      m.compose(p.set(x, BIN_FLOOR + y, binZ + z), q.setFromEuler(e.set(tilt * 0.4, yaw, tilt)), s);
-      mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, crustColor(2.6 + ((i * 7) % 5) * 0.08 - 0.16, c));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    for (const mesh of [traysRef.current, tabletsRef.current]) {
+      if (!mesh) continue;
+      PILE.forEach(([x, y, z, yaw, tilt], i) => {
+        // Diverted tablets are underweight: drawn thin, as on the belt.
+        s.set(1, mesh === tabletsRef.current ? 0.6 : 1, 1);
+        m.compose(p.set(x, BIN_FLOOR + y, binZ + z), q.setFromEuler(e.set(tilt, yaw, tilt * 0.5)), s);
+        mesh.setMatrixAt(i, m);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   }, [binZ]);
   useLayoutEffect(() => {
-    if (loavesRef.current) loavesRef.current.count = THREE.MathUtils.clamp(Math.round(binCount), 0, MAX_LOAVES);
+    const n = THREE.MathUtils.clamp(Math.round(binCount), 0, MAX_TRAYS);
+    if (traysRef.current) traysRef.current.count = n;
+    if (tabletsRef.current) tabletsRef.current.count = n;
   }, [binCount]);
 
   const pusherRef = useRef<THREE.Group>(null);
@@ -188,7 +188,8 @@ export function RejectStation({
       <group ref={pusherRef}>
         <Pieces pieces={pusher} />
       </group>
-      <instancedMesh ref={loavesRef} args={[loaf, matte(PALETTE.white, 0.7), MAX_LOAVES]} castShadow receiveShadow frustumCulled={false} />
+      <instancedMesh ref={traysRef} args={[trayGeo, plastic(PALETTE.critical, 0.4), MAX_TRAYS]} castShadow receiveShadow frustumCulled={false} />
+      <instancedMesh ref={tabletsRef} args={[tabletsGeo, tabletMaterial(), MAX_TRAYS]} receiveShadow frustumCulled={false} />
       {/* Hazard labels on the two faces the camera sees at the layout position. */}
       <mesh material={label} position={[0, 0.38, binZ - BIN_D / 2 - 0.002]} rotation={[0, Math.PI, 0]}>
         <planeGeometry args={[0.66, 0.25]} />

@@ -42,7 +42,7 @@ export function ControlBox({
   kind = 'hmi',
   width = 0.5,
   height = 0.56,
-  accent = PALETTE.orange,
+  accent = PALETTE.brand,
   ...props
 }: { kind?: ScreenKind; width?: number; height?: number; accent?: string } & ThreeElements['group']) {
   return (

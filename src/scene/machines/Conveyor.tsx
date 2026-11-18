@@ -131,20 +131,22 @@ const inRanges = (s: number, ranges: Range[]) => ranges.some(([a, b]) => s > a &
 
 /** Where the machines sit on the line. The guide rails and the legs leave
  *  these stretches free. */
-const OVEN: Range = [STATION_S.ovenIn - 0.25, STATION_S.ovenOut + 0.25];
+const COATER: Range = [STATION_S.coatIn - 0.25, STATION_S.coatOut + 0.25];
+const BLISTER: Range = [STATION_S.blisterIn - 0.2, STATION_S.blisterOut + 0.2];
 const DEFAULT_RAIL_GAPS: Range[] = [
-  [0, 1.5],
-  OVEN,
+  [0, 1.2],
+  COATER,
   [STATION_S.inspect - 0.45, STATION_S.inspect + 0.45],
   [STATION_S.reject - 0.6, STATION_S.reject + 0.6],
+  BLISTER,
   [LINE_LENGTH - 1.3, LINE_LENGTH],
 ];
-const DEFAULT_LEG_GAPS: Range[] = [OVEN, [LINE_LENGTH - 1.2, LINE_LENGTH]];
+const DEFAULT_LEG_GAPS: Range[] = [COATER, BLISTER, [LINE_LENGTH - 1.2, LINE_LENGTH]];
 /** Gearmotors hung on the frame: [arc length, side]. Side +1 is the right
  *  of travel. Both sit on the camera-facing side of their run. */
 const DEFAULT_DRIVES: Array<[number, 1 | -1]> = [
-  [5.2, 1],
-  [STATION_S.reject + 2.3, -1],
+  [4.6, 1],
+  [STATION_S.coatOut + 1.6, 1],
 ];
 
 function placeAlong(mesh: THREE.InstancedMesh | null, frames: Frame[], flip?: Array<1 | -1>) {

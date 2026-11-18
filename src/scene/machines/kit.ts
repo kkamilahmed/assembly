@@ -236,26 +236,6 @@ export function spillTexture(): THREE.CanvasTexture {
   });
 }
 
-/** Brightness of an oven window: hottest low down where the product is,
- *  falling off toward the frame. Multiplied by the fire colour. */
-export function windowTexture(): THREE.CanvasTexture {
-  return texture('window', 96, 64, (ctx, w, h) => {
-    const img = ctx.createImageData(w, h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const u = Math.abs(x / (w - 1) - 0.5) * 2;
-        const v = y / (h - 1);
-        const edge = (1 - Math.pow(u, 4)) * (1 - Math.pow(Math.abs(v - 0.5) * 2, 6));
-        const a = (0.28 + 0.72 * Math.pow(v, 1.4)) * (0.35 + 0.65 * edge);
-        const i = (y * w + x) * 4;
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.round(255 * a);
-        img.data[i + 3] = 255;
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-  });
-}
-
 /** Round soft falloff, for additive halos around self-lit parts. */
 export function haloTexture(): THREE.CanvasTexture {
   return texture('halo', 64, 64, (ctx, w, h) => {
@@ -335,7 +315,7 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
 
   const pad = 12;
   if (kind === 'trend') {
-    // Oven temperature trend with a setpoint band and a big readout.
+    // Compression force trend with a setpoint band and a big readout.
     ctx.fillStyle = PALETTE.wall;
     ctx.fillRect(pad, 34, w - pad * 2 - 74, h - 48);
     ctx.strokeStyle = PALETTE.wallTrim;
@@ -362,14 +342,14 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
       }
       ctx.stroke();
     };
-    line(PALETTE.orange, 0.4, 9, 70);
+    line(PALETTE.teal, 0.4, 9, 70);
     line(PALETTE.blue, 2.1, 6, 108);
-    ctx.fillStyle = PALETTE.orange;
+    ctx.fillStyle = PALETTE.brand;
     ctx.fillRect(w - 74, 34, 62, 40);
     ctx.fillStyle = PALETTE.white;
-    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('218°', w - 43, 62);
+    ctx.fillText('18kN', w - 43, 61);
     ctx.fillStyle = PALETTE.wallTrim;
     ctx.fillRect(w - 74, 82, 62, 26);
     ctx.fillRect(w - 74, 114, 62, 26);
@@ -378,34 +358,38 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
     ctx.fillStyle = PALETTE.blue;
     ctx.fillRect(w - 68, 122, 46, 10);
   } else if (kind === 'vision') {
-    // Camera frame: a loaf outline inside a detection box.
+    // Camera frame: a tray of tablets, each one ringed by the detector.
     ctx.fillStyle = PALETTE.wall;
     ctx.fillRect(pad, 32, w - pad * 2, h - 44);
-    ctx.fillStyle = PALETTE.cardboard;
-    ctx.beginPath();
-    ctx.ellipse(w * 0.42, h * 0.6, 62, 30, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = PALETTE.healthy;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(w * 0.42 - 72, h * 0.6 - 40, 144, 80);
-    ctx.strokeStyle = PALETTE.blue;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(pad, h * 0.6);
-    ctx.lineTo(w - pad, h * 0.6);
-    ctx.stroke();
+    ctx.fillStyle = PALETTE.blue;
+    ctx.fillRect(w * 0.42 - 70, h * 0.6 - 38, 140, 76);
+    for (let i = 0; i < 6; i++) {
+      for (let j = 0; j < 3; j++) {
+        const cx = w * 0.42 - 55 + i * 22;
+        const cy = h * 0.6 - 22 + j * 22;
+        ctx.fillStyle = PALETTE.white;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = PALETTE.healthy;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 10.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     ctx.fillStyle = PALETTE.healthy;
     ctx.fillRect(w - 62, 40, 42, 16);
     ctx.fillStyle = PALETTE.blue;
     ctx.fillRect(w - 62, 62, 42, 8);
     ctx.fillRect(w - 62, 76, 28, 8);
   } else if (kind === 'pack') {
-    // Case counter: tiles and a progress bar.
+    // Carton counter: tiles and a progress bar.
     for (let i = 0; i < 6; i++) {
       ctx.fillStyle = i < 4 ? PALETTE.blue : PALETTE.wallTrim;
       ctx.fillRect(pad + (i % 3) * 56, 34 + Math.floor(i / 3) * 40, 48, 32);
     }
-    ctx.fillStyle = PALETTE.orange;
+    ctx.fillStyle = PALETTE.brand;
     ctx.fillRect(w - 68, 34, 56, 72);
     ctx.fillStyle = PALETTE.white;
     ctx.font = 'bold 26px system-ui, sans-serif';
@@ -419,7 +403,7 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
     // Generic HMI: bar chart, recipe rows and soft keys.
     const bars = [0.5, 0.8, 0.62, 0.9, 0.7, 0.4];
     bars.forEach((v, i) => {
-      ctx.fillStyle = i === 3 ? PALETTE.orange : PALETTE.blue;
+      ctx.fillStyle = i === 3 ? PALETTE.brand : PALETTE.blue;
       const bh = v * 62;
       ctx.fillRect(pad + i * 20, 100 - bh, 14, bh);
     });
@@ -429,7 +413,7 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
       ctx.fillStyle = i === 1 ? PALETTE.amber : PALETTE.offWhite;
       ctx.fillRect(146, 37 + i * 18, 30 + ((i * 23) % 50), 6);
     }
-    [PALETTE.healthy, PALETTE.blue, PALETTE.wallTrim, PALETTE.orange].forEach((c, i) => {
+    [PALETTE.healthy, PALETTE.blue, PALETTE.wallTrim, PALETTE.brand].forEach((c, i) => {
       ctx.fillStyle = c;
       ctx.fillRect(pad + i * 59, h - 44, 52, 30);
     });
