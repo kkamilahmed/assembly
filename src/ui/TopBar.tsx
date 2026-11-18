@@ -9,14 +9,14 @@ function useLineState(): { label: string; color: string } {
   const paused = useStore((s) => s.paused);
   const severity = useStore((s) => machineSeverity(s, PROBLEM_MACHINE_ID));
   if (paused) return { label: 'Line stopped', color: STATUS_HEX.critical };
-  if (severity === 'critical') return { label: `Running · loaves burning`, color: STATUS_HEX.critical };
-  if (severity === 'warning') return { label: `Running · quality alert`, color: STATUS_HEX.warning };
+  if (severity === 'critical') return { label: `Running · welds failing`, color: STATUS_HEX.critical };
+  if (severity === 'warning') return { label: `Running · weld quality alert`, color: STATUS_HEX.warning };
   return { label: 'Running', color: STATUS_HEX.healthy };
 }
 
 export function TopBar({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
-  const packed = useStore((s) => s.loavesPacked);
-  const rejected = useStore((s) => s.loavesRejected);
+  const packed = useStore((s) => s.modulesPassed);
+  const rejected = useStore((s) => s.modulesScrapped);
   const autopilot = useStore((s) => s.autopilot);
   const setShortcutOverlayOpen = useStore((s) => s.setShortcutOverlayOpen);
   const line = useLineState();
@@ -28,8 +28,8 @@ export function TopBar({ view, onNavigate }: { view: View; onNavigate: (v: View)
     <div className="flex items-center justify-between gap-6 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
       <div className="flex items-center gap-5">
         <div>
-          <div className="text-sm font-semibold">Goldcrust Bakery · Line 1</div>
-          <div className="text-xs text-[var(--text-secondary)]">Mix, bake, inspect, pack</div>
+          <div className="text-sm font-semibold">Voltline Battery Plant · Module Line 1</div>
+          <div className="text-xs text-[var(--text-secondary)]">Sort, stack, weld, case, test · 600 modules/h</div>
         </div>
 
         <span
@@ -57,9 +57,9 @@ export function TopBar({ view, onNavigate }: { view: View; onNavigate: (v: View)
 
       <div className="flex items-center gap-5">
         <dl className="font-mono-ui flex items-center gap-5 text-xs">
-          <Stat label="Packed" value={packed.toLocaleString()} />
+          <Stat label="Passed" value={packed.toLocaleString()} />
           <Stat
-            label="Rejected"
+            label="Scrapped"
             value={rejected.toLocaleString()}
             color={rejected > 0 ? STATUS_HEX.critical : undefined}
           />

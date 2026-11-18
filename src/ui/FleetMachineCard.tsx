@@ -4,9 +4,9 @@ import * as THREE from 'three';
 import { MachineModel } from '@/scene/MachineModel';
 import { useStore } from '@/state/store';
 import {
-  BROWNING_TARGET,
-  BROWNING_TOLERANCE,
   MACHINE_LABELS,
+  WELD_MIN_N,
+  WELD_NOMINAL_N,
   PROBLEM_MACHINE_ID,
   type MachineId,
 } from '@/streaming/lineConfig';
@@ -112,7 +112,7 @@ export function TelemetryCard({ machineId }: { machineId: MachineId }) {
         </span>
       </div>
 
-      {machineId === PROBLEM_MACHINE_ID && <BrowningMeter />}
+      {machineId === PROBLEM_MACHINE_ID && <WeldStrengthMeter />}
       {SENSOR_CHANNELS.map((channel) => (
         <ChannelMeter key={channel} machineId={machineId} channel={channel} value={reading[channel]} />
       ))}
@@ -122,19 +122,19 @@ export function TelemetryCard({ machineId }: { machineId: MachineId }) {
   );
 }
 
-/** The oven's quality signal, alongside its process sensors: the windowed
- *  crust browning vision inspection scores on every loaf. */
-function BrowningMeter() {
+/** The welder's quality signal, alongside its process sensors: the windowed
+ *  weld strength the weld check estimates on every module. */
+function WeldStrengthMeter() {
   const machine = useStore((s) => s.machines[PROBLEM_MACHINE_ID]);
   const color = machine.status === 'healthy' ? METRIC_HEX.offset : STATUS_HEX[machine.status];
-  const value = BROWNING_TARGET + machine.trend;
+  const value = WELD_NOMINAL_N + machine.trend;
   return (
     <SegmentedMeter
-      label="Crust browning"
-      displayValue={value.toFixed(1)}
-      fraction={(value - 30) / 50}
+      label="Weld strength"
+      displayValue={`${value.toFixed(0)} N`}
+      fraction={(value - 100) / 180}
       color={color}
-      rangeLabel={`30-80 · target ${BROWNING_TARGET} ±${BROWNING_TOLERANCE}`}
+      rangeLabel={`100-280 N · nominal ${WELD_NOMINAL_N} · min ${WELD_MIN_N}`}
     />
   );
 }

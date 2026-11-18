@@ -34,7 +34,7 @@ export function ActionBar() {
           {paused ? 'Start line' : 'Stop line'}
         </Action>
         <Action k="C" onClick={() => recalibrate('operator')} primary={next === 'recalibrate'}>
-          Recalibrate oven
+          Recalibrate laser
         </Action>
         <Action k="A" onClick={toggleAutopilot} primary={next === 'autopilot'} active={autopilot}>
           {autopilot ? 'Autopilot on' : 'Run on autopilot'}

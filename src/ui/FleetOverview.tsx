@@ -2,13 +2,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { machineSeverity, useStore, type Severity } from '@/state/store';
 import {
   PROBLEM_MACHINE_ID,
+  TESTER_MACHINE_ID,
   MACHINE_IDS,
   MACHINE_LABELS,
-  BROWNING_TARGET,
-  BROWNING_TOLERANCE,
+  WELD_MIN_N,
+  WELD_NOMINAL_N,
   type MachineId,
 } from '@/streaming/lineConfig';
-import { channelSeverity, channelSpec, formatReading, SENSOR_CHANNELS } from '@/streaming/sensorStream';
+import { channelSeverity, channelSpec, formatReading, SENSOR_CHANNELS, SENSOR_SPECS } from '@/streaming/sensorStream';
 import { STATUS_HEX } from './colors';
 import { FaultInjectionPanel } from './FaultInjectionPanel';
 import { MachinePreviewCard, TelemetryCard } from './FleetMachineCard';
@@ -18,8 +19,8 @@ import type { View } from './views';
 
 /** The machines screen: every machine on the line with its live process sensors,
  *  and a diagnosis strip that says, in words, what the readings add up to.
- *  This is where the story finds the cause: the dashboard has shown burnt
- *  loaves rising, and this screen shows which machine is doing it and why. */
+ *  This is where the story finds the cause: the dashboard has shown weak
+ *  welds rising, and this screen shows which machine is doing it and why. */
 export function FleetOverview({ active, view, onNavigate }: { active: boolean; view: View; onNavigate: (v: View) => void }) {
   const faultPanelOpen = useStore((s) => s.faultPanelOpen);
   const setFaultPanelOpen = useStore((s) => s.setFaultPanelOpen);
@@ -29,7 +30,7 @@ export function FleetOverview({ active, view, onNavigate }: { active: boolean; v
     <div className="flex h-full w-full flex-col bg-[var(--bg)]">
       <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
         <div>
-          <div className="text-sm font-semibold">Machines · Line 1</div>
+          <div className="text-sm font-semibold">Machines · Module Line 1</div>
           <div className="text-xs text-[var(--text-secondary)]">Live sensor stream from every machine</div>
         </div>
         <div className="ml-auto">
@@ -106,7 +107,7 @@ function useEvidence(): Evidence[] {
         const machine = s.machines[machineId];
         if (machine.status !== 'healthy') {
           out.push(
-            [machineId, machine.status, `crust browning ${(BROWNING_TARGET + machine.trend).toFixed(1)} (limit ${BROWNING_TARGET + BROWNING_TOLERANCE})`].join('|'),
+            [machineId, machine.status, `weld strength ${(WELD_NOMINAL_N + machine.trend).toFixed(0)} N (min ${WELD_MIN_N})`].join('|'),
           );
         }
         for (const channel of SENSOR_CHANNELS) {
@@ -133,7 +134,9 @@ function useEvidence(): Evidence[] {
  */
 function Diagnosis() {
   const evidence = useEvidence();
-  const ovenSeverity = useStore((s) => machineSeverity(s, PROBLEM_MACHINE_ID));
+  const welderSeverity = useStore((s) => machineSeverity(s, PROBLEM_MACHINE_ID));
+  const powerLow = useStore((s) => s.sensors[PROBLEM_MACHINE_ID].load);
+  const cellHot = useStore((s) => channelSeverity(TESTER_MACHINE_ID, 'temperature', s.sensors[TESTER_MACHINE_ID].temperature) === 'critical');
   const incident = useStore((s) => s.incident);
   const paused = useStore((s) => s.paused);
   const autopilot = useStore((s) => s.autopilot);
@@ -152,8 +155,8 @@ function Diagnosis() {
           </div>
           <div className="mt-0.5 text-base font-semibold">All {MACHINE_IDS.length} machines inside limits</div>
           <div className="mt-1 text-xs text-[var(--text-secondary)]">
-            Temperatures, loads and vibration from every machine, plus a browning score for every loaf, analysed as
-            they stream.
+            Temperatures, loads, laser power and optics from every machine, plus a weld strength for every module,
+            analysed as they stream.
           </div>
         </div>
         <div className="ml-auto text-right">
@@ -166,7 +169,9 @@ function Diagnosis() {
 
   const worst = evidence.some((e) => e.severity === 'critical') ? 'critical' : 'warning';
   const color = STATUS_HEX[worst];
-  const ovenFault = ovenSeverity !== 'healthy';
+  const welderFault = welderSeverity !== 'healthy';
+  const powerSpec = SENSOR_SPECS[PROBLEM_MACHINE_ID].load;
+  const powerText = powerLow >= powerSpec.warn ? `laser power ${powerLow.toFixed(0)}% low` : 'laser power drifting';
   const open = incident !== null && incident.resolvedAt === null;
   const alarmed = [...new Set(evidence.map((e) => e.machineId))];
 
@@ -183,8 +188,8 @@ function Diagnosis() {
               {worst === 'critical' ? 'Critical' : 'Warning'} · {alarmed.join(', ')}
             </div>
             <div className="mt-0.5 text-base font-semibold">
-              {ovenFault
-                ? `${PROBLEM_MACHINE_ID} ${MACHINE_LABELS[PROBLEM_MACHINE_ID]}: running over setpoint, over-baking loaves`
+              {welderFault
+                ? `${PROBLEM_MACHINE_ID} ${MACHINE_LABELS[PROBLEM_MACHINE_ID]}: ${powerText}, welds not penetrating deep enough${cellHot ? `, overheating cell on ${TESTER_MACHINE_ID}` : ''}`
                 : `${alarmed.length === 1 ? alarmed[0] : `${alarmed.length} machines`} reading outside limits`}
             </div>
             <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -199,22 +204,24 @@ function Diagnosis() {
                 </li>
               ))}
             </ul>
-            {ovenFault && (
+            {welderFault && (
               <p className="mt-2 max-w-3xl text-xs leading-snug text-[var(--text-secondary)]">
-                Zone 2 temperature and burner output climbing together, followed by darker crusts at inspection, is the
-                signature of a temperature controller drifting off setpoint. Every loaf through the oven now over-bakes.
+                Delivered power falling while the lens reading climbs, followed by weaker welds at the weld check, is the
+                signature of a fogging lens: it soaks up laser power before it reaches the busbar, so the weld does not
+                penetrate deep enough to hold.
+                {cellHot && ' A cell running hot on the tester is what a weld like that does under load: stop the line now.'}
               </p>
             )}
           </div>
 
-          {ovenFault && (
+          {welderFault && (
             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
               {open && (
                 <div>
                   <div className="font-mono-ui text-2xl font-semibold leading-none" style={{ color: incident.rejected ? STATUS_HEX.critical : undefined }}>
                     {incident.rejected} / {incident.inspected}
                   </div>
-                  <div className="mt-1 text-[11px] text-[var(--text-secondary)]">loaves rejected since onset</div>
+                  <div className="mt-1 text-[11px] text-[var(--text-secondary)]">modules failed since onset</div>
                 </div>
               )}
               <div className="flex items-center gap-1.5 text-xs font-medium">
@@ -222,11 +229,11 @@ function Diagnosis() {
                   'Autopilot is recalibrating'
                 ) : paused ? (
                   <>
-                    Recommended: <Kbd>C</Kbd> recalibrate oven
+                    Recommended: <Kbd>C</Kbd> recalibrate laser power
                   </>
                 ) : (
                   <>
-                    Recommended: <Kbd>S</Kbd> stop line, <Kbd>C</Kbd> recalibrate oven
+                    Recommended: <Kbd>S</Kbd> {worst === 'critical' ? 'emergency stop' : 'stop line'}, <Kbd>C</Kbd> recalibrate laser
                   </>
                 )}
               </div>

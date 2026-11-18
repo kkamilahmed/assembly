@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useStore } from '@/state/store';
-import { BROWNING_TARGET, BROWNING_TOLERANCE, PROBLEM_MACHINE_ID } from '@/streaming/lineConfig';
-import { COST_PER_REJECT_USD, DOUGH_KG_PER_LOAF, LINE_JOBS_PER_HOUR, SHIFT_HOURS } from './businessCase';
+import { PROBLEM_MACHINE_ID, WARN_TREND, WELD_MIN_N, WELD_NOMINAL_N } from '@/streaming/lineConfig';
+import { CELLS_PER_MODULE, projectRate, SHIFT_HOURS } from './businessCase';
 import { STATUS_HEX } from './colors';
 import { fmtUsd } from './format';
 import { Kbd } from './Kbd';
@@ -9,9 +9,9 @@ import { BUCKET_MS, BUCKETS, useProductionHistory, type Bucket } from './product
 import { ViewNav } from './ViewNav';
 import type { View } from './views';
 
-const GOOD = '#d98c38';
-const BURNT = STATUS_HEX.critical;
-/** Intervals the "recent" reject rate is taken over. */
+const PASSED = '#3b86e3';
+const FAILED = STATUS_HEX.critical;
+/** Intervals the "recent" failure rate is taken over. */
 const RECENT = 3;
 
 function recentRate(buckets: Bucket[], current: Bucket): { rejected: number; total: number } {
@@ -23,31 +23,27 @@ function recentRate(buckets: Bucket[], current: Bucket): { rejected: number; tot
 
 /**
  * The outcome screen, to the right of the plant: what the line is actually
- * producing. It shows the effect (burnt loaves, waste) and deliberately not
- * the cause; finding the cause is the machines screen's job, one screen to
- * the left of the plant.
+ * producing. It shows the effect (weak welds, scrapped modules, money) and
+ * deliberately not the cause; finding the cause is the machines screen's
+ * job, one screen to the left of the plant.
  */
 export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
-  const packed = useStore((s) => s.loavesPacked);
-  const rejected = useStore((s) => s.loavesRejected);
+  const passed = useStore((s) => s.modulesPassed);
+  const scrapped = useStore((s) => s.modulesScrapped);
   const paused = useStore((s) => s.paused);
-  const browning = useStore((s) => s.machines[PROBLEM_MACHINE_ID].history);
+  const strength = useStore((s) => s.machines[PROBLEM_MACHINE_ID].history);
   const { buckets, current } = useProductionHistory();
 
-  const total = packed + rejected;
-  const yieldPct = total ? (packed / total) * 100 : 100;
   const recent = recentRate(buckets, current);
   const rate = recent.total ? recent.rejected / recent.total : 0;
-
-  const atRiskLoaves = Math.round(rate * LINE_JOBS_PER_HOUR * SHIFT_HOURS);
-  const atRiskKg = Math.round(atRiskLoaves * DOUGH_KG_PER_LOAF);
-  const atRiskUsd = Math.round(atRiskLoaves * COST_PER_REJECT_USD);
+  const shift = projectRate(rate);
+  const failing = rate > 0 && !paused;
 
   return (
     <div className="flex h-full w-full flex-col bg-[var(--bg)]">
       <div className="flex items-center gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
         <div>
-          <div className="text-sm font-semibold">Dashboard · Line 1</div>
+          <div className="text-sm font-semibold">Dashboard · Module Line 1</div>
           <div className="text-xs text-[var(--text-secondary)]">What the line is producing, live</div>
         </div>
         <div className="ml-auto">
@@ -56,25 +52,31 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
       </div>
 
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        <Outcome rate={rate} recent={recent} paused={paused} atRiskLoaves={atRiskLoaves} atRiskKg={atRiskKg} atRiskUsd={atRiskUsd} />
+        <Outcome rate={rate} recent={recent} paused={paused} shift={shift} />
 
         <div className="grid shrink-0 grid-cols-4 gap-4">
-          <Kpi label="Loaves packed" value={packed.toLocaleString()} />
-          <Kpi label="Burnt and rejected" value={rejected.toLocaleString()} color={rejected ? BURNT : undefined} />
-          <Kpi label="Yield" value={`${yieldPct.toFixed(1)}%`} color={yieldPct < 95 ? BURNT : STATUS_HEX.healthy} />
           <Kpi
-            label="Reject rate, last 20s"
+            label="Weld failures, last 20s"
             value={`${Math.round(rate * 100)}%`}
-            color={rate > 0.2 ? BURNT : rate > 0 ? STATUS_HEX.warning : STATUS_HEX.healthy}
+            color={rate > 0.1 ? FAILED : rate > 0 ? STATUS_HEX.warning : STATUS_HEX.healthy}
           />
+          <Kpi label="Modules scrapped" value={scrapped.toLocaleString()} color={scrapped ? FAILED : undefined} />
+          <Kpi
+            label="Scrap cost per shift, at this rate"
+            value={fmtUsd(shift.usd)}
+            color={failing ? FAILED : undefined}
+          />
+          <Kpi label="Modules passed" value={passed.toLocaleString()} />
         </div>
 
+        <Risk failing={failing} />
+
         <div className="grid min-h-0 flex-1 grid-cols-3 gap-4">
-          <Card className="col-span-2" title="Loaves off the line" legend={[['Good', GOOD], ['Burnt, rejected', BURNT]]}>
+          <Card className="col-span-2" title="Modules at end-of-line test" legend={[['Passed', PASSED], ['Failed, scrapped', FAILED]]}>
             <OutputBars buckets={buckets} current={current} />
           </Card>
-          <Card title="Crust browning at inspection" legend={[['Target band', '#9aa0a8']]}>
-            <BrowningChart values={browning.map((p) => BROWNING_TARGET + p.v)} />
+          <Card title="Weld strength" legend={[['Minimum', FAILED], ['Alert', STATUS_HEX.warning]]}>
+            <StrengthChart values={strength.map((p) => WELD_NOMINAL_N + p.v)} />
           </Card>
         </div>
       </div>
@@ -86,57 +88,84 @@ function Outcome({
   rate,
   recent,
   paused,
-  atRiskLoaves,
-  atRiskKg,
-  atRiskUsd,
+  shift,
 }: {
   rate: number;
   recent: { rejected: number; total: number };
   paused: boolean;
-  atRiskLoaves: number;
-  atRiskKg: number;
-  atRiskUsd: number;
+  shift: ReturnType<typeof projectRate>;
 }) {
-  const burning = rate > 0 && !paused;
-  const color = paused ? STATUS_HEX.warning : burning ? BURNT : STATUS_HEX.healthy;
+  const failing = rate > 0 && !paused;
+  const color = paused ? STATUS_HEX.warning : failing ? FAILED : STATUS_HEX.healthy;
   return (
     <div
       className="flex h-36 shrink-0 items-center gap-6 overflow-hidden rounded-xl border bg-[var(--surface)] px-6 transition-colors"
-      style={{ borderColor: burning ? `${color}88` : 'var(--border)', boxShadow: burning ? `0 0 0 3px ${color}1a` : undefined }}
+      style={{ borderColor: failing ? `${color}88` : 'var(--border)', boxShadow: failing ? `0 0 0 3px ${color}1a` : undefined }}
     >
       <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 0 4px ${color}26` }} />
       <div className="min-w-0 flex-1">
         <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>
-          {paused ? 'Line stopped' : burning ? 'Burnt loaves rising' : 'On target'}
+          {paused ? 'Line stopped' : failing ? 'Weak welds rising' : 'On spec'}
         </div>
         <div className="mt-0.5 text-xl font-semibold">
           {paused
             ? 'Production is paused while the cause is fixed'
-            : burning
-              ? `${recent.rejected} of the last ${recent.total} loaves came out burnt`
-              : 'Every loaf coming off the line is inside spec'}
+            : failing
+              ? `${recent.rejected} of the last ${recent.total} modules failed the weld check`
+              : 'Every module coming off the line passes its weld check'}
         </div>
         <div className="mt-1 text-sm text-[var(--text-secondary)]">
-          {burning ? (
+          {failing ? (
             <>
               Find the cause: <Kbd>&larr;</Kbd> <Kbd>&larr;</Kbd> machines
             </>
           ) : paused ? (
-            'Nothing is being baked, so nothing is being wasted.'
+            'Nothing is being welded, so nothing is being scrapped.'
           ) : (
-            'Browning is scored on every loaf as it leaves the oven.'
+            'Weld strength is checked on every module as it leaves the laser welder.'
           )}
         </div>
       </div>
       <div className="text-right">
         <div className="text-[11px] text-[var(--text-secondary)]">If nothing changes, by end of shift</div>
-        <div className="font-mono-ui mt-1 text-3xl font-semibold leading-none" style={{ color: burning ? BURNT : undefined }}>
-          {burning ? `${atRiskKg.toLocaleString()} kg` : '0 kg'}
+        <div className="font-mono-ui mt-1 text-3xl font-semibold leading-none" style={{ color: failing ? FAILED : undefined }}>
+          {failing ? fmtUsd(shift.usd) : '$0'}
         </div>
         <div className="mt-1 text-xs text-[var(--text-secondary)]">
-          {burning ? `of dough wasted · ${atRiskLoaves.toLocaleString()} loaves · ${fmtUsd(atRiskUsd)}` : 'of dough wasted'}
+          {failing
+            ? `scrapped · ${shift.modules.toLocaleString()} modules · ${shift.cells.toLocaleString()} cells`
+            : `scrapped over ${SHIFT_HOURS}h`}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Why a weak weld matters past the scrap bin. Always on screen, so the
+ *  stakes are stated before anything goes wrong; it turns red while modules
+ *  are failing. */
+function Risk({ failing }: { failing: boolean }) {
+  const color = failing ? FAILED : 'var(--text-secondary)';
+  return (
+    <div
+      className="flex shrink-0 items-center gap-3 rounded-xl border px-5 py-3 text-sm transition-colors"
+      style={{
+        borderColor: failing ? `${FAILED}55` : 'var(--border)',
+        backgroundColor: failing ? `${FAILED}0d` : 'var(--surface)',
+      }}
+    >
+      <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" aria-hidden style={{ color }}>
+        <path d="M10 2.5 18.5 17h-17L10 2.5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M10 8v4.2M10 14.6v.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span>
+        <span className="font-semibold" style={{ color: failing ? FAILED : undefined }}>
+          Every failed module scraps {CELLS_PER_MODULE} cells.
+        </span>{' '}
+        <span className="text-[var(--text-secondary)]">
+          Weak welds that slip past the tester can overheat in a customer's car, which means a recall and a fire risk.
+        </span>
+      </span>
     </div>
   );
 }
@@ -181,9 +210,9 @@ function Card({
   );
 }
 
-/** Good and burnt loaves per interval, stacked: the moment the oven drifts
- *  the red climbs up through the bars, which is the whole story in one
- *  picture. */
+/** Passed and failed modules per interval, stacked: the moment the laser
+ *  drifts the red climbs up through the bars, which is the whole story in
+ *  one picture. */
 function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }) {
   const all = [...buckets, current];
   while (all.length < BUCKETS + 1) all.unshift({ good: 0, rejected: 0 });
@@ -194,7 +223,7 @@ function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }
   const slot = W / all.length;
   const bw = slot * 0.66;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full" aria-label="Loaves per interval">
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full" aria-label="Modules per interval">
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={0} x2={W} y1={H * f} y2={H * f} stroke="#e5e8ec" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       ))}
@@ -205,8 +234,8 @@ function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }
         const live = i === all.length - 1;
         return (
           <g key={i} opacity={live ? 0.55 : 1}>
-            <rect x={x} y={H - gh} width={bw} height={gh} rx={0.6} fill={GOOD} />
-            <rect x={x} y={H - gh - rh} width={bw} height={rh} rx={0.6} fill={BURNT} />
+            <rect x={x} y={H - gh} width={bw} height={gh} rx={0.6} fill={PASSED} />
+            <rect x={x} y={H - gh - rh} width={bw} height={rh} rx={0.6} fill={FAILED} />
           </g>
         );
       })}
@@ -214,48 +243,51 @@ function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }
   );
 }
 
-function BrowningChart({ values }: { values: number[] }) {
+/** The welder's windowed mean weld strength, falling toward the minimum as
+ *  the laser loses power. The alert line is where the stream flags it; the
+ *  minimum is where modules start failing. */
+function StrengthChart({ values }: { values: number[] }) {
   const series = values.slice(-80);
-  const lo = BROWNING_TARGET - 12;
-  const hi = BROWNING_TARGET + 22;
+  const lo = 100;
+  const hi = 270;
+  const alert = WELD_NOMINAL_N - WARN_TREND;
   const W = 100;
   const H = 60;
   const y = (v: number) => H - ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * H;
   const pts = series.map((v, i) => `${((i / Math.max(series.length - 1, 1)) * W).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
-  const last = series.at(-1) ?? BROWNING_TARGET;
-  const over = last > BROWNING_TARGET + BROWNING_TOLERANCE;
+  const last = series.at(-1) ?? WELD_NOMINAL_N;
+  const tone = last < WELD_MIN_N ? FAILED : last < alert ? STATUS_HEX.warning : undefined;
   return (
     <div className="flex h-full flex-col">
-      <div className="font-mono-ui text-3xl font-semibold leading-none" style={{ color: over ? BURNT : undefined }}>
-        {last.toFixed(1)}
+      <div className="font-mono-ui text-3xl font-semibold leading-none" style={{ color: tone }}>
+        {last.toFixed(0)} N
         <span className="ml-2 text-xs font-normal text-[var(--text-secondary)]">
-          target {BROWNING_TARGET} &plusmn;{BROWNING_TOLERANCE}
+          nominal {WELD_NOMINAL_N} · min {WELD_MIN_N}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-3 min-h-0 w-full flex-1" aria-label="Crust browning trend">
-        <rect
-          x={0}
-          y={y(BROWNING_TARGET + BROWNING_TOLERANCE)}
-          width={W}
-          height={y(BROWNING_TARGET - BROWNING_TOLERANCE) - y(BROWNING_TARGET + BROWNING_TOLERANCE)}
-          fill="#9aa0a8"
-          fillOpacity={0.12}
-        />
-        <line
-          x1={0}
-          x2={W}
-          y1={y(BROWNING_TARGET + BROWNING_TOLERANCE)}
-          y2={y(BROWNING_TARGET + BROWNING_TOLERANCE)}
-          stroke={BURNT}
-          strokeDasharray="4,4"
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-3 min-h-0 w-full flex-1" aria-label="Weld strength trend">
+        <rect x={0} y={y(WELD_MIN_N)} width={W} height={H - y(WELD_MIN_N)} fill={FAILED} fillOpacity={0.07} />
+        {[
+          [alert, STATUS_HEX.warning],
+          [WELD_MIN_N, FAILED],
+        ].map(([v, c]) => (
+          <line
+            key={c}
+            x1={0}
+            x2={W}
+            y1={y(v as number)}
+            y2={y(v as number)}
+            stroke={c as string}
+            strokeDasharray="4,4"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
         {series.length > 1 && (
           <polyline
             points={pts}
             fill="none"
-            stroke={over ? BURNT : GOOD}
+            stroke={tone ?? PASSED}
             strokeWidth={3}
             strokeLinejoin="round"
             strokeLinecap="round"

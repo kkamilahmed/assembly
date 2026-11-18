@@ -37,7 +37,7 @@ export function FaultInjectionPanel() {
   const open = useStore((s) => s.faultPanelOpen);
   const setOpen = useStore((s) => s.setFaultPanelOpen);
   // Only what somebody injected from this panel. The deviation keys put a
-  // physical signature on OVEN-01's sensors too, but that is the machine
+  // physical signature on LW-3's sensors too, but that is the machine
   // misbehaving, not a fault this panel owns.
   const injections = useStore(useShallow((s) => s.injections.filter((i) => i.source === 'manual')));
   const injectFaults = useStore((s) => s.injectFaults);
