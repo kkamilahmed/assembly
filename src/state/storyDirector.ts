@@ -1,13 +1,15 @@
 // The presenter's controls, as plain functions the keyboard and the on-screen
 // action bar both call:
 //
-//   D  slight deviation  - the oven's zone 2 creeps over setpoint. Some loaves
-//                          come out over-baked and are rejected.
-//   E  emergency         - burner runaway. Every loaf burns.
-//   S  stop / start line
-//   C  recalibrate the oven
+//   D  slight deviation  - press P-2's fill depth creeps shallower as punch 14
+//                          wears. Tablet weight slides under the lower limit
+//                          and underweight trays are diverted.
+//   E  emergency         - pressure spike, the press starts jamming. Every
+//                          tray is badly underweight.
+//   S  stop / start line (stopping quarantines the last 10 minutes of output)
+//   C  recalibrate the press's fill depth
 //   A  run on autopilot  - the line recalibrates itself the moment the stream
-//                          flags the oven
+//                          flags the press
 //
 // Nothing here runs on its own: the line stays healthy until a key is
 // pressed, so the presenter decides when the story moves.
@@ -19,28 +21,30 @@ import {
   type DeviationLevel,
 } from '@/streaming/lineConfig';
 import type { SensorChannel } from '@/streaming/sensorStream';
-import { recalibrateMachine, resetLine, setOvenOffset } from './engine';
+import { recalibrateMachine, resetLine, setPressOffset } from './engine';
 import { machineSeverity, useStore } from './store';
 
 /**
- * What an oven running hot does to its own sensors. A loaf's browning is only
- * measured once it has travelled from the oven to the camera, but the zone
- * temperature and the burner output move within a second or two - which is
- * why the machines screen lights up before the first over-baked loaf reaches
- * inspection, and why the autopilot can act before a pile of them does.
+ * What a worn punch does to the press's own sensors. A tray's weight is only
+ * measured once it has travelled from the press, through the coating drum,
+ * to the inspection station, but the fill depth and the compression force
+ * move within a second or two - which is why the machines screen lights up
+ * before the first underweight tray reaches inspection, and why the
+ * autopilot can act before a binful of them does.
  *
  * Intensities are on the fault-injection scale (1-20, a fraction of each
- * channel's headroom): slight settles in the warning band, emergency in
- * critical.
+ * channel's headroom): slight settles in the warning band (compression
+ * force about 11% down), emergency in critical with the ejection force
+ * spiking as the press jams.
  */
 const SENSOR_SIGNATURE: Record<DeviationLevel, Partial<Record<SensorChannel, number>>> = {
-  slight: { temperature: 5, load: 11 },
-  emergency: { temperature: 14, load: 17, vibration: 9 },
+  slight: { process: 4, feed: 5 },
+  emergency: { process: 10, feed: 12, mechanical: 14 },
 };
 
 const FAULT_TEXT: Record<DeviationLevel, string> = {
-  slight: `${PROBLEM_MACHINE_ID} zone 2 starting to run hot`,
-  emergency: `${PROBLEM_MACHINE_ID} burner runaway`,
+  slight: `${PROBLEM_MACHINE_ID} fill depth starting to drift`,
+  emergency: `${PROBLEM_MACHINE_ID} pressure spike, press jamming`,
 };
 
 let rampTimers: number[] = [];
@@ -60,15 +64,15 @@ function rampOffset(to: number, durationMs: number) {
     rampTimers.push(
       window.setTimeout(() => {
         currentOffset = from + ((to - from) * i) / steps;
-        setOvenOffset(currentOffset);
+        setPressOffset(currentOffset);
       }, (i / steps) * durationMs),
     );
   }
 }
 
-/** D / E. Drifts the oven to the level's offset and puts the matching
- *  physical signature on its sensors. Pressing E during a slight deviation
- *  escalates it. */
+/** D / E. Drifts the press to the level's weight offset and puts the
+ *  matching physical signature on its sensors. Pressing E during a slight
+ *  deviation escalates it. */
 export function injectDeviation(level: DeviationLevel) {
   const store = useStore.getState();
   store.openIncident(Date.now(), FAULT_TEXT[level]);
@@ -79,8 +83,8 @@ export function injectDeviation(level: DeviationLevel) {
   rampOffset(DEVIATION_OFFSET[level], DEVIATION_RAMP_MS[level]);
 }
 
-/** C. Puts the oven back on setpoint: zero offset, sensors settle, trend
- *  window restarts, incident closed. */
+/** C. Puts the press's fill depth back on setpoint: zero offset, sensors
+ *  settle, trend window restarts, incident closed. */
 export function recalibrate(by: 'operator' | 'autopilot' = 'operator') {
   clearRamp();
   currentOffset = 0;
@@ -122,15 +126,15 @@ export function resetDemo() {
 
 /** How long autopilot takes to act once the machine is flagged: long enough
  *  that the flagged state is visible for a beat on screen, short enough that
- *  the next loaf out of the oven is already back on target. */
+ *  the next tray out of the press is already back on target. */
 const AUTOPILOT_REACTION_MS = scaleMs(600);
 
 /**
  * The autopilot acts on what the pipeline has *detected*, not on what the
- * story director knows it caused: it waits for OVEN-01 to leave healthy on
+ * story director knows it caused: it waits for PRESS-P2 to leave healthy on
  * the same readings the dashboard shows, then recalibrates. That is the
  * honest version of the claim - real-time analysis is what lets the line
- * fix itself before a stream of burnt loaves comes off it.
+ * fix itself before a stream of underdosed tablets comes off it.
  */
 function maybeAutoRecalibrate() {
   const state = useStore.getState();

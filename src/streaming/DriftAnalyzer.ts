@@ -1,7 +1,7 @@
 import type { DriftAction, DriftActionEvent, MeasurementEvent, QCCheckEvent, WindowStatsEvent } from './types';
 import { scaleMs } from '@/presenter/presenterConfig';
 import {
-  BROWNING_TOLERANCE,
+  WEIGHT_TOLERANCE_MG,
   CRITICAL_TREND,
   MIN_TREND_SAMPLES,
   TREND_WINDOW_MS,
@@ -27,10 +27,10 @@ export type ActionListener = (event: DriftActionEvent) => void;
 type Severity = 'healthy' | 'warning' | 'critical';
 
 /**
- * Stands in for a Flink job on the inspection topic: judges every loaf as it
- * arrives (per-event QC) and keeps a trailing-window trend of the browning
- * offset that raises a drift alert when the process centre moves (windowed
- * analytics). A real deployment replaces this with a bridge relaying
+ * Stands in for a Flink job on the inspection topic: judges every tray as it
+ * arrives (per-event QC) and keeps a trailing-window trend of the tablet
+ * weight offset that raises a drift alert when the process centre moves
+ * (windowed analytics). A real deployment replaces this with a bridge relaying
  * decisions from an actual Flink job.
  */
 export class DriftAnalyzer {
@@ -54,8 +54,9 @@ export class DriftAnalyzer {
   }
 
   /** Forget the window. Called on reset and on recalibration: a freshly
-   *  calibrated oven is a new process, and averaging its loaves against the
-   *  burnt ones before it would hold the alarm up after the fix landed. */
+   *  calibrated press is a new process, and averaging its tablets against
+   *  the underweight ones before it would hold the alarm up after the fix
+   *  landed. */
   reset() {
     this.window = [];
     this.severity = 'healthy';
@@ -85,7 +86,7 @@ export class DriftAnalyzer {
       machine_id: this.machineId,
       item_id: m.item_id,
       timestamp: m.timestamp,
-      suspect: Math.abs(m.offset) > BROWNING_TOLERANCE,
+      suspect: Math.abs(m.offset) > WEIGHT_TOLERANCE_MG,
       offset: m.offset,
     };
     this.qcListeners.forEach((l) => l(event));
@@ -119,10 +120,11 @@ export class DriftAnalyzer {
     const trend = this.trend();
     const count = this.window.length;
     const slope = this.slopePerSec();
-    const headroom = BROWNING_TOLERANCE - Math.abs(trend);
+    const headroom = WEIGHT_TOLERANCE_MG - Math.abs(trend);
     const projectedBreachMs =
-      count >= MIN_TREND_SAMPLES && trend >= 0 && slope > MIN_PROJECTABLE_SLOPE && headroom > 0
-        ? Math.min((headroom / slope) * 1000, MAX_PROJECTION_MS)
+      // Only a trend moving away from target is heading for a limit.
+      count >= MIN_TREND_SAMPLES && Math.sign(slope) === Math.sign(trend) && Math.abs(slope) > MIN_PROJECTABLE_SLOPE && headroom > 0
+        ? Math.min((headroom / Math.abs(slope)) * 1000, MAX_PROJECTION_MS)
         : null;
     const event: WindowStatsEvent = {
       topic: 'machine-metrics',
@@ -152,8 +154,8 @@ export class DriftAnalyzer {
     const action: DriftAction = next === 'critical' ? 'drift_critical' : next === 'warning' ? 'drift_warning' : 'drift_cleared';
     const reason =
       next === 'healthy'
-        ? `browning back to ${trend.toFixed(1)} from target`
-        : `browning ${trend > 0 ? '+' : ''}${trend.toFixed(1)} from target`;
+        ? `tablet weight back to ${trend.toFixed(1)} mg from target`
+        : `tablet weight ${trend > 0 ? '+' : ''}${trend.toFixed(1)} mg from target`;
     this.actionListeners.forEach((l) =>
       l({ topic: 'machine-metrics', kind: 'action', machine_id: this.machineId, timestamp: now, action, reason }),
     );

@@ -2,24 +2,24 @@
 // serialize these same shapes over a WebSocket/SSE bridge - see README.
 import type { MachineId } from './lineConfig';
 
-/** Vision inspection's reading for one loaf: how far its crust browning is
- *  from the target bake. */
+/** The inspection station's reading for one tray: how far the mean weight
+ *  of the tablets it sampled is from the label claim. */
 export interface MeasurementEvent {
   topic: 'measurements';
   machine_id: MachineId;
   item_id: string;
   timestamp: number;
-  /** Browning index minus target. Positive is over-baked. */
+  /** Mean tablet weight minus target, mg. Negative is underweight. */
   offset: number;
 }
 
-/** The QC verdict for one loaf. Every loaf is inspected as it streams past. */
+/** The QC verdict for one tray. Every tray is inspected as it streams past. */
 export interface QCCheckEvent {
   topic: 'qc-checks';
   machine_id: MachineId;
   item_id: string;
   timestamp: number;
-  /** Out of tolerance: the loaf is kicked into the reject bin. */
+  /** Out of tolerance: the tray is diverted into the reject bin. */
   suspect: boolean;
   offset: number;
 }
@@ -41,7 +41,7 @@ export interface WindowStatsEvent {
   kind: 'window-stats';
   machine_id: MachineId;
   timestamp: number;
-  /** Windowed mean browning offset. */
+  /** Windowed mean tablet weight offset, mg. */
   trend: number;
   sampleCount: number;
   /** Least-squares slope of the offset across the window, per second. */

@@ -2,23 +2,27 @@
 // them out of range.
 //
 // Every machine publishes three channels. The channel keys are generic
-// (temperature, load, vibration) so the stream, the store and the cards can
-// treat every machine alike; what each one means on a given machine (oven
-// zone temperature, burner output, fan vibration...) lives in SENSOR_SPECS.
+// (process, feed, mechanical) so the stream, the store and the cards can
+// treat every machine alike; what each one means on a given machine (press
+// compression force, fill depth, ejection force...) lives in SENSOR_SPECS.
+//
+// Most channels go wrong upward (a seal jaw running hot). Some go wrong
+// downward (a press losing compression force); those are marked `low`, and
+// their limits sit below the healthy base instead of above it.
 //
 // Generation is a mean-reverting random walk so a long-idle session never
 // wanders off and pins at a limit nobody injected.
 import { MACHINE_IDS, type MachineId } from './lineConfig';
 
-export const SENSOR_CHANNELS = ['temperature', 'load', 'vibration'] as const;
+export const SENSOR_CHANNELS = ['process', 'feed', 'mechanical'] as const;
 export type SensorChannel = (typeof SENSOR_CHANNELS)[number];
 
 /** Machine-independent names, for places that pick a channel across the
  *  whole fleet (the fault-injection panel). */
 export const CHANNEL_NAMES: Record<SensorChannel, string> = {
-  temperature: 'Temperature',
-  load: 'Load',
-  vibration: 'Vibration',
+  process: 'Process',
+  feed: 'Feed',
+  mechanical: 'Mechanical',
 };
 
 export type SensorSeverity = 'healthy' | 'warning' | 'critical';
@@ -27,14 +31,17 @@ export interface ChannelSpec {
   label: string;
   unit: string;
   /** Whether the unit reads with a space after the number ("62 %") or not
-   *  ("221.4°C"). */
+   *  ("41.2°C"). */
   unitGap: boolean;
-  /** Ends of the displayed scale. `max` doubles as the ceiling an injection
-   *  ramps toward, so a level-20 fault pins the channel at full scale. */
+  /** Ends of the displayed scale. The end a fault drives toward (`max`, or
+   *  `min` for a low channel) doubles as the point an injection ramps
+   *  toward, so a level-20 fault pins the channel at full scale. */
   min: number;
   max: number;
   warn: number;
   critical: number;
+  /** Goes wrong downward: warn and critical sit below the base. */
+  low?: boolean;
   decimals: number;
   /** Healthy operating point and run-to-run wobble. */
   base: number;
@@ -54,25 +61,35 @@ const vib = (label: string, base: number, jitter: number): ChannelSpec => ({
 });
 
 export const SENSOR_SPECS: Record<MachineId, MachineSpecs> = {
-  'MIXER-01': {
-    temperature: temp('Dough temp', 18, 34, 28, 30, 24.5, 0.25),
-    load: pct('Motor load', 82, 92, 58, 2.5),
-    vibration: vib('Bowl vibration', 2.6, 0.25),
+  'BLEND-01': {
+    process: { label: 'Blend RSD', unit: '%', unitGap: false, min: 0, max: 10, warn: 4, critical: 6, decimals: 1, base: 1.8, jitter: 0.08 },
+    feed: pct('Motor load', 82, 92, 46, 2.2),
+    mechanical: vib('Frame vibration', 2.4, 0.22),
   },
-  'OVEN-01': {
-    temperature: temp('Zone 2 temp', 180, 300, 234, 250, 220, 0.9),
-    load: pct('Burner output', 85, 95, 62, 1.6),
-    vibration: vib('Fan vibration', 2.2, 0.2),
+  'PRESS-P2': {
+    process: { label: 'Compression force', unit: 'kN', unitGap: true, min: 8, max: 24, warn: 16.6, critical: 14.6, low: true, decimals: 1, base: 18, jitter: 0.08 },
+    feed: { label: 'Fill depth', unit: 'mm', unitGap: true, min: 3, max: 4.4, warn: 3.68, critical: 3.5, low: true, decimals: 2, base: 3.8, jitter: 0.006 },
+    mechanical: { label: 'Ejection force', unit: 'kN', unitGap: true, min: 0, max: 5, warn: 2, critical: 3, decimals: 2, base: 0.82, jitter: 0.03 },
+  },
+  'COAT-01': {
+    process: temp('Bed temp', 30, 60, 46, 50, 41, 0.25),
+    feed: { label: 'Spray rate', unit: 'g/min', unitGap: true, min: 0, max: 400, warn: 300, critical: 340, decimals: 0, base: 220, jitter: 3 },
+    mechanical: vib('Pan vibration', 2.1, 0.2),
   },
   'VISION-01': {
-    temperature: temp('Camera temp', 20, 70, 50, 58, 36, 0.4),
-    load: pct('Inference load', 85, 95, 41, 3),
-    vibration: vib('Gantry vibration', 0.8, 0.1),
+    process: temp('Camera temp', 20, 70, 50, 58, 36, 0.4),
+    feed: pct('Inference load', 85, 95, 41, 3),
+    mechanical: vib('Gantry vibration', 0.8, 0.1),
   },
-  'PACK-01': {
-    temperature: temp('Seal jaw temp', 120, 220, 186, 196, 165, 0.8),
-    load: pct('Motor load', 82, 92, 54, 2.5),
-    vibration: vib('Frame vibration', 3.1, 0.3),
+  'BLISTER-01': {
+    process: temp('Seal temp', 120, 220, 186, 196, 165, 0.8),
+    feed: pct('Motor load', 82, 92, 54, 2.5),
+    mechanical: vib('Frame vibration', 3.1, 0.3),
+  },
+  'CARTON-01': {
+    process: temp('Glue temp', 130, 190, 172, 180, 158, 0.6),
+    feed: pct('Motor load', 82, 92, 49, 2.4),
+    mechanical: vib('Frame vibration', 2.7, 0.26),
   },
 };
 
@@ -82,8 +99,9 @@ export function channelSpec(machineId: MachineId, channel: SensorChannel): Chann
 
 export function channelSeverity(machineId: MachineId, channel: SensorChannel, value: number): SensorSeverity {
   const spec = channelSpec(machineId, channel);
-  if (value >= spec.critical) return 'critical';
-  if (value >= spec.warn) return 'warning';
+  const past = (limit: number) => (spec.low ? value <= limit : value >= limit);
+  if (past(spec.critical)) return 'critical';
+  if (past(spec.warn)) return 'warning';
   return 'healthy';
 }
 
@@ -92,7 +110,7 @@ export function formatReading(machineId: MachineId, channel: SensorChannel, valu
   return `${value.toFixed(spec.decimals)}${spec.unitGap ? ' ' : ''}${spec.unit}`;
 }
 
-/** "180-300°C · limits 234 / 250" - a reading means nothing without the
+/** "120-220°C · limits 186 / 196" - a reading means nothing without the
  *  scale it sits on and the lines it is judged against. */
 export function channelRangeLabel(machineId: MachineId, channel: SensorChannel): string {
   const spec = channelSpec(machineId, channel);
@@ -101,24 +119,31 @@ export function channelRangeLabel(machineId: MachineId, channel: SensorChannel):
 }
 
 export interface SensorReading {
-  temperature: number;
-  load: number;
-  vibration: number;
+  process: number;
+  feed: number;
+  mechanical: number;
   cycles: number;
 }
 
 export type SensorFrame = Record<MachineId, SensorReading>;
 
-const CYCLES_BASE: Record<MachineId, number> = { 'MIXER-01': 1240, 'OVEN-01': 8610, 'VISION-01': 8590, 'PACK-01': 1075 };
+const CYCLES_BASE: Record<MachineId, number> = {
+  'BLEND-01': 312,
+  'PRESS-P2': 48_120,
+  'COAT-01': 1_406,
+  'VISION-01': 47_985,
+  'BLISTER-01': 9_870,
+  'CARTON-01': 4_935,
+};
 
 export function initialSensorFrame(): SensorFrame {
   return Object.fromEntries(
     MACHINE_IDS.map((id) => [
       id,
       {
-        temperature: SENSOR_SPECS[id].temperature.base,
-        load: SENSOR_SPECS[id].load.base,
-        vibration: SENSOR_SPECS[id].vibration.base,
+        process: SENSOR_SPECS[id].process.base,
+        feed: SENSOR_SPECS[id].feed.base,
+        mechanical: SENSOR_SPECS[id].mechanical.base,
         cycles: CYCLES_BASE[id],
       } satisfies SensorReading,
     ]),
@@ -139,24 +164,24 @@ export interface FaultInjection {
   intensity: number;
   startedAt: number;
   /** `manual` came from the fault-injection panel. `scenario` is the
-   *  physical side effect of the presenter's D / E deviation: an oven running
-   *  hot shows it in its zone temperature and burner output. Only manual injections
-   *  are badged on the dashboard, because a scenario fault is meant to read
-   *  as the machine genuinely misbehaving. */
+   *  physical side effect of the presenter's D / E deviation: a press with a
+   *  worn punch shows it in its fill depth and compression force. Only manual
+   *  injections are badged on the dashboard, because a scenario fault is
+   *  meant to read as the machine genuinely misbehaving. */
   source: 'manual' | 'scenario';
 }
 
 export const injectionId = (machineId: MachineId, channel: SensorChannel) => `${machineId}:${channel}`;
 
 /** Where an injected channel settles: a fraction of the way from this
- *  machine's healthy base to the top of the channel's scale, set by
- *  intensity. Bases differ per machine, so one intensity lands at different
- *  severities across the fleet - which is exactly what makes injecting all
- *  four at once worth looking at. */
+ *  machine's healthy base to the end of the channel's scale it fails
+ *  toward, set by intensity. Bases differ per machine, so one intensity
+ *  lands at different severities across the fleet - which is exactly what
+ *  makes injecting all of them at once worth looking at. */
 export function injectionTarget(machineId: MachineId, channel: SensorChannel, intensity: number): number {
-  const base = SENSOR_SPECS[machineId][channel].base;
   const spec = SENSOR_SPECS[machineId][channel];
-  return base + (spec.max - base) * (intensity / INTENSITY_MAX);
+  const end = spec.low ? spec.min : spec.max;
+  return spec.base + (end - spec.base) * (intensity / INTENSITY_MAX);
 }
 
 /** What an injection at this intensity will settle at, before it is armed -
@@ -187,34 +212,38 @@ const RECOVERY_PULL = 0.28;
  *  somebody caused. */
 const HEALTHY_ENVELOPE = 0.5;
 
-function healthyCeiling(machineId: MachineId, channel: SensorChannel): number {
-  const base = SENSOR_SPECS[machineId][channel].base;
-  return base + (SENSOR_SPECS[machineId][channel].warn - base) * HEALTHY_ENVELOPE;
+/** The edge of the healthy envelope on the side the channel fails toward. */
+function healthyEdge(machineId: MachineId, channel: SensorChannel): number {
+  const spec = SENSOR_SPECS[machineId][channel];
+  return spec.base + (spec.warn - spec.base) * HEALTHY_ENVELOPE;
 }
 
 function step(machineId: MachineId, channel: SensorChannel, value: number, injection: FaultInjection | undefined): number {
   const spec = SENSOR_SPECS[machineId][channel];
-  const profile = spec;
-  const target = injection ? injectionTarget(machineId, channel, injection.intensity) : profile.base;
-  // Above its healthy envelope with nothing injected into it: this channel
-  // is on its way back down from a fault that was just cleared.
-  const envelope = healthyCeiling(machineId, channel);
-  const recovering = !injection && value > envelope;
+  const target = injection ? injectionTarget(machineId, channel, injection.intensity) : spec.base;
+  // Work in "toward the limit" space, so a low channel is the same walk as
+  // a high one mirrored about its base.
+  const dir = spec.low ? -1 : 1;
+  const edge = healthyEdge(machineId, channel);
+  // Past its healthy envelope with nothing injected into it: this channel
+  // is on its way back from a fault that was just cleared.
+  const recovering = !injection && (value - edge) * dir > 0;
   const pull = injection ? INJECTED_PULL : recovering ? RECOVERY_PULL : HEALTHY_PULL;
-  // A failing machine does not just read high, it reads unstable - so jitter
+  // A failing machine does not just read off, it reads unstable - so jitter
   // scales with intensity. A level-20 fault visibly rattles instead of
   // sitting at a suspiciously steady number.
-  const jitter = profile.jitter * (injection ? 1 + injection.intensity / 8 : 1);
+  const jitter = spec.jitter * (injection ? 1 + injection.intensity / 8 : 1);
   const noise = (Math.random() - 0.5) * jitter * 2;
   const next = value + (target - value) * pull + noise;
+  const clamp = (v: number) => Math.min(spec.max, Math.max(spec.min, v));
 
-  if (injection) return Math.min(spec.max, Math.max(spec.min, next));
+  if (injection) return clamp(next);
   // Uninjected readings reflect off the envelope rather than being clamped
-  // flat against it - a reading that pins to a constant ceiling for six
+  // flat against it - a reading that pins to a constant limit for six
   // seconds looks exactly as synthetic as it is. A channel still recovering
-  // reflects off its own current value instead, so it can only come down.
-  const ceiling = Math.max(envelope, value);
-  return Math.max(spec.min, next > ceiling ? ceiling - (next - ceiling) : next);
+  // reflects off its own current value instead, so it can only come back.
+  const bound = dir * Math.max(edge * dir, value * dir);
+  return clamp((next - bound) * dir > 0 ? bound - (next - bound) : next);
 }
 
 /** Publish cadence. Faster than the old 1.4s so an injection reads as a live

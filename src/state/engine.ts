@@ -11,7 +11,7 @@ import { PROBLEM_MACHINE_ID, type MachineId } from '@/streaming/lineConfig';
 import { SensorStream } from '@/streaming/sensorStream';
 import { useStore } from './store';
 
-// Vision inspection scores every loaf the oven bakes.
+// Inspection weighs a sample from every tray the press fills.
 const inspection = new DriftAnalyzer(PROBLEM_MACHINE_ID);
 const producer = new LineProducer();
 const sensorStream = new SensorStream();
@@ -24,15 +24,11 @@ export function initEngine() {
   if (initialized) return;
   initialized = true;
 
-  producer.init(
-    { ovenOut: STATION_S.ovenOut, inspect: STATION_S.inspect, reject: STATION_S.reject, pack: STATION_S.pack },
-    inspection,
-  );
-  producer.onSpawn((id, spawnedAt) => useStore.getState().ingestLoafSpawn(id, spawnedAt));
-  producer.onBaked((id, offset) => useStore.getState().ingestLoafBaked(id, offset));
-  producer.onReject((id, timestamp) => useStore.getState().ingestLoafReject(id, timestamp));
-  producer.onPacked((id) => useStore.getState().ingestLoafPacked(id));
-  producer.onPauseShift((deltaMs) => useStore.getState().shiftLoafTimestamps(deltaMs));
+  producer.init({ inspect: STATION_S.inspect, reject: STATION_S.reject, pack: STATION_S.pack }, inspection);
+  producer.onSpawn((id, spawnedAt, offset) => useStore.getState().ingestTraySpawn(id, spawnedAt, offset));
+  producer.onReject((id, timestamp) => useStore.getState().ingestTrayReject(id, timestamp));
+  producer.onPacked((id) => useStore.getState().ingestTrayPacked(id));
+  producer.onPauseShift((deltaMs) => useStore.getState().shiftTrayTimestamps(deltaMs));
 
   inspection.onQCCheck((event) => useStore.getState().ingestQCCheck(event));
   inspection.onWindowStats((event) => useStore.getState().ingestWindowStats(event));
@@ -62,17 +58,17 @@ export function initEngine() {
   sensorStream.start();
 }
 
-/** How far over target the oven is baking. Written by the story director's
- *  ramps and by recalibration. */
-export function setOvenOffset(offset: number) {
-  producer.setOvenOffset(offset);
+/** How far off the target weight the press is filling, mg. Written by the
+ *  story director's ramps and by recalibration. */
+export function setPressOffset(offset: number) {
+  producer.setPressOffset(offset);
 }
 
 /** A recalibrated machine is a new process: back on setpoint, the trend
  *  window that measured the old one dropped, sensors settled. */
 export function recalibrateMachine(machineId: MachineId) {
   if (machineId === PROBLEM_MACHINE_ID) {
-    producer.setOvenOffset(0);
+    producer.setPressOffset(0);
     inspection.reset();
   }
   sensorStream.recover(machineId);

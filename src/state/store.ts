@@ -6,6 +6,7 @@ import {
   MIN_TREND_SAMPLES,
   PROBLEM_MACHINE_ID,
   WARN_TREND,
+  WEIGHT_TARGET_MG,
   type MachineId,
 } from '@/streaming/lineConfig';
 import {
@@ -32,16 +33,17 @@ export interface TrendSample {
 }
 
 /** What the inspection pipeline knows about one machine's output. Only the
- *  oven's loaves are scored, so for the others this stays at rest. */
+ *  press's tablets are weighed, so for the others this stays at rest. */
 export interface MachineState {
   id: MachineId;
   label: string;
   /** Derived from `trend`, never set directly. */
   status: Severity;
-  /** Windowed mean browning offset of the loaves this machine produced. */
+  /** Windowed mean tablet weight offset (mg) of the trays this machine
+   *  pressed. */
   trend: number;
   history: TrendSample[];
-  /** The most recent single loaf's offset. */
+  /** The most recent single tray's offset, mg. */
   lastOffset: number | null;
   recalibrationRecommended: boolean;
   lastRecalibratedAt: number | null;
@@ -49,22 +51,23 @@ export interface MachineState {
 }
 
 /**
- * One loaf on the line.
+ * One tray of tablets on the line.
  *  verdict none - not inspected yet
- *          pass - inside tolerance, heading for the packer
- *          fail - over-baked, kicked into the reject bin at the gate
+ *          pass - inside tolerance, heading for the blister packer
+ *          fail - underweight, flagged and diverted into the reject bin
  */
-export type LoafVerdict = 'none' | 'pass' | 'fail';
+export type TrayVerdict = 'none' | 'pass' | 'fail';
 
-export interface Loaf {
+export interface Tray {
   id: string;
-  /** Effective spawn time. Shifted forward by every stop, so a loaf's
+  /** Effective spawn time. Shifted forward by every stop, so a tray's
    *  distance along the belt is always (now - spawnedAt) * BELT_SPEED. */
   spawnedAt: number;
-  /** Browning offset, known once the loaf leaves the oven. */
-  offset: number | null;
-  verdict: LoafVerdict;
-  /** Set when the reject gate kicks it off the belt. */
+  /** Mean tablet weight offset, mg, fixed when the press filled the tray.
+   *  The scene draws an underweight tray's tablets thinner. */
+  offset: number;
+  verdict: TrayVerdict;
+  /** Set when the reject gate diverts it off the belt. */
   rejectedAt: number | null;
 }
 
@@ -81,15 +84,15 @@ export interface FeedItem {
  * audience sees is measured rather than asserted.
  */
 export interface Incident {
-  /** Ground zero: when the oven fault started. Only the story director
+  /** Ground zero: when the press fault started. Only the story director
    *  knows this, because it causes it. */
   faultStartedAt: number;
-  /** When the stream first flagged the oven as anything but healthy, from
-   *  its sensors or its loaves' browning trend, whichever came first. */
+  /** When the stream first flagged the press as anything but healthy, from
+   *  its sensors or its tablets' weight trend, whichever came first. */
   detectedAt: number | null;
   stoppedAt: number | null;
   resolvedAt: number | null;
-  /** Loaves inspected since the fault started, and how many failed. */
+  /** Trays inspected since the fault started, and how many failed. */
   inspected: number;
   rejected: number;
   resolvedBy: 'operator' | 'autopilot' | null;
@@ -146,7 +149,7 @@ function fmtLatency(ms: number): string {
   return ms < 100 ? '<0.1' : (ms / 1000).toFixed(1);
 }
 
-/** Stamp detection the first time the oven leaves healthy while an
+/** Stamp detection the first time the press leaves healthy while an
  *  incident is open. */
 function withDetection(state: StoreState, next: Partial<StoreState>, now: number): Partial<StoreState> {
   const incident = state.incident;
@@ -190,7 +193,7 @@ interface ActionPayload {
 
 export interface StoreState {
   machines: Record<MachineId, MachineState>;
-  loaves: Loaf[];
+  trays: Tray[];
   feed: FeedItem[];
 
   /** The line is stopped: belt, machines and analyzer window freeze
@@ -199,12 +202,13 @@ export interface StoreState {
   /** Wall clock the line was stopped at, so the scene can freeze its own
    *  clock at the same instant. */
   pausedAt: number | null;
-  /** Standing policy: recalibrate the oven the moment the stream flags it.
+  /** Standing policy: recalibrate the press the moment the stream flags it.
    *  Not cleared by reset(): it is a rule the line now runs under. */
   autopilot: boolean;
 
-  loavesPacked: number;
-  loavesRejected: number;
+  /** Trays that passed inspection and went on to the blister packer. */
+  traysPacked: number;
+  traysRejected: number;
   /** Wall clock of the last reject gate kick, for the pusher animation. */
   lastKickAt: number | null;
   incident: Incident | null;
@@ -219,11 +223,10 @@ export interface StoreState {
   faultPanelOpen: boolean;
 
   // ---- ingestion actions, called only from state/engine.ts ----
-  ingestLoafSpawn: (id: string, spawnedAt: number) => void;
-  ingestLoafBaked: (id: string, offset: number) => void;
-  ingestLoafReject: (id: string, timestamp: number) => void;
-  ingestLoafPacked: (id: string) => void;
-  shiftLoafTimestamps: (deltaMs: number) => void;
+  ingestTraySpawn: (id: string, spawnedAt: number, offset: number) => void;
+  ingestTrayReject: (id: string, timestamp: number) => void;
+  ingestTrayPacked: (id: string) => void;
+  shiftTrayTimestamps: (deltaMs: number) => void;
   ingestQCCheck: (event: QCCheckPayload) => void;
   ingestWindowStats: (event: WindowStatsPayload) => void;
   ingestAction: (event: ActionPayload) => void;
@@ -254,21 +257,21 @@ function feed(state: StoreState, item: FeedItem): FeedItem[] {
   return [item, ...state.feed].slice(0, FEED_MAX);
 }
 
-/** Rejected loaves linger long enough to fly into the bin, then leave the
+/** Rejected trays linger long enough to slide into the bin, then leave the
  *  list; the bin draws its pile from the count. */
 const REJECT_LINGER_MS = 1500;
 
 export const useStore = create<StoreState>((set) => ({
   machines: makeInitialMachines(),
-  loaves: [],
+  trays: [],
   feed: [],
 
   paused: false,
   pausedAt: null,
   autopilot: false,
 
-  loavesPacked: 0,
-  loavesRejected: 0,
+  traysPacked: 0,
+  traysRejected: 0,
   lastKickAt: null,
   incident: null,
   autopilotCatch: null,
@@ -281,33 +284,30 @@ export const useStore = create<StoreState>((set) => ({
   sensorPipeline: { readings: 0, anomalies: 0 },
   faultPanelOpen: false,
 
-  ingestLoafSpawn: (id, spawnedAt) =>
+  ingestTraySpawn: (id, spawnedAt, offset) =>
     set((state) => ({
-      loaves: [
-        ...state.loaves.filter((l) => l.rejectedAt === null || spawnedAt - l.rejectedAt < REJECT_LINGER_MS),
-        { id, spawnedAt, offset: null, verdict: 'none', rejectedAt: null },
+      trays: [
+        ...state.trays.filter((l) => l.rejectedAt === null || spawnedAt - l.rejectedAt < REJECT_LINGER_MS),
+        { id, spawnedAt, offset, verdict: 'none', rejectedAt: null },
       ],
     })),
 
-  ingestLoafBaked: (id, offset) =>
-    set((state) => ({ loaves: state.loaves.map((l) => (l.id === id ? { ...l, offset } : l)) })),
-
-  ingestLoafReject: (id, timestamp) =>
+  ingestTrayReject: (id, timestamp) =>
     set((state) => ({
-      loaves: state.loaves.map((l) => (l.id === id ? { ...l, rejectedAt: timestamp } : l)),
-      loavesRejected: state.loavesRejected + 1,
+      trays: state.trays.map((l) => (l.id === id ? { ...l, rejectedAt: timestamp } : l)),
+      traysRejected: state.traysRejected + 1,
       lastKickAt: timestamp,
     })),
 
-  ingestLoafPacked: (id) =>
+  ingestTrayPacked: (id) =>
     set((state) => ({
-      loaves: state.loaves.filter((l) => l.id !== id),
-      loavesPacked: state.loavesPacked + 1,
+      trays: state.trays.filter((l) => l.id !== id),
+      traysPacked: state.traysPacked + 1,
     })),
 
-  shiftLoafTimestamps: (deltaMs) =>
+  shiftTrayTimestamps: (deltaMs) =>
     set((state) => ({
-      loaves: state.loaves.map((l) => ({
+      trays: state.trays.map((l) => ({
         ...l,
         spawnedAt: l.spawnedAt + deltaMs,
         rejectedAt: l.rejectedAt === null ? null : l.rejectedAt + deltaMs,
@@ -318,8 +318,8 @@ export const useStore = create<StoreState>((set) => ({
   ingestQCCheck: (event) =>
     set((state) => {
       const machine = state.machines[event.machine_id];
-      const loaves = state.loaves.map((l) =>
-        l.id === event.item_id ? { ...l, verdict: (event.suspect ? 'fail' : 'pass') as LoafVerdict } : l,
+      const trays = state.trays.map((l) =>
+        l.id === event.item_id ? { ...l, verdict: (event.suspect ? 'fail' : 'pass') as TrayVerdict } : l,
       );
       const incident =
         state.incident && state.incident.resolvedAt === null
@@ -330,15 +330,15 @@ export const useStore = create<StoreState>((set) => ({
             }
           : state.incident;
       const machines = { ...state.machines, [event.machine_id]: { ...machine, lastOffset: event.offset } };
-      if (!event.suspect) return { loaves, incident, machines };
+      if (!event.suspect) return { trays, incident, machines };
       return {
-        loaves,
+        trays,
         incident,
         machines,
         feed: feed(state, {
           id: `${event.item_id}-qc`,
           timestamp: event.timestamp,
-          text: `Loaf ${event.item_id} over-baked (browning +${event.offset.toFixed(1)}) - rejected`,
+          text: `Tray ${event.item_id} underweight (${(WEIGHT_TARGET_MG + event.offset).toFixed(1)} mg) - diverted`,
           tone: 'critical',
         }),
       };
@@ -360,9 +360,9 @@ export const useStore = create<StoreState>((set) => ({
     set((state) => {
       const machine = state.machines[event.machine_id];
       const text = {
-        drift_warning: `${event.machine_id} loaves browning over target - oven drifting`,
-        drift_critical: `${event.machine_id} loaves burning - stop and recalibrate`,
-        drift_cleared: `${event.machine_id} browning back on target`,
+        drift_warning: `${event.machine_id} tablet weight drifting off target`,
+        drift_critical: `${event.machine_id} tablets underdosed - stop and recalibrate`,
+        drift_cleared: `${event.machine_id} tablet weight back on target`,
       }[event.action];
       const tone = ({ drift_warning: 'warning', drift_critical: 'critical', drift_cleared: 'success' } as const)[event.action];
       return {
@@ -445,8 +445,8 @@ export const useStore = create<StoreState>((set) => ({
           timestamp,
           text:
             by === 'autopilot'
-              ? `Autopilot recalibrated ${machineId} - zone temperature back on setpoint`
-              : `${machineId} recalibrated - zone temperature back on setpoint`,
+              ? `Autopilot recalibrated ${machineId} - fill depth back on setpoint`
+              : `${machineId} recalibrated - fill depth back on setpoint`,
           tone: 'success',
         }),
       };
@@ -499,12 +499,12 @@ export const useStore = create<StoreState>((set) => ({
   reset: () =>
     set({
       machines: makeInitialMachines(),
-      loaves: [],
+      trays: [],
       feed: [],
       paused: false,
       pausedAt: null,
-      loavesPacked: 0,
-      loavesRejected: 0,
+      traysPacked: 0,
+      traysRejected: 0,
       lastKickAt: null,
       incident: null,
       autopilotCatch: null,
