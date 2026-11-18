@@ -245,11 +245,11 @@ export function LaserWelder({
       m.emissiveIntensity = 3 + 5 * bright;
     }
     if (haloRef.current) haloRef.current.material.color.copy(_c).multiplyScalar(2.2 * bright);
-    if (poolRef.current) poolRef.current.material.color.copy(_c).multiplyScalar(0.7 * bright);
-    if (beamRef.current) beamRef.current.material.color.copy(_c).multiplyScalar(0.9 * bright);
+    if (poolRef.current) poolRef.current.material.color.copy(_c).multiplyScalar(0.9 * bright);
+    if (beamRef.current) beamRef.current.material.color.copy(_c).multiplyScalar(1.6 * bright);
     if (lightRef.current) {
       lightRef.current.color.copy(_c);
-      lightRef.current.intensity = 9 * bright;
+      lightRef.current.intensity = 22 * bright;
     }
   });
 
@@ -266,18 +266,18 @@ export function LaserWelder({
             <sphereGeometry args={[0.028, 12, 8]} />
           </mesh>
           {/* Drawn over the module's own top so the whole glow reads. */}
-          <sprite ref={haloRef} position={[0, WELD_Y + 0.03, 0]} scale={[1, 1, 1]} renderOrder={2}>
+          <sprite ref={haloRef} position={[0, WELD_Y + 0.03, 0]} scale={[0.7, 0.7, 1]} renderOrder={2}>
             <spriteMaterial map={haloTexture()} color={HOT} blending={THREE.AdditiveBlending} depthWrite={false} depthTest={false} transparent toneMapped={false} />
           </sprite>
           {/* The beam itself, stylised: invisible in life, but it is what
               says "laser" from across the room. */}
           <mesh ref={beamRef} material={fx.beam} position={[0, (WELD_Y + NOZZLE_Y) / 2, 0]}>
-            <cylinderGeometry args={[0.008, 0.014, NOZZLE_Y - WELD_Y, 8, 1, true]} />
+            <cylinderGeometry args={[0.014, 0.024, NOZZLE_Y - WELD_Y, 8, 1, true]} />
           </mesh>
           <mesh ref={poolRef} material={fx.pool} position={[0, WELD_Y + 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[0.7, 0.7]} />
+            <planeGeometry args={[1.8, 1.8]} />
           </mesh>
-          <pointLight ref={lightRef} position={[0, WELD_Y + 0.2, 0.1]} color={HOT} intensity={9} distance={3.2} decay={1.6} />
+          <pointLight ref={lightRef} position={[0, WELD_Y + 0.2, 0.1]} color={HOT} intensity={22} distance={4.5} decay={1.4} />
         </group>
       </group>
       <ControlBox kind="laser" accent={PALETTE.orange} width={0.58} height={0.56} position={[-L / 2 + 0.55, 1.36, HZ + 0.14]} />

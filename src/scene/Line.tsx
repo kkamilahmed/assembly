@@ -67,7 +67,7 @@ export function Line() {
         scale={1.7}
       />
       <StatusTag
-        position={[MACHINE_POS.vision.x, BELT_Y + 2.15, MACHINE_POS.vision.z]}
+        position={[MACHINE_POS.vision.x - 0.2, BELT_Y + 2.7, MACHINE_POS.vision.z - 0.6]}
         label="Weld strength"
         value={`${strength.toFixed(0)} N`}
         tone={qualityStatus}
@@ -76,7 +76,7 @@ export function Line() {
       />
       {testSev !== 'healthy' && (
         <StatusTag
-          position={[MACHINE_POS.tester.x, 2.75, MACHINE_POS.tester.z]}
+          position={[MACHINE_POS.tester.x + 3.9, 2.3, MACHINE_POS.tester.z - 2.5]}
           label="Hottest cell"
           value={formatReading(TESTER_MACHINE_ID, 'temperature', hottestCell)}
           tone={testSev}
@@ -86,7 +86,7 @@ export function Line() {
         />
       )}
       <StatusTag
-        position={[MACHINE_POS.rejectBin.x + 1.6, 1.5, MACHINE_POS.rejectBin.z + 0.2]}
+        position={[MACHINE_POS.rejectBin.x + 2.5, 1.5, MACHINE_POS.rejectBin.z - 0.6]}
         label="Scrapped"
         value={scrapped}
         tone={scrapped > 0 ? 'critical' : 'neutral'}
@@ -95,7 +95,7 @@ export function Line() {
         scale={1.7}
       />
       <StatusTag
-        position={[MACHINE_POS.transfer.x + 0.3, 2.85, MACHINE_POS.transfer.z + 0.6]}
+        position={[MACHINE_POS.transfer.x + 2.1, 2.0, MACHINE_POS.transfer.z - 0.6]}
         label="Passed"
         value={passed.toLocaleString()}
         tone="neutral"
