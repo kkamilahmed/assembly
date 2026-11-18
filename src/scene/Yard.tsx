@@ -65,31 +65,41 @@ export function Yard() {
   return (
     <group position-y={-SLAB.thickness}>
       {/* Raw materials store, screen upper right. */}
-      <Rack position={[13.6, 0, -6.4]} bays={2} levels={3} color="blue" seed={4} />
-      <Rack position={[13.6, 0, -3.4]} bays={2} levels={3} color="orange" seed={9} />
+      <Rack position={[11.9, 0, -6.4]} bays={2} levels={3} color="blue" seed={4} />
+      <Rack position={[11.9, 0, -3.4]} bays={2} levels={3} color="orange" seed={9} />
       <FlourSackStack position={[9.6, 0, -6.8]} layers={4} seed={2} />
       <FlourSackStack position={[9.6, 0, -5.4]} layers={3} seed={5} />
       <Pallet position={[9.6, 0, -3.9]} />
 
       {/* Forklift bringing flour toward the dough room. */}
-      <Forklift position={[11.2, 0, -0.6]} rotation-y={Math.PI * 0.85} load="sacks" lift={0.25} seed={2} />
+      <Forklift position={[10.7, 0, -0.4]} rotation-y={Math.PI * 0.85} load="sacks" lift={0.25} seed={2} />
       <Cone position={[10.2, 0, 1.4]} />
       <Cone position={[11.0, 0, 1.0]} />
 
       {/* Outfeed and dispatch. */}
       <OutfeedPallet />
       <CartonStack position={[11.6, 0, 4.2]} rows={2} cols={2} layers={3} seed={8} />
-      <group position={[12.2, 0, 7.3]} rotation-y={Math.PI}>
+      <group position={[9.6, 0, 11.0]} rotation-y={Math.PI}>
         <PalletJack load="cartons" seed={4} />
         <Worker position={[PALLET_JACK_OPERATOR_X, 0, 0]} pose="push" seed={6} skin={2} vest />
       </group>
-      <HandTruck position={[10.6, 0, 8.6]} rotation-y={-0.4} cartons={3} />
-      <Worker position={[10.4, 0, 6.6]} rotation-y={Math.PI * 0.5} pose="tablet" seed={11} skin={1} vest />
+      <HandTruck position={[9.4, 0, 8.4]} rotation-y={-0.4} cartons={3} />
+      <Worker position={[9.7, 0, 7.2]} rotation-y={Math.PI * 0.5} pose="tablet" seed={11} skin={1} vest />
 
       {/* Delivery trucks, backed toward the dock (roller door at -x). */}
-      <Truck position={[17.2, 0, 4.4]} />
-      <Truck position={[18.4, 0, 9.0]} cabColor="#f4f5f7" />
-      <Walker from={[11, 2.6]} to={[14.6, 2.6]} seed={21} skin={3} />
+      <Truck position={[12.9, 0, 8.4]} />
+      <Truck position={[16.6, 0, 4.2]} cabColor="#f4f5f7" />
+      <Walker from={[10.2, 2.0]} to={[12.6, 2.0]} seed={21} skin={3} />
+
+      {/* Foreground spill off the front of the slab, so the diorama does
+          not float as a clean rectangle and the lower left of the frame
+          has something in it. */}
+      <CartonStack position={[-3.4, 0, 9.9]} rows={2} cols={2} layers={2} seed={12} />
+      <CartonStack position={[-1.6, 0, 10.6]} rows={1} cols={2} layers={1} seed={13} />
+      <HandTruck position={[-0.2, 0, 10.0]} rotation-y={-0.9} cartons={2} />
+      <Worker position={[0.9, 0, 9.6]} rotation-y={-0.8} pose="carry" seed={31} skin={1} vest />
+      <Cone position={[-5.4, 0, 9.4]} />
+      <Cone position={[-4.8, 0, 10.4]} />
     </group>
   );
 }
@@ -99,9 +109,9 @@ export function Crew() {
   return (
     <group>
       <Worker position={[-7.4, 0, 4.6]} rotation-y={-2.25} pose="tablet" seed={2} skin={0} />
-      <Worker position={[-3.2, 0, -3.2]} rotation-y={Math.PI / 2} pose="inspect" seed={5} skin={1} />
+      <Worker position={[-3.2, 0, -3.2]} rotation-y={Math.PI / 2} pose="inspect" seed={5} skin={1} vest />
       <Trolley position={[-0.6, 0, -2.6]} rotation-y={0.3} fill={0.85} seed={4} />
-      <Worker position={[4.3, 0, -2.3]} rotation-y={Math.PI} pose="inspect" seed={8} skin={3} />
+      <Worker position={[4.3, 0, -2.3]} rotation-y={Math.PI} pose="inspect" seed={8} skin={3} vest />
       <Worker position={[6.6, 0, 6.6]} rotation-y={Math.PI / 2} pose="carry" carrying="tray" seed={14} skin={2} />
       <Walker from={[-5.6, -1.4]} to={[0.4, -1.4]} seed={17} skin={0} />
     </group>

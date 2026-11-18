@@ -59,7 +59,7 @@ export function Line() {
         value={formatReading(PROBLEM_MACHINE_ID, 'temperature', zoneTemp)}
         tone={ovenSev}
         icon="thermo"
-        scale={1.25}
+        scale={1.7}
       />
       <StatusTag
         position={[MACHINE_POS.vision.x, BELT_Y + 2.2, MACHINE_POS.vision.z]}
@@ -68,7 +68,7 @@ export function Line() {
         tone={qualityStatus}
         icon="eye"
         facing="x"
-        scale={1.25}
+        scale={1.7}
       />
       <StatusTag
         position={[MACHINE_POS.rejectBin.x + 0.2, 1.7, MACHINE_POS.rejectBin.z]}
@@ -77,7 +77,7 @@ export function Line() {
         tone={rejected > 0 ? 'critical' : 'neutral'}
         icon="alert"
         facing="x"
-        scale={1.25}
+        scale={1.7}
       />
       <StatusTag
         position={[MACHINE_POS.packer.x, 2.6, MACHINE_POS.packer.z]}
@@ -85,7 +85,7 @@ export function Line() {
         value={packed.toLocaleString()}
         tone="neutral"
         icon="box"
-        scale={1.25}
+        scale={1.7}
       />
     </group>
   );

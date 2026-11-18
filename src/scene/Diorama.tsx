@@ -35,7 +35,9 @@ function dimmed(base: THREE.MeshStandardMaterial, env: number): THREE.MeshStanda
   DIMMED.push(m);
   return m;
 }
-const FLOOR = dimmed(matte(PALETTE.slabTop, 0.7), 0.3);
+// Sealed epoxy: low roughness so the oven glow and the key light leave a
+// soft sheen on it, with the environment kept low so it stays charcoal.
+const FLOOR = dimmed(matte(PALETTE.slabTop, 0.38), 0.5);
 const PAINT_WHITE = dimmed(matte(PALETTE.hazardLight, 0.6), 0.3);
 const PAINT_AMBER = dimmed(matte(PALETTE.amber, 0.6), 0.45);
 const PAINT_BLUE = dimmed(matte(PALETTE.blue, 0.6), 0.45);

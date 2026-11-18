@@ -19,12 +19,12 @@ export const PALETTE = {
   /** Clear colour. Set a touch above the target so it lands on a clean
    *  off-white after tone mapping. */
   background: '#fbfbfc',
-  slabTop: '#2b2d33',
+  slabTop: '#3a3d45',
   slabSide: '#1b1d21',
   slabEdge: '#3a3d44',
   hazardLight: '#eceef1',
   hazardDark: '#16171a',
-  wall: '#24262b',
+  wall: '#2e3036',
   wallTrim: '#34373e',
   floorWhite: '#f1f2f4',
   tileLine: '#dcdfe4',

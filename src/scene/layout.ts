@@ -106,9 +106,9 @@ export const SHOTS = {
   // Hero: the whole plant, the yard allowed to bleed off the right and
   // bottom edges the way the references let trucks and pallets run out of
   // frame.
-  S01: { target: [1.6, 0.9, 1.4] as [number, number, number], zoom: 38 },
+  S01: { target: [1.3, 1.5, 1.6] as [number, number, number], zoom: 45 },
   // The room on its own, complete, like R02's cutaway store.
-  S02: { target: [-2.2, 1.2, -0.4] as [number, number, number], zoom: 44 },
+  S02: { target: [-1.6, 1.2, 0.2] as [number, number, number], zoom: 40 },
 } as const;
 export type ShotId = keyof typeof SHOTS;
 

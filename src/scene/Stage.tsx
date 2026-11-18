@@ -1,6 +1,7 @@
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Environment, Lightformer, MapControls, OrthographicCamera } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ISO_DIR } from './layout';
 import { PostFX } from './PostFX';
@@ -44,8 +45,10 @@ export function Stage({
       onCreated={({ gl }) => onCreated?.(gl)}
     >
       {/* Slightly over 1.0 in linear light: tone mapping rolls a plain
-          white off to light grey, and the references sit on true white. */}
-      <color attach="background" args={[1.12, 1.12, 1.12]} />
+          white off to light grey. PostFX's white point finishes the job;
+          this stays under the bloom threshold so it never haloes. */}
+      <color attach="background" args={[1.3, 1.3, 1.3]} />
+      <FitZoom zoom={zoom} />
       <OrthographicCamera
         makeDefault
         position={camPos.toArray()}
@@ -55,18 +58,18 @@ export function Stage({
         onUpdate={(c) => c.lookAt(t)}
       />
 
-      <hemisphereLight args={['#ffffff', '#b9bdc6', 0.6]} />
+      <hemisphereLight args={['#ffffff', '#b9bdc6', 0.42]} />
       {/* Key: high and from the camera's left, so shadows fall to the
           lower right like the references. */}
       <directionalLight
         position={[t.x - 14, t.y + 30, t.z + 10]}
-        intensity={2.7}
+        intensity={3.1}
         color="#fffaf3"
         castShadow
         shadow-mapSize={[4096, 4096]}
         shadow-bias={-0.0002}
         shadow-normalBias={0.03}
-        shadow-radius={6}
+        shadow-radius={3.5}
       >
         <orthographicCamera
           attach="shadow-camera"
@@ -79,8 +82,13 @@ export function Stage({
       <Environment resolution={256} background={false} environmentIntensity={0.9}>
         {/* A light studio cyc all round, so stainless reflects a bright
             room rather than a black void. */}
-        <color attach="background" args={['#c9ced6']} />
+        <color attach="background" args={['#8d939c']} />
         <Lightformer form="rect" intensity={3} position={[0, 10, 0]} rotation-x={Math.PI / 2} scale={[20, 20, 1]} />
+        {/* Long thin strips: the streaked highlights that read as brushed
+            stainless instead of flat grey paint. */}
+        <Lightformer form="rect" intensity={4} position={[0, 6, -10]} scale={[30, 0.6, 1]} />
+        <Lightformer form="rect" intensity={4} position={[-10, 6, 0]} rotation-y={Math.PI / 2} scale={[30, 0.6, 1]} />
+        <Lightformer form="rect" intensity={2.5} position={[0, 2.5, -10]} scale={[30, 0.3, 1]} />
         <Lightformer form="rect" intensity={1.6} position={[-10, 4, 6]} rotation-y={Math.PI / 2} scale={[14, 6, 1]} />
         <Lightformer form="rect" intensity={1.2} position={[10, 4, -6]} rotation-y={-Math.PI / 2} scale={[14, 6, 1]} />
         <Lightformer form="rect" intensity={0.8} color="#ffd9b0" position={[0, 3, 12]} scale={[16, 4, 1]} />
@@ -104,6 +112,23 @@ export function Stage({
   );
 }
 
+/** Shots are composed at this canvas height; a smaller canvas (the plant
+ *  view beside the sidebar) scales the zoom down so it shows the same
+ *  framing instead of a tighter crop. */
+const DESIGN_HEIGHT = 990;
+
+function FitZoom({ zoom }: { zoom: number }) {
+  const get = useThree((s) => s.get);
+  const height = useThree((s) => s.size.height);
+  const controls = useThree((s) => s.controls);
+  useEffect(() => {
+    const { camera } = get();
+    camera.zoom = (zoom * height) / DESIGN_HEIGHT;
+    camera.updateProjectionMatrix();
+  }, [get, zoom, height, controls]);
+  return null;
+}
+
 /** The white yard floor every off-slab prop stands on: invisible itself,
  *  it only catches shadows, so the seamless white background stays
  *  seamless. */
@@ -111,7 +136,7 @@ export function ShadowFloor({ size = 120, y = 0 }: { size?: number; y?: number }
   return (
     <mesh rotation-x={-Math.PI / 2} position={[0, y + 0.001, 0]} receiveShadow>
       <planeGeometry args={[size, size]} />
-      <shadowMaterial transparent opacity={0.16} />
+      <shadowMaterial transparent opacity={0.3} />
     </mesh>
   );
 }

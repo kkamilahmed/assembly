@@ -227,18 +227,18 @@ export function LineChartCard({
         ctx.lineTo(x0, y1);
         ctx.closePath();
         const g = ctx.createLinearGradient(0, y0, 0, y1);
-        g.addColorStop(0, alpha(color, 0.16));
+        g.addColorStop(0, alpha(color, 0.28));
         g.addColorStop(1, alpha(color, 0));
         ctx.fillStyle = g;
         ctx.fill();
         trace(series);
         ctx.strokeStyle = color;
-        ctx.lineWidth = 4.5;
+        ctx.lineWidth = 7;
         ctx.stroke();
         markers(series, color);
         // The live end of the line.
         ctx.beginPath();
-        ctx.arc(x1, py(last), 8, 0, Math.PI * 2);
+        ctx.arc(x1, py(last), 12, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
         ctx.strokeStyle = PALETTE.white;

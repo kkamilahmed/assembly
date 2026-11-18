@@ -1,10 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { useStore, type Severity, type StoreState } from '@/state/store';
-import { BROWNING_TOLERANCE, PROBLEM_MACHINE_ID } from '@/streaming/lineConfig';
+import { BROWNING_TARGET, BROWNING_TOLERANCE, PROBLEM_MACHINE_ID } from '@/streaming/lineConfig';
 import { channelSeverity, SENSOR_SPECS } from '@/streaming/sensorStream';
 import { LINE_JOBS_PER_HOUR, projectShift } from '@/ui/businessCase';
 import type { DashboardData } from './ui3d/dashboardData';
+import { LineChartCard } from './ui3d/cards';
 import { DashboardWall } from './ui3d/DashboardWall';
+import { WALL_FACE_Z } from './ui3d/wallFrame';
 
 const TEMP_POINTS = 24;
 const REJECT_BUCKETS = 8;
@@ -77,6 +79,7 @@ export function LiveDashboard() {
   const rejected = useStore((s) => s.loavesRejected);
   const trend = useStore((s) => s.machines[PROBLEM_MACHINE_ID].trend);
   const qualityStatus = useStore((s) => s.machines[PROBLEM_MACHINE_ID].status);
+  const browningHistory = useStore((s) => s.machines[PROBLEM_MACHINE_ID].history);
 
   const rejects = [...h.buckets, rejected - h.rejectedAtBucketStart];
   while (rejects.length < REJECT_BUCKETS) rejects.unshift(0);
@@ -104,5 +107,23 @@ export function LiveDashboard() {
     rejectTone: tone(qualityStatus),
     wasteSavedKg: h.avoidedKg,
   };
-  return <DashboardWall data={data} />;
+  const browning = browningHistory.slice(-24).map((p) => Math.round((BROWNING_TARGET + p.v) * 10) / 10);
+  while (browning.length < 24) browning.unshift(BROWNING_TARGET);
+  return (
+    <>
+      <DashboardWall data={data} />
+      {/* The quality side of the story, on the back wall beside the sign:
+          what inspection is measuring on every loaf. */}
+      <LineChartCard
+        position={[5.05, 4.45, WALL_FACE_Z]}
+        width={3.7}
+        height={2.3}
+        title="Crust browning at inspection"
+        series={browning}
+        limitWarn={BROWNING_TARGET + BROWNING_TOLERANCE * 0.6}
+        limitCrit={BROWNING_TARGET + BROWNING_TOLERANCE}
+        color="#3b86e3"
+      />
+    </>
+  );
 }

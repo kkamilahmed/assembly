@@ -219,7 +219,7 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
     return {
       // A touch larger than life, the way the references draw people:
       // at the overview zoom they are the storytellers, not ant-sized.
-      scale: (0.965 + r() * 0.06) * 1.15,
+      scale: (0.965 + r() * 0.06) * 1.28,
       build: 0.96 + r() * 0.1,
       hair: HAIR[Math.floor(r() * HAIR.length)],
       visorCap: r() < 0.28,
