@@ -4,11 +4,18 @@ export const STATUS_HEX = {
   critical: '#d4453c',
 } as const;
 
-// Fleet overview telemetry accents - one hue per sensor type so the three
-// stacked meters on a machine card read apart at a glance.
+// Source card accents - one hue per signal so the three stacked meters on a
+// source card read apart at a glance.
 export const METRIC_HEX = {
-  temperature: '#2f6fd4',
-  load: '#3b8fa3',
-  vibration: '#7c6fd4',
+  velocity: '#2f6fd4',
+  newCards: '#3b8fa3',
+  newDevices: '#7c6fd4',
   offset: '#5b6472',
+} as const;
+
+/** The three outcomes a payment can have, on every chart. */
+export const OUTCOME_HEX = {
+  settled: '#2fb574',
+  fraud: '#d4453c',
+  blocked: '#5b6472',
 } as const;

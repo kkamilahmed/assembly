@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { useStore } from '@/state/store';
-import { projectShift, SHIFT_HOURS } from './businessCase';
+import { fraudRate, HOURS_UNTIL_BATCH, LOSS_PER_FRAUD_CHARGE_USD, packetsToCharges } from './businessCase';
 import { fmtSeconds, fmtUsd } from './format';
 import { STATUS_HEX } from './colors';
 import { Kbd } from './Kbd';
@@ -9,12 +9,13 @@ import { Kbd } from './Kbd';
  *  enough to say it out loud. */
 const AUTOPILOT_TOAST_MS = 15_000;
 
-/** Cards that float over the top of the 3D plant: the stop report while the
- *  line is stopped, and the autopilot's own summary when it fixes something. */
-export function LineOverlay() {
+/** Cards that float over the top of the 3D network: the freeze report while
+ *  the merchant is frozen, and the autopilot's own summary when it stops an
+ *  attack. */
+export function NetworkOverlay() {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-4">
-      <StopReport />
+      <FreezeReport />
       <AutopilotToast />
     </div>
   );
@@ -34,15 +35,15 @@ function Card({ children, accent }: { children: ReactNode; accent: string }) {
 
 /**
  * The payoff of the manual run. Every figure is measured off the incident as
- * it happened: when the fault began, when the pipeline flagged it, when the
- * line was stopped, and what was inspected in between. The shift
- * projection turns the measured reject rate into what waiting for the
- * end-of-shift audit would have cost.
+ * it happened: when the attack began, when the pipeline flagged it, when the
+ * merchant was frozen, and what was approved in between. The projection
+ * turns the measured fraud rate into what waiting for tomorrow's batch
+ * check would have cost.
  */
-function StopReport() {
-  const paused = useStore((s) => s.paused);
+function FreezeReport() {
+  const frozen = useStore((s) => s.frozen);
   const incident = useStore((s) => s.incident);
-  if (!paused) return null;
+  if (!frozen) return null;
 
   const open = incident !== null && incident.resolvedAt === null;
   const relevant = incident !== null && incident.stoppedAt !== null;
@@ -50,9 +51,9 @@ function StopReport() {
   if (!relevant) {
     return (
       <Card accent={STATUS_HEX.critical}>
-        <div className="text-sm font-semibold">Line stopped</div>
+        <div className="text-sm font-semibold">TechDealz Online frozen</div>
         <div className="mt-1 text-xs text-[var(--text-secondary)]">
-          Press <Kbd>S</Kbd> to start it again.
+          Press <Kbd>S</Kbd> to unfreeze it.
         </div>
       </Card>
     );
@@ -60,52 +61,53 @@ function StopReport() {
 
   const detectMs = incident.detectedAt !== null ? incident.detectedAt - incident.faultStartedAt : null;
   const reactMs = incident.detectedAt !== null ? incident.stoppedAt! - incident.detectedAt : null;
-  const shift = projectShift(incident.inspected, incident.rejected);
-  const saved = shift ? Math.max(shift.loaves - incident.rejected, 0) : 0;
+  const charges = packetsToCharges(incident.fraudApproved);
+  const lostUsd = Math.round(charges * LOSS_PER_FRAUD_CHARGE_USD);
+  const ranFor = (incident.stoppedAt! - incident.faultStartedAt) / 1000;
+  const projected = fraudRate(incident.fraudApproved, ranFor);
+  const saved = Math.max(projected.byBatchUsd - lostUsd, 0);
 
   return (
     <Card accent={open ? STATUS_HEX.critical : STATUS_HEX.healthy}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: open ? STATUS_HEX.critical : STATUS_HEX.healthy }}>
-            {open ? 'Line stopped' : 'Fixed · line still stopped'}
+            {open ? 'Merchant frozen' : 'Fixed · merchant still frozen'}
           </div>
           <div className="mt-0.5 text-base font-semibold">
-            {open ? 'The oven is running hot and burning loaves' : 'Oven recalibrated, back on setpoint'}
+            {open ? 'Card testers are checking stolen cards at TechDealz' : 'Rule recalibrated, every fraudulent charge now blocked'}
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono-ui text-3xl font-semibold leading-none" style={{ color: incident.rejected ? STATUS_HEX.critical : STATUS_HEX.healthy }}>
-            {incident.rejected}
+          <div className="font-mono-ui text-3xl font-semibold leading-none" style={{ color: charges ? STATUS_HEX.critical : STATUS_HEX.healthy }}>
+            {charges.toLocaleString()}
           </div>
-          <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
-            loa{incident.rejected === 1 ? 'f' : 'ves'} rejected
-          </div>
+          <div className="mt-1 text-[11px] text-[var(--text-secondary)]">fraudulent charge{charges === 1 ? '' : 's'} approved</div>
         </div>
       </div>
 
       <dl className="mt-3 grid grid-cols-3 gap-2">
-        <Metric label="Fault to alert" value={detectMs !== null ? fmtSeconds(detectMs) : '-'} />
-        <Metric label="Alert to stop" value={reactMs !== null ? fmtSeconds(reactMs) : '-'} />
-        <Metric label="Rejected while running" value={`${incident.rejected} of ${incident.inspected}`} />
+        <Metric label="Attack to alert" value={detectMs !== null ? fmtSeconds(detectMs) : '-'} />
+        <Metric label="Alert to freeze" value={reactMs !== null ? fmtSeconds(reactMs) : '-'} />
+        <Metric label="Lost while running" value={fmtUsd(lostUsd)} />
       </dl>
 
-      {shift && shift.loaves > 0 && (
+      {projected.byBatchUsd > 0 && (
         <div className="mt-3 rounded-lg px-3 py-2 text-xs leading-snug" style={{ backgroundColor: `${STATUS_HEX.healthy}14` }}>
-          Waiting for the end-of-shift audit at this reject rate would have scrapped{' '}
-          <span className="font-semibold">≈{shift.loaves.toLocaleString()} loaves</span> ({fmtUsd(shift.usd)}) over {SHIFT_HOURS}h.
-          Stopping now saved <span className="font-semibold" style={{ color: STATUS_HEX.healthy }}>≈{saved.toLocaleString()} loaves</span>.
+          Waiting {HOURS_UNTIL_BATCH}h for tomorrow&apos;s batch check at this rate would have lost{' '}
+          <span className="font-semibold">≈{fmtUsd(projected.byBatchUsd)}</span> on ≈{projected.byBatchCharges.toLocaleString()} fraudulent
+          charges. Freezing now saved <span className="font-semibold" style={{ color: STATUS_HEX.healthy }}>≈{fmtUsd(saved)}</span>.
         </div>
       )}
 
       <div className="mt-3 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
         {open ? (
           <>
-            Next: <Kbd>C</Kbd> recalibrate the oven
+            Next: <Kbd>C</Kbd> recalibrate the rule
           </>
         ) : (
           <>
-            Next: <Kbd>A</Kbd> run on autopilot, or <Kbd>S</Kbd> restart manually
+            Next: <Kbd>A</Kbd> run on autopilot, or <Kbd>S</Kbd> unfreeze manually
           </>
         )}
       </div>
@@ -122,10 +124,10 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** The autopilot run's payoff: same fault, nobody touched anything, and the
- *  line fixed itself before it became a pile of rejects. */
+/** The autopilot run's payoff: same attack, nobody touched anything, and
+ *  the network blocked it before it became a pile of losses. */
 function AutopilotToast() {
-  const paused = useStore((s) => s.paused);
+  const frozen = useStore((s) => s.frozen);
   const caught = useStore((s) => s.autopilotCatch);
   const dismiss = useStore((s) => s.dismissAutopilotCatch);
 
@@ -135,7 +137,8 @@ function AutopilotToast() {
     return () => window.clearTimeout(id);
   }, [caught, dismiss]);
 
-  if (!caught || paused) return null;
+  if (!caught || frozen) return null;
+  const charges = packetsToCharges(caught.fraudApproved);
   return (
     <Card accent={STATUS_HEX.healthy}>
       <div className="flex items-start justify-between gap-4">
@@ -143,22 +146,23 @@ function AutopilotToast() {
           <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: STATUS_HEX.healthy }}>
             Autopilot
           </div>
-          <div className="mt-0.5 text-base font-semibold">Caught and fixed the oven on its own</div>
+          <div className="mt-0.5 text-base font-semibold">Caught the attack and blocked it on its own</div>
           <div className="mt-1 text-xs text-[var(--text-secondary)]">
-            The stream flagged the temperature drift, the line put the oven back on setpoint, and production never stopped.
+            The stream flagged the card testing, the rule was refitted to it, and every test charge after that was blocked at
+            the hub. TechDealz never had to be frozen.
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono-ui text-3xl font-semibold leading-none" style={{ color: caught.rejected ? STATUS_HEX.warning : STATUS_HEX.healthy }}>
-            {caught.rejected}
+          <div className="font-mono-ui text-3xl font-semibold leading-none" style={{ color: charges ? STATUS_HEX.warning : STATUS_HEX.healthy }}>
+            {charges}
           </div>
-          <div className="mt-1 text-[11px] text-[var(--text-secondary)]">loa{caught.rejected === 1 ? 'f' : 'ves'} rejected</div>
+          <div className="mt-1 text-[11px] text-[var(--text-secondary)]">fraudulent charge{charges === 1 ? '' : 's'} approved</div>
         </div>
       </div>
       <dl className="mt-3 grid grid-cols-3 gap-2">
-        <Metric label="Fault to alert" value={fmtSeconds(caught.detectMs)} />
+        <Metric label="Attack to alert" value={fmtSeconds(caught.detectMs)} />
         <Metric label="Alert to fix" value={fmtSeconds(caught.fixMs)} />
-        <Metric label="Line downtime" value="0s" />
+        <Metric label="Merchant downtime" value="0s" />
       </dl>
     </Card>
   );

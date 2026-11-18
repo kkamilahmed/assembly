@@ -1,7 +1,7 @@
 import { VIEWS, type View } from './views';
 import { Kbd } from './Kbd';
 
-const LABELS: Record<View, string> = { machines: 'Machines', plant: 'Plant', dashboard: 'Dashboard' };
+const LABELS: Record<View, string> = { sources: 'Sources', network: 'Network', dashboard: 'Dashboard' };
 
 /** The three screens in the order the arrow keys walk them, shown in every
  *  screen's header so the presenter (and the room) can see where they are. */

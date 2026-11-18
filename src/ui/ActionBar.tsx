@@ -1,40 +1,40 @@
 import type { ReactNode } from 'react';
 import { useStore } from '@/state/store';
-import { recalibrate, toggleAutopilot, toggleLine } from '@/state/storyDirector';
+import { recalibrate, toggleAutopilot, toggleFreeze } from '@/state/storyDirector';
 import { Kbd } from './Kbd';
 
-type Next = 'deviate' | 'stop' | 'recalibrate' | 'autopilot';
+type Next = 'deviate' | 'freeze' | 'recalibrate' | 'autopilot';
 
 /** Which control the story wants next. Highlighted, so the presenter (and
  *  the room) can always see what the obvious move is. */
 function useNext(): Next {
-  const paused = useStore((s) => s.paused);
+  const frozen = useStore((s) => s.frozen);
   const autopilot = useStore((s) => s.autopilot);
   const open = useStore((s) => s.incident !== null && s.incident.resolvedAt === null);
-  if (paused) return open ? 'recalibrate' : 'autopilot';
-  if (open && !autopilot) return 'stop';
+  if (frozen) return open ? 'recalibrate' : 'autopilot';
+  if (open && !autopilot) return 'freeze';
   return 'deviate';
 }
 
 /**
- * The operator controls along the bottom of the plant view. Only what an
- * operator would do is on screen; the presenter injects the fault from the
+ * The analyst's controls along the bottom of the network view. Only what an
+ * analyst would do is on screen; the presenter starts the attack from the
  * keyboard (D / E), so the audience never sees a "break it" button. Every
  * button carries its key, so the demo can be driven without looking down.
  */
 export function ActionBar() {
-  const paused = useStore((s) => s.paused);
+  const frozen = useStore((s) => s.frozen);
   const autopilot = useStore((s) => s.autopilot);
   const next = useNext();
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
       <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)]/95 p-1.5 shadow-lg backdrop-blur">
-        <Action k="S" onClick={toggleLine} primary={next === 'stop'} danger={!paused}>
-          {paused ? 'Start line' : 'Stop line'}
+        <Action k="S" onClick={toggleFreeze} primary={next === 'freeze'} danger={!frozen}>
+          {frozen ? 'Unfreeze merchant' : 'Freeze merchant'}
         </Action>
-        <Action k="C" onClick={() => recalibrate('operator')} primary={next === 'recalibrate'}>
-          Recalibrate oven
+        <Action k="C" onClick={() => recalibrate('analyst')} primary={next === 'recalibrate'}>
+          Recalibrate rule
         </Action>
         <Action k="A" onClick={toggleAutopilot} primary={next === 'autopilot'} active={autopilot}>
           {autopilot ? 'Autopilot on' : 'Run on autopilot'}

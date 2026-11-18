@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '@/state/store';
-import { MACHINE_IDS, MACHINE_LABELS, type MachineId } from '@/streaming/lineConfig';
+import { SOURCE_IDS, SOURCE_LABELS, type SourceId } from '@/streaming/networkConfig';
 import {
   CHANNEL_NAMES,
   channelSeverity,
@@ -10,46 +10,46 @@ import {
   injectionSeverity,
   INTENSITY_MAX,
   INTENSITY_MIN,
-  SENSOR_CHANNELS,
-  SENSOR_TICK_MS,
+  SIGNAL_CHANNELS,
+  SIGNAL_TICK_MS,
   type FaultInjection,
-  type SensorChannel,
-} from '@/streaming/sensorStream';
+  type SignalChannel,
+} from '@/streaming/signalStream';
 import { METRIC_HEX, STATUS_HEX } from './colors';
 import { fmtDuration } from './format';
 
 /** Where the slider starts. High enough that one press visibly moves every
- *  selected machine - several of them straight past a limit - because the
+ *  selected source - several of them straight past a limit - because the
  *  first thing anyone does with this panel is press Inject and look. */
 const DEFAULT_INTENSITY = 12;
 
 /**
- * Manual fault injection for the process-sensor stream: pick any machines,
- * any channels, set an intensity, and the readings start climbing on the
- * fleet cards behind the panel.
+ * Manual fault injection for the live-signal stream: pick any sources, any
+ * channels, set an intensity, and the readings start climbing on the source
+ * cards behind the panel.
  *
- * Machines are multi-select and default to all four. The D / E deviation
- * keys (state/storyDirector.ts) only ever put one fault on one station at
- * one moment; this is the manual counterpart, for showing what the fleet
- * view does when several machines go wrong at once.
+ * Sources are multi-select and default to all four. The D / E keys
+ * (state/storyDirector.ts) put an attack's own signature on the sources;
+ * this is the manual counterpart, for showing what the sources screen does
+ * when several of them go wrong at once.
  */
 export function FaultInjectionPanel() {
   const open = useStore((s) => s.faultPanelOpen);
   const setOpen = useStore((s) => s.setFaultPanelOpen);
-  // Only what somebody injected from this panel. The deviation keys put a
-  // physical signature on OVEN-01's sensors too, but that is the machine
-  // misbehaving, not a fault this panel owns.
+  // Only what somebody injected from this panel. The attack keys put their
+  // own signature on TDZ-WEB's signals too, but that is the source genuinely
+  // under attack, not a fault this panel owns.
   const injections = useStore(useShallow((s) => s.injections.filter((i) => i.source === 'manual')));
   const injectFaults = useStore((s) => s.injectFaults);
   const clearInjection = useStore((s) => s.clearInjection);
   const clearInjections = useStore((s) => s.clearInjections);
-  const pipeline = useStore((s) => s.sensorPipeline);
-  const paused = useStore((s) => s.paused);
-  // The stream's own clock, not the wall clock: see store.sensorsAt.
-  const now = useStore((s) => s.sensorsAt);
+  const pipeline = useStore((s) => s.signalPipeline);
+  const frozen = useStore((s) => s.frozen);
+  // The stream's own clock, not the wall clock: see store.signalsAt.
+  const now = useStore((s) => s.signalsAt);
 
-  const [machines, setMachines] = useState<MachineId[]>(() => [...MACHINE_IDS]);
-  const [channels, setChannels] = useState<SensorChannel[]>(['vibration']);
+  const [sources, setSources] = useState<SourceId[]>(() => [...SOURCE_IDS]);
+  const [channels, setChannels] = useState<SignalChannel[]>(['newDevices']);
   const [intensity, setIntensity] = useState(DEFAULT_INTENSITY);
 
   useEffect(() => {
@@ -65,21 +65,21 @@ export function FaultInjectionPanel() {
 
   // Selections are kept in canonical order, not click order, so the active
   // list and the grid always read top-left to bottom-right.
-  const toggleMachine = (id: MachineId) =>
-    setMachines((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : MACHINE_IDS.filter((r) => r === id || prev.includes(r))));
-  const toggleChannel = (channel: SensorChannel) =>
+  const toggleSource = (id: SourceId) =>
+    setSources((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : SOURCE_IDS.filter((r) => r === id || prev.includes(r))));
+  const toggleChannel = (channel: SignalChannel) =>
     setChannels((prev) =>
-      prev.includes(channel) ? prev.filter((c) => c !== channel) : SENSOR_CHANNELS.filter((c) => c === channel || prev.includes(c)),
+      prev.includes(channel) ? prev.filter((c) => c !== channel) : SIGNAL_CHANNELS.filter((c) => c === channel || prev.includes(c)),
     );
 
-  const allMachines = machines.length === MACHINE_IDS.length;
-  const allChannels = channels.length === SENSOR_CHANNELS.length;
-  const canInject = machines.length > 0 && channels.length > 0;
+  const allSources = sources.length === SOURCE_IDS.length;
+  const allChannels = channels.length === SIGNAL_CHANNELS.length;
+  const canInject = sources.length > 0 && channels.length > 0;
 
   // What this intensity will actually do, per selected pair, before anyone
   // presses the button - the same arithmetic the stream will run, so the
   // preview cannot disagree with the result.
-  const outcomes = machines.flatMap((machineId) => channels.map((channel) => injectionSeverity(machineId, channel, intensity)));
+  const outcomes = sources.flatMap((sourceId) => channels.map((channel) => injectionSeverity(sourceId, channel, intensity)));
   const critical = outcomes.filter((o) => o === 'critical').length;
   const warning = outcomes.filter((o) => o === 'warning').length;
   const inLimits = outcomes.length - critical - warning;
@@ -109,30 +109,30 @@ export function FaultInjectionPanel() {
         <div
           className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] font-medium"
           style={{
-            color: paused ? STATUS_HEX.warning : STATUS_HEX.healthy,
-            backgroundColor: paused ? `${STATUS_HEX.warning}14` : `${STATUS_HEX.healthy}14`,
+            color: frozen ? STATUS_HEX.warning : STATUS_HEX.healthy,
+            backgroundColor: frozen ? `${STATUS_HEX.warning}14` : `${STATUS_HEX.healthy}14`,
           }}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          <span>{paused ? 'Line stopped' : 'Stream live'} &middot; simulated</span>
-          <span className="font-mono-ui ml-auto opacity-70">{(SENSOR_TICK_MS / 1000).toFixed(1)}s</span>
+          <span>{frozen ? 'Merchant frozen' : 'Stream live'} &middot; simulated</span>
+          <span className="font-mono-ui ml-auto opacity-70">{(SIGNAL_TICK_MS / 1000).toFixed(1)}s</span>
         </div>
 
         <section className="flex flex-col gap-1.5">
           <SectionLabel
             action={
-              <QuickAction onClick={() => setMachines(allMachines ? [] : [...MACHINE_IDS])}>
-                {allMachines ? 'Clear' : `Select all ${MACHINE_IDS.length}`}
+              <QuickAction onClick={() => setSources(allSources ? [] : [...SOURCE_IDS])}>
+                {allSources ? 'Clear' : `Select all ${SOURCE_IDS.length}`}
               </QuickAction>
             }
           >
-            Machine
+            Source
           </SectionLabel>
           <div className="grid grid-cols-2 gap-1.5">
-            {MACHINE_IDS.map((id) => (
-              <ToggleButton key={id} selected={machines.includes(id)} onClick={() => toggleMachine(id)}>
+            {SOURCE_IDS.map((id) => (
+              <ToggleButton key={id} selected={sources.includes(id)} onClick={() => toggleSource(id)}>
                 <span className="font-mono-ui block text-[11px] font-semibold">{id}</span>
-                <span className="block truncate text-[10px] text-[var(--text-secondary)]">{MACHINE_LABELS[id]}</span>
+                <span className="block truncate text-[10px] text-[var(--text-secondary)]">{SOURCE_LABELS[id]}</span>
               </ToggleButton>
             ))}
           </div>
@@ -141,14 +141,14 @@ export function FaultInjectionPanel() {
         <section className="flex flex-col gap-1.5">
           <SectionLabel
             action={
-              <QuickAction onClick={() => setChannels(allChannels ? [] : [...SENSOR_CHANNELS])}>
-                {allChannels ? 'Clear' : `Select all ${SENSOR_CHANNELS.length}`}
+              <QuickAction onClick={() => setChannels(allChannels ? [] : [...SIGNAL_CHANNELS])}>
+                {allChannels ? 'Clear' : `Select all ${SIGNAL_CHANNELS.length}`}
               </QuickAction>
             }
           >
-            Sensor
+            Signal
           </SectionLabel>
-          {SENSOR_CHANNELS.map((channel) => {
+          {SIGNAL_CHANNELS.map((channel) => {
             return (
               <ToggleButton key={channel} selected={channels.includes(channel)} onClick={() => toggleChannel(channel)}>
                 <span className="flex items-center gap-2 text-xs font-medium">
@@ -187,8 +187,8 @@ export function FaultInjectionPanel() {
             <span>20</span>
           </div>
           {/* Intensity is a fraction of each channel's remaining headroom, so
-              the same number lands differently on a machine that already runs
-              hot. Stating the outcome up front is the difference between a
+              the same number lands differently on a source that already runs
+              busy. Stating the outcome up front is the difference between a
               slider and a guess. */}
           <p className="mt-2 text-[11px] leading-snug text-[var(--text-secondary)]">
             {canInject ? (
@@ -204,7 +204,7 @@ export function FaultInjectionPanel() {
                 , {inLimits} in limits.
               </>
             ) : (
-              'Select at least one machine and one sensor.'
+              'Select at least one source and one signal.'
             )}
           </p>
         </section>
@@ -212,7 +212,7 @@ export function FaultInjectionPanel() {
         <section className="flex flex-col gap-2">
           <div className="flex gap-2">
             <button
-              onClick={() => injectFaults(machines, channels, intensity)}
+              onClick={() => injectFaults(sources, channels, intensity)}
               disabled={!canInject}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--brand-orange)] px-3 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -242,7 +242,7 @@ export function FaultInjectionPanel() {
           {injections.length === 0 ? (
             <p className="text-xs text-[var(--text-secondary)]">None active.</p>
           ) : (
-            // Scrolls in place: a fleet-wide injection is twelve rows, and
+            // Scrolls in place: a network-wide injection is twelve rows, and
             // the pipeline counters below it are the reason anyone opened
             // this section in the first place.
             <ul
@@ -284,8 +284,8 @@ function ActiveInjectionRow({
 }) {
   // The live reading, not the target: an injection that has only just been
   // armed is still on its way up, and the row should say so.
-  const value = useStore((s) => s.sensors[injection.machineId][injection.channel]);
-  const severity = channelSeverity(injection.machineId, injection.channel, value);
+  const value = useStore((s) => s.signals[injection.sourceId][injection.channel]);
+  const severity = channelSeverity(injection.sourceId, injection.channel, value);
   const color = STATUS_HEX[severity];
 
   return (
@@ -293,19 +293,19 @@ function ActiveInjectionRow({
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <div className="min-w-0 flex-1">
         <div className="font-mono-ui truncate text-[11px] font-medium">
-          {injection.machineId} &middot; {channelSpec(injection.machineId, injection.channel).label}
+          {injection.sourceId} &middot; {channelSpec(injection.sourceId, injection.channel).label}
         </div>
         <div className="font-mono-ui text-[10px] text-[var(--text-secondary)]">
           level {injection.intensity} &middot;{' '}
           <span style={{ color, fontWeight: severity === 'healthy' ? undefined : 600 }}>
-            {formatReading(injection.machineId, injection.channel, value)}
+            {formatReading(injection.sourceId, injection.channel, value)}
           </span>{' '}
           &middot; {fmtDuration(now - injection.startedAt)}
         </div>
       </div>
       <button
         onClick={onClear}
-        aria-label={`Clear ${injection.machineId} ${channelSpec(injection.machineId, injection.channel).label} fault`}
+        aria-label={`Clear ${injection.sourceId} ${channelSpec(injection.sourceId, injection.channel).label} fault`}
         className="shrink-0 rounded p-1 text-[var(--text-secondary)] transition-colors hover:bg-black/5 hover:text-[var(--text-primary)]"
       >
         <XIcon className="h-3 w-3" />

@@ -1,13 +1,13 @@
 import { useStore } from '@/state/store';
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['D', 'Slight deviation: oven zone 2 running hot'],
-  ['E', 'Emergency: oven burner runaway'],
-  ['S', 'Stop / start the line'],
-  ['C', 'Recalibrate the oven'],
+  ['D', 'Slight deviation: card testing at TechDealz'],
+  ['E', 'Emergency: account-takeover wave'],
+  ['S', 'Freeze / unfreeze the merchant'],
+  ['C', 'Recalibrate the rule'],
   ['A', 'Run on autopilot (press again to turn off)'],
-  ['← / →', 'Move between Machines, Plant, Dashboard'],
-  ['F', 'Fault injection panel (machines screen)'],
+  ['← / →', 'Move between Sources, Network, Dashboard'],
+  ['F', 'Fault injection panel (sources screen)'],
   ['R', 'Reset the demo'],
   ['Esc', 'Close the topmost overlay'],
   ['?', 'Toggle this overlay'],

@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import { useStore } from '@/state/store';
-import { injectDeviation, recalibrate, resetDemo, toggleAutopilot, toggleLine } from '@/state/storyDirector';
+import { injectDeviation, recalibrate, resetDemo, toggleAutopilot, toggleFreeze } from '@/state/storyDirector';
 import { stepView, type View } from '@/ui/views';
-
 
 /**
  * Every presenter key, in one place, live on every screen: the story moves
- * between the plant, the dashboard and the machines, and the keys have to
+ * between the network, the dashboard and the sources, and the keys have to
  * work from all three.
  */
 export function useKeyboardShortcuts(view: View, setView: (v: View) => void) {
@@ -29,10 +28,10 @@ export function useKeyboardShortcuts(view: View, setView: (v: View) => void) {
           injectDeviation('emergency');
           return;
         case 's':
-          toggleLine();
+          toggleFreeze();
           return;
         case 'c':
-          recalibrate('operator');
+          recalibrate('analyst');
           return;
         case 'a':
           toggleAutopilot();
@@ -49,7 +48,7 @@ export function useKeyboardShortcuts(view: View, setView: (v: View) => void) {
           setView(stepView(view, -1));
           return;
         case 'f':
-          if (view === 'machines') store.setFaultPanelOpen(!store.faultPanelOpen);
+          if (view === 'sources') store.setFaultPanelOpen(!store.faultPanelOpen);
           return;
         case '?':
           store.setShortcutOverlayOpen(!store.shortcutOverlayOpen);
