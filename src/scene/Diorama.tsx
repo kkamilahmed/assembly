@@ -1,5 +1,5 @@
 // The diorama shell: the raised factory slab, hazard edges and floor paint,
-// the L of back walls with their services, the tiled hygiene zone with its
+// the L of back walls with their services, the tiled dry room with its
 // glass partition, the yard steps and loading dock, and the brand sign.
 //
 // Heights: the slab top is y=0 and the slab extends down to
@@ -17,8 +17,9 @@ import { WALL_FACE_X, WALL_FACE_Z, WALL_INSET, WALL_X_END_Z, WALL_Z_END_X } from
 
 const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0];
 
-/** Tiled hygiene zone around the mixer. */
-const CLEAN = { x0: -11.5, x1: -6.5, z0: 1.6, z1: 7.2 } as const;
+/** Tiled dry room around the cell sorter: cells are stored and sorted at
+ *  low humidity. */
+const DRY = { x0: -11.5, x1: -6.5, z0: 1.6, z1: 7.2 } as const;
 /** Yard steps and loading dock on the +x edge. */
 const STEPS = { z0: 1.0, z1: 3.8 } as const;
 const DOCK = { z0: 4.05, z1: 7.1 } as const;
@@ -35,7 +36,7 @@ function dimmed(base: THREE.MeshStandardMaterial, env: number): THREE.MeshStanda
   DIMMED.push(m);
   return m;
 }
-// Sealed epoxy: low roughness so the oven glow and the key light leave a
+// Sealed epoxy: low roughness so the laser flash and the key light leave a
 // soft sheen on it, with the environment kept low so it stays charcoal.
 const FLOOR = dimmed(matte(PALETTE.slabTop, 0.38), 0.5);
 const PAINT_WHITE = dimmed(matte(PALETTE.hazardLight, 0.6), 0.3);
@@ -88,6 +89,7 @@ function buildPaint() {
   const white = new Paint();
   const amber = new Paint();
   const hazard = new Paint();
+  const blue = new Paint();
   const xe = SLAB.maxX;
   const ze = SLAB.maxZ;
 
@@ -100,8 +102,8 @@ function buildPaint() {
   // stripes lean less than that and read as slanted on screen.
   for (const b of bands) hazard.stripes(b, b.along, 0.3, 0.3, b.along === 'x' ? 0.4 : -0.4);
 
-  // Walkway down the yard side of the inspection leg, from the electrical
-  // cabinet to a zebra at the steps. Packaging stock sits either side of it.
+  // Walkway down the yard side of the casing and test leg, from the
+  // electrical cabinet to a zebra at the steps. Parts stock sits either side.
   const C = 0.95; // keep paint this far from the conveyor centreline
   white.line(5.12, -6.4, 5.12, 1.55, 0.06, { clear: C });
   white.line(6.08, -6.4, 6.08, 1.55, 0.06, { clear: C });
@@ -112,10 +114,10 @@ function buildPaint() {
   white.line(xe - 0.14, STEPS.z0, xe - 0.14, STEPS.z1, 0.08);
 
   // Walkways inside the line's U: one across the floor in front of the
-  // oven, one from the hygiene zone's door, and a link between the two.
+  // welder, one from the dry room's door, and a link between the two.
   const cross = { z0: -2.02, z1: -0.82, x0: -7.7, x1: 1.95 };
   const link = { x0: -3.0, x1: -1.98 };
-  const door = { z0: 4.92, z1: 6.08, x0: CLEAN.x1 + 0.1 };
+  const door = { z0: 4.92, z1: 6.08, x0: DRY.x1 + 0.1 };
   white.line(cross.x0, cross.z0, cross.x1, cross.z0, 0.06, { clear: C });
   white.line(cross.x0, cross.z1, link.x0, cross.z1, 0.06, { clear: C });
   white.line(link.x1, cross.z1, cross.x1, cross.z1, 0.06, { clear: C });
@@ -126,16 +128,23 @@ function buildPaint() {
   white.arrow(-5.6, -1.42, 0, 0.38).arrow(0.9, -1.42, 0, 0.38);
   white.arrow(-2.49, 2.4, -Math.PI / 2, 0.38).arrow(-4.4, 5.5, Math.PI, 0.38);
 
-  // Cooling bay for the rack trolleys, and the goods-in bays by the door.
+  // The test bay inside the U, and the finished-module bay by the door.
   const dash = { dash: 0.3, gap: 0.2 };
   const bays = [
     { x0: -1.85, x1: 1.95, z0: -0.62, z1: 1.5 },
-    { x0: -6.38, x1: -3.66, z0: 6.14, z1: 7.2 },
+    { x0: -6.45, x1: -2.62, z0: 6.08, z1: 7.2 },
   ];
   for (const b of bays) {
     amber.line(b.x0, b.z0, b.x1, b.z0, 0.06, dash).line(b.x0, b.z1, b.x1, b.z1, 0.06, dash);
     amber.line(b.x0, b.z0, b.x0, b.z1, 0.06, dash).line(b.x1, b.z0, b.x1, b.z1, 0.06, dash);
   }
+
+  // AGV lanes: the front aisle from the transfer dock to the module bay,
+  // and the spur into the test bay.
+  const lane = { dash: 0.45, gap: 0.25 };
+  blue.line(-1.45, 6.1, 7.2, 6.1, 0.06, lane).line(-1.45, 7.0, 7.2, 7.0, 0.06, lane);
+  blue.line(0.62, 1.7, 0.62, 5.15, 0.06, lane).line(1.58, 1.7, 1.58, 5.15, 0.06, lane);
+  blue.arrow(3.2, 6.55, Math.PI, 0.32).arrow(1.1, 3.4, -Math.PI / 2, 0.32);
 
   // Keep-clear box in front of the electrical cabinet on the back wall.
   const kc = { x0: 4.75, x1: 6.45, z0: WALL_FACE_Z + 0.12, z1: -6.55 };
@@ -146,16 +155,17 @@ function buildPaint() {
   // Dock edge.
   amber.line(xe - 0.14, DOCK.z0, xe - 0.14, DOCK.z1, 0.1);
 
-  return { white: white.build(), amber: amber.build(), hazard: hazard.build(), bands };
+  return { white: white.build(), amber: amber.build(), hazard: hazard.build(), blue: blue.build(), bands };
 }
 
 function FloorPaint() {
-  const { white, amber, hazard, bands } = useMemo(() => buildPaint(), []);
+  const { white, amber, hazard, blue, bands } = useMemo(() => buildPaint(), []);
   const kerb = 0.028;
   return (
     <group>
       <mesh geometry={white} position-y={0.004} material={PAINT_WHITE} receiveShadow />
       <mesh geometry={amber} position-y={0.004} material={PAINT_AMBER} receiveShadow />
+      <mesh geometry={blue} position-y={0.004} material={PAINT_BLUE} receiveShadow />
       {/* Hazard bands sit on a low dark kerb strip, like a stuck-down mat. */}
       {bands.map((b, i) => (
         <RoundedBox
@@ -173,20 +183,20 @@ function FloorPaint() {
   );
 }
 
-// ------------------------------------------------------- hygiene zone
+// ----------------------------------------------------------- dry room
 
 function buildTileLines() {
   const lines = new Paint();
   const border = new Paint();
   const w = 0.028;
-  for (let x = CLEAN.x0 + 1; x < CLEAN.x1 - 0.2; x += 1) lines.line(x, CLEAN.z0 + 0.05, x, CLEAN.z1 - 0.05, w);
+  for (let x = DRY.x0 + 1; x < DRY.x1 - 0.2; x += 1) lines.line(x, DRY.z0 + 0.05, x, DRY.z1 - 0.05, w);
   const rows = 6;
-  const pitch = (CLEAN.z1 - CLEAN.z0) / rows;
-  for (let i = 1; i < rows; i++) lines.line(CLEAN.x0 + 0.05, CLEAN.z0 + pitch * i, CLEAN.x1 - 0.05, CLEAN.z0 + pitch * i, w);
-  // Blue hygiene line just inside the two open sides.
+  const pitch = (DRY.z1 - DRY.z0) / rows;
+  for (let i = 1; i < rows; i++) lines.line(DRY.x0 + 0.05, DRY.z0 + pitch * i, DRY.x1 - 0.05, DRY.z0 + pitch * i, w);
+  // Blue dry-room line just inside the two open sides.
   const m = 0.2;
-  border.line(CLEAN.x0 + m, CLEAN.z1 - m, CLEAN.x1 - m + 0.04, CLEAN.z1 - m, 0.08);
-  border.line(CLEAN.x1 - m, CLEAN.z0 + m, CLEAN.x1 - m, CLEAN.z1 - m, 0.08);
+  border.line(DRY.x0 + m, DRY.z1 - m, DRY.x1 - m + 0.04, DRY.z1 - m, 0.08);
+  border.line(DRY.x1 - m, DRY.z0 + m, DRY.x1 - m, DRY.z1 - m, 0.08);
   return { lines: lines.build(), border: border.build() };
 }
 
@@ -214,16 +224,16 @@ function GlassRun({ from, to, height = 2.4, open = false }: { from: [number, num
   );
 }
 
-function HygieneZone({ partition }: { partition: boolean }) {
+function DryRoom({ partition }: { partition: boolean }) {
   const { lines, border } = useMemo(() => buildTileLines(), []);
-  const w = CLEAN.x1 - CLEAN.x0;
-  const d = CLEAN.z1 - CLEAN.z0;
+  const w = DRY.x1 - DRY.x0;
+  const d = DRY.z1 - DRY.z0;
   const t = 0.03;
   return (
     <group>
       <mesh
         rotation={FLAT}
-        position={[(CLEAN.x0 + CLEAN.x1) / 2, 0, (CLEAN.z0 + CLEAN.z1) / 2]}
+        position={[(DRY.x0 + DRY.x1) / 2, 0, (DRY.z0 + DRY.z1) / 2]}
         geometry={slabGeometry(w, d, t, 0.1, 0.01)}
         material={TILE}
         receiveShadow
@@ -233,13 +243,13 @@ function HygieneZone({ partition }: { partition: boolean }) {
       {partition && (
         <>
           {/* Back side, with a gap where the conveyor leaves the zone. */}
-          <GlassRun from={[CLEAN.x0 + 0.05, CLEAN.z0]} to={[-9.95, CLEAN.z0]} />
-          <GlassRun from={[-9.95, CLEAN.z0]} to={[-8.05, CLEAN.z0]} open />
-          <GlassRun from={[-8.05, CLEAN.z0]} to={[CLEAN.x1, CLEAN.z0]} />
+          <GlassRun from={[DRY.x0 + 0.05, DRY.z0]} to={[-9.95, DRY.z0]} />
+          <GlassRun from={[-9.95, DRY.z0]} to={[-8.05, DRY.z0]} open />
+          <GlassRun from={[-8.05, DRY.z0]} to={[DRY.x1, DRY.z0]} />
           {/* Room side, with a doorway onto the pedestrian lane. */}
-          <GlassRun from={[CLEAN.x1, CLEAN.z0]} to={[CLEAN.x1, 4.85]} />
-          <GlassRun from={[CLEAN.x1, 4.85]} to={[CLEAN.x1, 6.25]} open />
-          <GlassRun from={[CLEAN.x1, 6.25]} to={[CLEAN.x1, CLEAN.z1]} />
+          <GlassRun from={[DRY.x1, DRY.z0]} to={[DRY.x1, 4.85]} />
+          <GlassRun from={[DRY.x1, 4.85]} to={[DRY.x1, 6.25]} open />
+          <GlassRun from={[DRY.x1, 6.25]} to={[DRY.x1, DRY.z1]} />
         </>
       )}
     </group>
@@ -415,21 +425,21 @@ function Walls() {
 // ------------------------------------------------------------- diorama
 
 export interface DioramaProps {
-  /** White tiled hygiene zone around the mixer. */
-  hygieneZone?: boolean;
-  /** Glass partition around the hygiene zone. */
+  /** White tiled dry room around the cell sorter. */
+  dryRoom?: boolean;
+  /** Glass partition around the dry room. */
   partition?: boolean;
   /** The brand sign on the -z wall. */
   sign?: boolean;
 }
 
-export function Diorama({ hygieneZone = true, partition = true, sign = true }: DioramaProps) {
+export function Diorama({ dryRoom = true, partition = true, sign = true }: DioramaProps) {
   useStudioDimming();
   return (
     <group>
       <Slab />
       <FloorPaint />
-      {hygieneZone && <HygieneZone partition={partition} />}
+      {dryRoom && <DryRoom partition={partition} />}
       <YardSteps />
       <LoadingDock />
       <Walls />

@@ -131,15 +131,18 @@ const inRanges = (s: number, ranges: Range[]) => ranges.some(([a, b]) => s > a &
 
 /** Where the machines sit on the line. The guide rails and the legs leave
  *  these stretches free. */
-const OVEN: Range = [STATION_S.ovenIn - 0.25, STATION_S.ovenOut + 0.25];
+const WELDER: Range = [STATION_S.weldIn - 0.15, STATION_S.weldOut + 0.15];
 const DEFAULT_RAIL_GAPS: Range[] = [
   [0, 1.5],
-  OVEN,
+  [STATION_S.stack - 0.5, STATION_S.stack + 0.5],
+  WELDER,
   [STATION_S.inspect - 0.45, STATION_S.inspect + 0.45],
+  [STATION_S.casing - 0.5, STATION_S.casing + 0.5],
+  [STATION_S.test - 0.6, STATION_S.test + 0.6],
   [STATION_S.reject - 0.6, STATION_S.reject + 0.6],
   [LINE_LENGTH - 1.3, LINE_LENGTH],
 ];
-const DEFAULT_LEG_GAPS: Range[] = [OVEN, [LINE_LENGTH - 1.2, LINE_LENGTH]];
+const DEFAULT_LEG_GAPS: Range[] = [[LINE_LENGTH - 1.2, LINE_LENGTH]];
 /** Gearmotors hung on the frame: [arc length, side]. Side +1 is the right
  *  of travel. Both sit on the camera-facing side of their run. */
 const DEFAULT_DRIVES: Array<[number, 1 | -1]> = [

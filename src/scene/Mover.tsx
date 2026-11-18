@@ -10,8 +10,8 @@ const END_S = 0.9;
 
 /**
  * Walks its children back and forth along a short route on the floor:
- * a worker on their own, or a worker together with the trolley or pallet
- * jack they push. Children are authored facing +x.
+ * a worker on their own, a worker together with the cart or pallet jack
+ * they push, or an AGV. Children are authored facing +x.
  *
  * `turn` (default) turns round at each end, which is what a person on foot
  * does. A worker pushing a load must not: they stand behind it, so spinning
@@ -38,7 +38,7 @@ export function Mover({
   children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
-  const gait = useRef<Gait['current']>({ dir: 1 });
+  const gait = useRef<Gait['current']>({ dir: 1, outbound: true });
   const route = useMemo(() => {
     const pts = path.map(([x, z]) => new THREE.Vector3(x, 0, z));
     const lens = pts.slice(1).map((p, i) => p.distanceTo(pts[i]));
@@ -70,6 +70,7 @@ export function Mover({
     g.position.lerpVectors(a, b, f);
 
     const dirOut = Math.atan2(-(b.z - a.z), b.x - a.x);
+    gait.current.outbound = out;
     if (!turn) {
       g.rotation.y = dirOut;
       gait.current.dir = moving ? (out ? 1 : -1) : 0;
@@ -89,7 +90,7 @@ export function Mover({
 
   return (
     <GaitContext.Provider value={gait}>
-      {/* `dynamic`: everything riding on a mover (the trolley or pallet jack as
+      {/* `dynamic`: everything riding on a mover (the cart, pallet jack or AGV as
           well as the worker) must stay out of the scene's static batcher,
           or a frozen copy of it is left standing where the route began. */}
       <group ref={ref} userData={{ dynamic: true }}>

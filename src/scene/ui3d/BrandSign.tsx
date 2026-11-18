@@ -3,32 +3,29 @@ import { PALETTE } from '@/scene/style';
 import { font } from './kit';
 import { Panel } from './Panel';
 
-/** The bakery mark: a scored loaf, drawn white in a box of `s` at (x, y). */
-function drawLoafMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, bg: string) {
+/** The Voltline mark: a lightning bolt in a rounded cell outline, drawn
+ *  white in a box of `s` at (x, y). */
+function drawVoltMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, bg: string) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s / 100, s / 100);
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.moveTo(14, 84);
-  ctx.lineTo(14, 52);
-  ctx.bezierCurveTo(-2, 22, 28, 14, 50, 14);
-  ctx.bezierCurveTo(72, 14, 102, 22, 86, 52);
-  ctx.lineTo(86, 84);
-  ctx.quadraticCurveTo(86, 90, 80, 90);
-  ctx.lineTo(20, 90);
-  ctx.quadraticCurveTo(14, 90, 14, 84);
+  ctx.roundRect(36, 4, 28, 12, 4);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(16, 12, 68, 86, 14);
+  ctx.fill();
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.moveTo(56, 24);
+  ctx.lineTo(33, 60);
+  ctx.lineTo(49, 60);
+  ctx.lineTo(43, 87);
+  ctx.lineTo(68, 50);
+  ctx.lineTo(52, 50);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = bg;
-  ctx.lineWidth = 7;
-  ctx.lineCap = 'round';
-  for (const cx of [34, 50, 66]) {
-    ctx.beginPath();
-    ctx.moveTo(cx + 5, 32);
-    ctx.lineTo(cx - 5, 50);
-    ctx.stroke();
-  }
   ctx.restore();
 }
 
@@ -42,7 +39,7 @@ export interface BrandSignProps {
 }
 
 /** The big orange brand sign: a thick rounded slab with a white wordmark. */
-export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 'Goldcrust', tagline = 'Bakery' }: BrandSignProps) {
+export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 'Voltline', tagline = 'Battery Plant' }: BrandSignProps) {
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, w: number, h: number) => {
       ctx.fillStyle = PALETTE.orange;
@@ -54,7 +51,7 @@ export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 
       const nameW = ctx.measureText(name).width;
       const gap = h * 0.13;
       const x = (w - (mark + gap + nameW)) / 2;
-      drawLoafMark(ctx, x, (h - mark) / 2, mark, PALETTE.orange);
+      drawVoltMark(ctx, x, (h - mark) / 2, mark, PALETTE.orange);
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';

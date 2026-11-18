@@ -32,15 +32,16 @@ function curtainGeometry(sx: number): THREE.BufferGeometry {
 }
 
 /**
- * Vision inspection gantry: an arch over the belt with three cameras and
- * two blue light bars. Local frame: origin on the floor under the belt
- * centreline, belt along +x at BELT_Y. The operator panel hangs on the -z
- * column and faces -z; place the station with rotation y = -PI / 2 where
- * the line runs toward world +z so the panel faces the camera.
+ * Weld check: an arch over the belt with three cameras that image every
+ * busbar weld (seam width and penetration depth) to estimate its pull
+ * strength, lit by two blue light bars. Local frame: origin on the floor
+ * under the belt centreline, belt along +x at BELT_Y. The operator panel
+ * hangs on the -z column and faces -z; place it so that side faces the
+ * camera.
  *
  * `scanning` lights the bars and sweeps a scan line over the belt.
  */
-export function VisionInspection({
+export function VisionCheck({
   scanning = true,
   severity = 'healthy',
   ...props

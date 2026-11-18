@@ -2,17 +2,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
-import { crustColor, matte, metal, PALETTE, plastic } from '../style';
+import { flagMaterial, MODULE, moduleCaseGeometry, moduleMaterial, rejectFlagGeometry } from '../props/module';
+import { matte, metal, PALETTE, plastic } from '../style';
 import { Kit, rejectLabelMaterial, useDispose } from './kit';
 import { Pieces } from './Pieces';
 
 const STROKE = 0.9;
 const KICK_MS = 400;
-const MAX_LOAVES = 12;
-const BIN_W = 0.95;
-const BIN_D = 0.9;
+const BIN_W = 1.1;
+const BIN_D = 1.1;
 const BIN_TOP = 0.66;
-/** Raised floor of the bin, so even one loaf is visible from above. */
+/** Raised floor of the cage, so even one module is visible from above. */
 const BIN_FLOOR = 0.36;
 
 /** Out fast, short dwell, back slower. 0 at rest, 1 at full stroke. */
@@ -23,32 +23,27 @@ function kickProfile(t: number): number {
   return 1 - r * r * (3 - 2 * r);
 }
 
-/** Where each rejected loaf lands: [x, y, z offset from the bin centre, yaw, tilt]. */
+/** Where each scrapped module lands: [x, y, z offset from the cage centre,
+ *  yaw, tilt]. Two side by side, two more on top, one dropped crooked. */
 const PILE: Array<[number, number, number, number, number]> = [
-  [-0.2, 0.07, 0.08, 0.3, 0.05],
-  [0.2, 0.07, -0.18, -0.5, -0.06],
-  [0.16, 0.07, 0.24, 1.2, 0.04],
-  [-0.22, 0.07, -0.24, -0.2, 0.08],
-  [0.02, 0.2, 0.02, 0.9, 0.22],
-  [-0.24, 0.2, 0.26, 1.5, -0.2],
-  [0.24, 0.2, 0.04, 0.1, 0.25],
-  [-0.06, 0.2, -0.26, -0.8, -0.18],
-  [0.1, 0.32, 0.18, 0.5, 0.2],
-  [-0.16, 0.32, -0.04, -1.1, -0.25],
-  [0.18, 0.32, -0.2, 1.4, 0.15],
-  [-0.02, 0.43, 0.06, 0.2, -0.12],
+  [-0.02, 0, 0.25, 0.03, 0],
+  [0.03, 0, -0.25, -0.04, 0],
+  [0.05, MODULE.casedTop + 0.01, 0.2, -0.1, 0.03],
+  [-0.06, MODULE.casedTop + 0.01, -0.22, 0.08, -0.03],
+  [0.02, MODULE.casedTop * 2 + 0.05, 0.02, 0.4, 0.12],
 ];
+const MAX_MODULES = PILE.length;
 
 /**
- * Reject station: a pneumatic pusher that kicks a loaf off the belt, down a
- * chute and into a red bin. Local frame: origin on the floor under the belt
+ * Reject station: a pneumatic pusher that diverts a flagged module off the
+ * belt, down a chute and into the red scrap cage. Local frame: origin on the floor under the belt
  * centreline at the kick point, belt along +x at BELT_Y. The pusher stands
  * on +z and pushes toward -z; the bin is centred `binOffset` away on -z.
  * At the layout position use rotation y = -PI / 2, which puts the bin at
  * MACHINE_POS.rejectBin.
  *
  * `kickAt` is any value that changes per reject (a timestamp); each change
- * plays one 400 ms push. `binCount` loaves are shown in the bin, up to 12.
+ * plays one 400 ms push. `binCount` modules are shown in the cage, up to 5.
  */
 export function RejectStation({
   kickAt = null,
@@ -85,7 +80,7 @@ export function RejectStation({
     k.box(blue, [0.075, 0.035, 0.155], [0.115, 0.735, 1.15], 0.012);
     k.tube(blue, [[0.11, 0.74, 1.1], [0.11, 1.22, 1.1], [0.06, 1.22, 0.68], [0.06, 1.12, 0.68]], 0.013, 0.05);
     k.tube(blue, [[0.11, 0.74, 1.2], [0.11, 1.27, 1.2], [0.06, 1.27, 1.6], [0.06, 1.12, 1.6]], 0.013, 0.05);
-    // Photo-eye that confirms the loaf left the belt.
+    // Photo-eye that confirms the module left the belt.
     k.box(steel, [0.03, 0.26, 0.03], [0.36, 0.93, 0.62], 0.01);
     k.box(blue, [0.07, 0.08, 0.07], [0.36, 1.06, 0.6], 0.018);
 
@@ -99,7 +94,7 @@ export function RejectStation({
     }
     k.box(steel, [0.5, 0.04, 0.04], [0, 0.3, -0.98], 0.012);
 
-    // Bin: tub on casters, thick rim, raised floor.
+    // Scrap cage: tub on casters, thick rim, raised floor.
     const wallH = BIN_TOP - 0.12;
     const wallY = 0.12 + wallH / 2;
     for (const sx of [1, -1]) k.box(red, [0.05, wallH, BIN_D], [sx * (BIN_W / 2 - 0.025), wallY, binZ], 0.022);
@@ -132,34 +127,26 @@ export function RejectStation({
   }, []);
   useDispose(pusher);
 
-  const loaf = useMemo(() => {
-    const g = new THREE.CapsuleGeometry(0.1, 0.22, 6, 14);
-    g.rotateZ(Math.PI / 2);
-    g.scale(1, 0.82, 1);
-    return g;
-  }, []);
-  useEffect(() => () => loaf.dispose(), [loaf]);
-
-  const loavesRef = useRef<THREE.InstancedMesh>(null);
+  const pileRef = useRef<THREE.InstancedMesh>(null);
+  const flagsRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
-    const mesh = loavesRef.current;
-    if (!mesh) return;
     const m = new THREE.Matrix4();
+    const f = new THREE.Matrix4();
+    const lift = new THREE.Matrix4().makeTranslation(0, MODULE.casedTop, 0);
     const q = new THREE.Quaternion();
     const e = new THREE.Euler();
     const p = new THREE.Vector3();
     const s = new THREE.Vector3(1, 1, 1);
-    const c = new THREE.Color();
     PILE.forEach(([x, y, z, yaw, tilt], i) => {
       m.compose(p.set(x, BIN_FLOOR + y, binZ + z), q.setFromEuler(e.set(tilt * 0.4, yaw, tilt)), s);
-      mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, crustColor(2.6 + ((i * 7) % 5) * 0.08 - 0.16, c));
+      pileRef.current?.setMatrixAt(i, m);
+      flagsRef.current?.setMatrixAt(i, f.multiplyMatrices(m, lift));
     });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    for (const mesh of [pileRef.current, flagsRef.current]) if (mesh) mesh.instanceMatrix.needsUpdate = true;
   }, [binZ]);
   useLayoutEffect(() => {
-    if (loavesRef.current) loavesRef.current.count = THREE.MathUtils.clamp(Math.round(binCount), 0, MAX_LOAVES);
+    const n = THREE.MathUtils.clamp(Math.round(binCount), 0, MAX_MODULES);
+    for (const mesh of [pileRef.current, flagsRef.current]) if (mesh) mesh.count = n;
   }, [binCount]);
 
   const pusherRef = useRef<THREE.Group>(null);
@@ -188,13 +175,14 @@ export function RejectStation({
       <group ref={pusherRef}>
         <Pieces pieces={pusher} />
       </group>
-      <instancedMesh ref={loavesRef} args={[loaf, matte(PALETTE.white, 0.7), MAX_LOAVES]} castShadow receiveShadow frustumCulled={false} />
+      <instancedMesh ref={pileRef} args={[moduleCaseGeometry(), moduleMaterial(), MAX_MODULES]} castShadow receiveShadow frustumCulled={false} />
+      <instancedMesh ref={flagsRef} args={[rejectFlagGeometry(), flagMaterial(), MAX_MODULES]} castShadow frustumCulled={false} />
       {/* Hazard labels on the two faces the camera sees at the layout position. */}
       <mesh material={label} position={[0, 0.38, binZ - BIN_D / 2 - 0.002]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={[0.66, 0.25]} />
+        <planeGeometry args={[0.8, 0.3]} />
       </mesh>
       <mesh material={label} position={[BIN_W / 2 + 0.002, 0.38, binZ]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[0.66, 0.25]} />
+        <planeGeometry args={[0.8, 0.3]} />
       </mesh>
     </group>
   );

@@ -236,8 +236,8 @@ export function spillTexture(): THREE.CanvasTexture {
   });
 }
 
-/** Brightness of an oven window: hottest low down where the product is,
- *  falling off toward the frame. Multiplied by the fire colour. */
+/** Brightness of a glowing window: hottest low down, falling off toward the
+ *  frame. Multiplied by the glow colour. */
 export function windowTexture(): THREE.CanvasTexture {
   return texture('window', 96, 64, (ctx, w, h) => {
     const img = ctx.createImageData(w, h);
@@ -316,7 +316,7 @@ export function beltMaterial(): THREE.MeshStandardMaterial {
   });
 }
 
-export type ScreenKind = 'hmi' | 'trend' | 'vision' | 'pack';
+export type ScreenKind = 'hmi' | 'laser' | 'vision' | 'tester';
 
 function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.fillStyle = PALETTE.slabSide;
@@ -334,8 +334,8 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
   ctx.fillRect(w - 78, 8, 64, 6);
 
   const pad = 12;
-  if (kind === 'trend') {
-    // Oven temperature trend with a setpoint band and a big readout.
+  if (kind === 'laser') {
+    // Laser power and lens trends with a big power readout.
     ctx.fillStyle = PALETTE.wall;
     ctx.fillRect(pad, 34, w - pad * 2 - 74, h - 48);
     ctx.strokeStyle = PALETTE.wallTrim;
@@ -369,7 +369,7 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
     ctx.fillStyle = PALETTE.white;
     ctx.font = 'bold 22px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('218°', w - 43, 62);
+    ctx.fillText('4.0kW', w - 43, 61);
     ctx.fillStyle = PALETTE.wallTrim;
     ctx.fillRect(w - 74, 82, 62, 26);
     ctx.fillRect(w - 74, 114, 62, 26);
@@ -378,16 +378,24 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
     ctx.fillStyle = PALETTE.blue;
     ctx.fillRect(w - 68, 122, 46, 10);
   } else if (kind === 'vision') {
-    // Camera frame: a loaf outline inside a detection box.
+    // Camera frame: the module's busbars from above, each weld spot boxed.
     ctx.fillStyle = PALETTE.wall;
     ctx.fillRect(pad, 32, w - pad * 2, h - 44);
-    ctx.fillStyle = PALETTE.cardboard;
-    ctx.beginPath();
-    ctx.ellipse(w * 0.42, h * 0.6, 62, 30, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const cx = w * 0.42;
+    const cy = h * 0.6;
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = '#d28a4c';
+      ctx.fillRect(cx - 75 + i * 26, cy - 40, 16, 80);
+      for (let j = 0; j < 4; j++) {
+        ctx.fillStyle = '#8f5428';
+        ctx.beginPath();
+        ctx.arc(cx - 67 + i * 26, cy - 30 + j * 20, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.strokeStyle = PALETTE.healthy;
     ctx.lineWidth = 3;
-    ctx.strokeRect(w * 0.42 - 72, h * 0.6 - 40, 144, 80);
+    ctx.strokeRect(cx - 84, cy - 48, 164, 96);
     ctx.strokeStyle = PALETTE.blue;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -399,18 +407,18 @@ function drawScreen(kind: ScreenKind, ctx: CanvasRenderingContext2D, w: number, 
     ctx.fillStyle = PALETTE.blue;
     ctx.fillRect(w - 62, 62, 42, 8);
     ctx.fillRect(w - 62, 76, 28, 8);
-  } else if (kind === 'pack') {
-    // Case counter: tiles and a progress bar.
-    for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = i < 4 ? PALETTE.blue : PALETTE.wallTrim;
-      ctx.fillRect(pad + (i % 3) * 56, 34 + Math.floor(i / 3) * 40, 48, 32);
+  } else if (kind === 'tester') {
+    // Per-cell voltage grid, a thermal strip and a big PASS tile.
+    for (let i = 0; i < 24; i++) {
+      ctx.fillStyle = i % 7 === 3 ? PALETTE.amber : PALETTE.healthy;
+      ctx.fillRect(pad + (i % 6) * 28, 34 + Math.floor(i / 6) * 18, 24, 13);
     }
-    ctx.fillStyle = PALETTE.orange;
+    ctx.fillStyle = PALETTE.healthy;
     ctx.fillRect(w - 68, 34, 56, 72);
     ctx.fillStyle = PALETTE.white;
-    ctx.font = 'bold 26px system-ui, sans-serif';
+    ctx.font = 'bold 18px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('48', w - 40, 80);
+    ctx.fillText('PASS', w - 40, 77);
     ctx.fillStyle = PALETTE.wallTrim;
     ctx.fillRect(pad, h - 34, w - pad * 2, 14);
     ctx.fillStyle = PALETTE.healthy;
@@ -453,7 +461,7 @@ export function screenMaterial(kind: ScreenKind): THREE.MeshStandardMaterial {
   });
 }
 
-/** Hazard label for the reject bin: diagonal stripes around a red plate. */
+/** Hazard label for the scrap cage: diagonal stripes around a red plate. */
 export function rejectLabelMaterial(): THREE.MeshStandardMaterial {
   return cached('rejectLabel', () => {
     const map = texture('rejectLabel', 256, 96, (ctx, w, h) => {
@@ -475,7 +483,7 @@ export function rejectLabelMaterial(): THREE.MeshStandardMaterial {
       ctx.font = 'bold 44px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('REJECT', w / 2, h / 2 + 3);
+      ctx.fillText('SCRAP', w / 2, h / 2 + 3);
     });
     return new THREE.MeshStandardMaterial({ map, roughness: 0.5, metalness: 0 });
   });

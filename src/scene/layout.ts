@@ -1,5 +1,5 @@
 // Where everything in the plant is. World units are metres-ish, scaled for
-// an illustration rather than a survey: loaves are a little large so they
+// an illustration rather than a survey: modules are a little large so they
 // read from the back of a room.
 //
 // Orientation. The camera looks from the (+x, +y, +z) octant, so:
@@ -9,6 +9,10 @@
 //   - +x -z is screen right.
 // The dark slab is the factory floor. The white floor around it is the
 // outside yard: pallets, forklift and trucks sit there.
+//
+// The line is a U: cells are sorted in the dry room (front left), stacked
+// on the way to the back wall, welded and checked along the back, cased and
+// tested on the way forward again, and handed to the AGVs at the end.
 import * as THREE from 'three';
 
 export const SLAB = { minX: -12, maxX: 8, minZ: -8, maxZ: 8, thickness: 0.6 } as const;
@@ -20,11 +24,11 @@ export const BELT_WIDTH = 0.9;
 
 /** The line's centreline, in order. Straight runs with rounded corners. */
 const LINE_POINTS: Array<[number, number]> = [
-  [-9, 6.2], // dough divider, under the mixer
-  [-9, -5], // turn toward the oven
-  [3, -5], // oven exit, turn toward inspection
-  [3, 5], // turn toward the packer
-  [6.4, 5], // into the packer
+  [-9, 6.2], // cell sorter, in the dry room
+  [-9, -5], // past the stacker, turn toward the welder
+  [3, -5], // welder and weld check, turn toward casing and test
+  [3, 5], // turn toward the AGV transfer
+  [6.4, 5], // into the AGV transfer station
 ];
 const CORNER_RADIUS = 1.6;
 
@@ -73,31 +77,35 @@ function sAt(x: number, z: number): number {
 
 /** Machine positions. Each machine sits over the line at its own point. */
 export const MACHINE_POS = {
-  mixer: new THREE.Vector3(-9, 0, 6.6),
-  ovenStart: new THREE.Vector3(-6.2, 0, -5),
-  ovenEnd: new THREE.Vector3(0.6, 0, -5),
-  vision: new THREE.Vector3(3, 0, -1.4),
+  sorter: new THREE.Vector3(-9, 0, 6.6),
+  /** Where the stacker's robot drops the holder onto the module, and the
+   *  robot itself, on the wall side of the belt. */
+  stack: new THREE.Vector3(-9, 0, 0.2),
+  stackRobot: new THREE.Vector3(-10.35, 0, 0.2),
+  welderStart: new THREE.Vector3(-6.3, 0, -5),
+  welderEnd: new THREE.Vector3(-2.5, 0, -5),
+  vision: new THREE.Vector3(-0.7, 0, -5),
+  casing: new THREE.Vector3(3, 0, -2.4),
+  /** On the yard side of the belt, turned to face it. */
+  casingRobot: new THREE.Vector3(4.4, 0, -2.4),
+  tester: new THREE.Vector3(3, 0, -0.75),
   rejectGate: new THREE.Vector3(3, 0, 0.9),
   rejectBin: new THREE.Vector3(4.7, 0, 0.9),
-  packer: new THREE.Vector3(6.9, 0, 5),
+  transfer: new THREE.Vector3(6.9, 0, 5),
 } as const;
 
 /** Where along the line (arc length, m) each thing happens. */
 export const STATION_S = {
-  ovenIn: sAt(MACHINE_POS.ovenStart.x, MACHINE_POS.ovenStart.z),
-  ovenOut: sAt(MACHINE_POS.ovenEnd.x, MACHINE_POS.ovenEnd.z),
+  stack: sAt(MACHINE_POS.stack.x, MACHINE_POS.stack.z),
+  weldIn: sAt(MACHINE_POS.welderStart.x, MACHINE_POS.welderStart.z),
+  /** Where the laser fires: the busbars appear here. */
+  weld: sAt((MACHINE_POS.welderStart.x + MACHINE_POS.welderEnd.x) / 2, MACHINE_POS.welderStart.z),
+  weldOut: sAt(MACHINE_POS.welderEnd.x, MACHINE_POS.welderEnd.z),
   inspect: sAt(MACHINE_POS.vision.x, MACHINE_POS.vision.z),
+  casing: sAt(MACHINE_POS.casing.x, MACHINE_POS.casing.z),
+  test: sAt(MACHINE_POS.tester.x, MACHINE_POS.tester.z),
   reject: sAt(MACHINE_POS.rejectGate.x, MACHINE_POS.rejectGate.z),
-  pack: LINE_LENGTH - 0.6,
-} as const;
-
-/** The outside yard, on the white floor past the slab's +x edge. */
-export const YARD = {
-  /** Pallet the packer's boxes are stacked onto, just off the slab. */
-  outfeedPallet: new THREE.Vector3(9.6, 0, 5),
-  trucks: [new THREE.Vector3(14.5, 0, 6.5), new THREE.Vector3(15.5, 0, 1.2)],
-  forklift: new THREE.Vector3(11.5, 0, -1.5),
-  racks: new THREE.Vector3(12, 0, -6),
+  ship: LINE_LENGTH - 0.6,
 } as const;
 
 /** Framings, matched to the cook shot list (cook/SHOTS.md). S01 is the

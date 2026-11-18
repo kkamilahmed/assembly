@@ -19,6 +19,9 @@ const params = new URLSearchParams(window.location.search);
  *  cook harness to render comparison stills. */
 const STILL = params.get('still') === '1';
 const STILL_SHOT = (params.get('shot') as ShotId | null) ?? 'S01';
+/** `&target=x,y,z&zoom=n` frames any detail instead of a named shot. */
+const STILL_TARGET = params.get('target')?.split(',').map(Number) as [number, number, number] | undefined;
+const STILL_ZOOM = Number(params.get('zoom')) || undefined;
 
 export default function App() {
   if (STILL) return <StillView />;
@@ -31,7 +34,7 @@ function StillView() {
   }, []);
   return (
     <div className="h-full w-full">
-      <Scene active shot={STILL_SHOT in SHOTS ? STILL_SHOT : 'S01'} interactive={false} />
+      <Scene active shot={STILL_SHOT in SHOTS ? STILL_SHOT : 'S01'} target={STILL_TARGET} zoom={STILL_ZOOM} interactive={false} />
     </div>
   );
 }

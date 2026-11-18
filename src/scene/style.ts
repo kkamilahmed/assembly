@@ -1,8 +1,8 @@
 // The look of the plant, in one place.
 //
 // The target is an isometric 3D illustration: a dark diorama slab on seamless
-// white, glossy rounded props, two accent colours (warm orange for heat and
-// the brand, clean blue for people and handling equipment) and crisp bevel
+// white, glossy rounded props, two accent colours (warm orange for robots and
+// the brand, clean blue for cells and handling equipment) and crisp bevel
 // highlights on every edge. Every mesh in the scene takes its colours and
 // materials from here, so the whole plant reads as one illustration rather
 // than a pile of separately styled parts.
@@ -48,40 +48,19 @@ export const PALETTE = {
   cardboardDark: '#a97a45',
   tape: '#3b86e3',
   palletWood: '#dcb47e',
-  flourSack: '#efe6d3',
 
   skinTones: ['#f1c7a5', '#d9a07a', '#a8714f', '#7a4e33'],
-  coat: '#f7f8fa',
-  hairnet: '#5aa0ea',
-  glove: '#3b86e3',
+  /** ESD smock: a cool light grey-blue. */
+  coat: '#b9c8da',
+  lens: '#b9d4ea',
+  glove: '#5b6470',
   trousers: '#2f3a4d',
-  boots: '#f4f5f7',
+  boots: '#2a2c31',
 
   healthy: '#2fb574',
   warning: '#f2a33a',
   critical: '#e5484d',
 } as const;
-
-/** Bread, from raw dough to charcoal. `bake` 0 is dough, 1 is the perfect
- *  golden crust, 2 is the over-baked limit, 3 is burnt. */
-const CRUST_STOPS: Array<[number, THREE.Color]> = [
-  [0, new THREE.Color('#f1e9da')],
-  [1, new THREE.Color('#d98c38')],
-  [2, new THREE.Color('#9a5a26')],
-  [3, new THREE.Color('#3a2418')],
-];
-
-export function crustColor(bake: number, out: THREE.Color = new THREE.Color()): THREE.Color {
-  const b = THREE.MathUtils.clamp(bake, 0, 3);
-  for (let i = 1; i < CRUST_STOPS.length; i++) {
-    const [b1, c1] = CRUST_STOPS[i];
-    if (b <= b1) {
-      const [b0, c0] = CRUST_STOPS[i - 1];
-      return out.copy(c0).lerp(c1, (b - b0) / (b1 - b0));
-    }
-  }
-  return out.copy(CRUST_STOPS[CRUST_STOPS.length - 1][1]);
-}
 
 const cache = new Map<string, THREE.Material>();
 function cached<T extends THREE.Material>(key: string, make: () => T): T {
@@ -100,7 +79,7 @@ export function plastic(color: string, roughness = 0.32): THREE.MeshPhysicalMate
   );
 }
 
-/** Brushed stainless: food-grade machine bodies, rails, tunnels. */
+/** Brushed metal: machine bodies, rails, enclosures. */
 export function metal(color: string = PALETTE.steel, roughness = 0.28): THREE.MeshStandardMaterial {
   return cached(`metal:${color}:${roughness}`, () =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.85, envMapIntensity: 1.2 }),
@@ -112,7 +91,7 @@ export function matte(color: string, roughness = 0.8): THREE.MeshStandardMateria
   return cached(`matte:${color}:${roughness}`, () => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 }));
 }
 
-/** Self-lit: oven mouths, indicator lamps, screens. Not shadow-casting. */
+/** Self-lit: laser flashes, indicator lamps, screens. Not shadow-casting. */
 export function glow(color: string, intensity = 2): THREE.MeshStandardMaterial {
   return cached(`glow:${color}:${intensity}`, () =>
     new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: intensity, roughness: 0.4, toneMapped: false }),
