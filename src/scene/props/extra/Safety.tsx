@@ -1,4 +1,4 @@
-// Floor safety kit: bollards, retractable belt barriers and work mats.
+// Street and lobby kit: bollards, retractable belt barriers and door mats.
 import { useMemo } from 'react';
 import type { ThreeElements } from '@react-three/fiber';
 import { matte, PALETTE, plastic } from '@/scene/style';

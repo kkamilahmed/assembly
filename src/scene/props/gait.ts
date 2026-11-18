@@ -1,9 +1,9 @@
 import { createContext, useContext } from 'react';
 
-/** How a walking worker's legs should move right now: 1 forwards, -1
+/** How a walking person's legs should move right now: 1 forwards, -1
  *  backwards (pulling a load back), 0 standing. Written every frame by
- *  whatever moves the worker's group (the scene's Mover), read every frame by
- *  the worker; a ref so neither re-renders. */
+ *  whatever moves the person's group (the scene's Mover), read every frame by
+ *  the person; a ref so neither re-renders. */
 export interface Gait {
   current: { dir: -1 | 0 | 1 };
 }

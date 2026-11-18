@@ -1,4 +1,4 @@
-// Goldcrust delivery truck: a cab-over box truck about 7.1 long. Origin at
+// TechDealz delivery truck: a cab-over box truck about 7.1 long. Origin at
 // the ground under its centre, length along x, cab at +x, roller door at -x.
 import type { ThreeElements } from '@react-three/fiber';
 import { glow, matte, metal, PALETTE, plastic } from '@/scene/style';
@@ -37,12 +37,12 @@ function grilleGeometry() {
 }
 
 export interface TruckProps extends GroupProps {
-  /** Cab paint. Defaults to the brand orange; PALETTE.white gives the
-   *  second truck from the reference. */
+  /** Cab paint. Defaults to the TechDealz yellow; white gives the second
+   *  truck from the reference. */
   cabColor?: string;
 }
 
-export function Truck({ cabColor = PALETTE.orange, ...props }: TruckProps) {
+export function Truck({ cabColor = PALETTE.tdzYellow, ...props }: TruckProps) {
   const paint = plastic(studioWhite(cabColor, 0.5), 0.4);
   const white = plastic(PALETTE.offWhite, 0.36);
   const dark = plastic(PALETTE.graphite, 0.45);

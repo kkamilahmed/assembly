@@ -1,5 +1,5 @@
-// Shared building blocks for the yard props and the people: cached
-// geometries (so two hundred cartons share one box), the Goldcrust brand
+// Shared building blocks for the street props and the people: cached
+// geometries (so two hundred cartons share one box), the TechDealz brand
 // textures drawn on canvases, and a small seeded random source.
 //
 // Everything here is created lazily and cached for the life of the page.
@@ -173,7 +173,7 @@ export function rng(seed: number): () => number {
 
 const FONT = '"Arial Rounded MT Bold", "Nunito", "Varela Round", "Helvetica Neue", Arial, sans-serif';
 
-function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
+export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -189,7 +189,7 @@ function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D)
 
 /** Bold text with its corners softened by a same-colour round stroke, so
  *  the wordmark looks rounded whichever system font is picked. */
-function roundText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, color: string, spacing = 0) {
+export function roundText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, color: string, spacing = 0) {
   c.font = `900 ${px}px ${FONT}`;
   c.textBaseline = 'alphabetic';
   c.lineJoin = 'round';
@@ -202,50 +202,44 @@ function roundText(c: CanvasRenderingContext2D, text: string, x: number, y: numb
   c.fillText(text, x, y);
 }
 
-/** The Goldcrust mark: a scored loaf rising over a baseline. */
-function drawLoafMark(c: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, cut: string) {
+/** The TechDealz mark: a yellow price tag with a lightning bolt through it,
+ *  centred on (x, y), `s` across. */
+export function drawTdzMark(c: CanvasRenderingContext2D, x: number, y: number, s: number) {
   c.save();
   c.translate(x, y);
-  c.fillStyle = color;
+  c.fillStyle = PALETTE.tdzYellow;
   c.beginPath();
-  c.moveTo(-0.5 * s, 0.3 * s);
-  c.bezierCurveTo(-0.62 * s, -0.1 * s, -0.4 * s, -0.42 * s, 0, -0.42 * s);
-  c.bezierCurveTo(0.4 * s, -0.42 * s, 0.62 * s, -0.1 * s, 0.5 * s, 0.3 * s);
-  c.quadraticCurveTo(0.5 * s, 0.4 * s, 0.4 * s, 0.4 * s);
-  c.lineTo(-0.4 * s, 0.4 * s);
-  c.quadraticCurveTo(-0.5 * s, 0.4 * s, -0.5 * s, 0.3 * s);
+  c.roundRect(-0.5 * s, -0.5 * s, s, s, 0.22 * s);
   c.fill();
-  c.strokeStyle = cut;
-  c.lineWidth = 0.075 * s;
-  c.lineCap = 'round';
-  for (const dx of [-0.24, 0, 0.24]) {
-    c.beginPath();
-    c.moveTo((dx - 0.07) * s, 0.02 * s);
-    c.lineTo((dx + 0.07) * s, -0.22 * s);
-    c.stroke();
-  }
+  c.fillStyle = PALETTE.tdzInk;
+  c.beginPath();
+  c.moveTo(0.08 * s, -0.36 * s);
+  c.lineTo(-0.22 * s, 0.06 * s);
+  c.lineTo(-0.02 * s, 0.06 * s);
+  c.lineTo(-0.1 * s, 0.36 * s);
+  c.lineTo(0.22 * s, -0.08 * s);
+  c.lineTo(0.02 * s, -0.08 * s);
+  c.closePath();
+  c.fill();
   c.restore();
 }
 
 let wordmarkTex: THREE.CanvasTexture | undefined;
-/** Truck-side wordmark: orange on transparent, 4:1. */
+/** Truck-side wordmark: TechDealz on transparent, 4:1. */
 export function wordmarkTexture(): THREE.CanvasTexture {
   wordmarkTex ??= canvasTexture(2048, 512, (c) => {
-    drawLoafMark(c, 250, 250, 330, PALETTE.orange, '#ffffff');
-    roundText(c, 'Goldcrust', 480, 300, 290, PALETTE.orange, 4);
-    roundText(c, 'BAKERY', 492, 430, 92, PALETTE.orangeDeep, 34);
-    // Thin rule that ties the two lines together.
-    c.fillStyle = PALETTE.orange;
-    c.beginPath();
-    c.roundRect(1130, 390, 800, 14, 7);
-    c.fill();
+    drawTdzMark(c, 250, 256, 330);
+    roundText(c, 'Tech', 470, 300, 270, PALETTE.tdzInk, 2);
+    const techW = c.measureText('Tech').width;
+    roundText(c, 'Dealz', 470 + techW + 6, 300, 270, '#e0a800', 2);
+    roundText(c, 'ONLINE · NEXT-DAY DELIVERY', 482, 430, 80, PALETTE.tdzInk, 14);
   });
   return wordmarkTex;
 }
 
 let cartonTex: THREE.CanvasTexture | undefined;
-/** One carton face: printed handling marks in brown ink and a white
- *  shipping label with the logo and a barcode. Cut out with alphaTest. */
+/** One parcel face: printed handling marks and a white shipping label with
+ *  the TechDealz mark and a barcode. Cut out with alphaTest. */
 export function cartonFaceTexture(): THREE.CanvasTexture {
   cartonTex ??= canvasTexture(512, 400, (c) => {
     const ink = '#7d552c';
@@ -265,14 +259,14 @@ export function cartonFaceTexture(): THREE.CanvasTexture {
     }
     c.fillRect(30, 152, 160, 12);
     // Printed brand line.
-    roundText(c, 'GOLDCRUST', 30, 350, 54, ink, 2);
+    roundText(c, 'TECHDEALZ', 30, 350, 50, ink, 2);
     // Shipping label.
     c.fillStyle = '#fbfbfc';
     c.beginPath();
     c.roundRect(262, 150, 226, 226, 14);
     c.fill();
-    drawLoafMark(c, 312, 204, 74, PALETTE.orange, '#ffffff');
-    roundText(c, 'Goldcrust', 356, 218, 27, PALETTE.orange, 0);
+    drawTdzMark(c, 312, 204, 60);
+    roundText(c, 'TechDealz', 352, 216, 26, PALETTE.tdzInk, 0);
     c.fillStyle = '#c9ced6';
     c.fillRect(282, 250, 186, 10);
     c.fillRect(282, 270, 120, 10);
@@ -285,26 +279,6 @@ export function cartonFaceTexture(): THREE.CanvasTexture {
     });
   });
   return cartonTex;
-}
-
-let sackTex: THREE.CanvasTexture | undefined;
-/** Print on the top of a flour sack. */
-export function sackTexture(): THREE.CanvasTexture {
-  sackTex ??= canvasTexture(512, 320, (c) => {
-    c.fillStyle = PALETTE.blue;
-    c.beginPath();
-    c.roundRect(96, 60, 320, 200, 26);
-    c.fill();
-    c.fillStyle = '#fbfbfc';
-    c.beginPath();
-    c.roundRect(112, 76, 288, 168, 16);
-    c.fill();
-    drawLoafMark(c, 256, 130, 86, PALETTE.orange, '#ffffff');
-    c.textAlign = 'center';
-    roundText(c, 'FLOUR', 256, 222, 58, PALETTE.blueDeep, 6);
-    c.textAlign = 'left';
-  });
-  return sackTex;
 }
 
 const decalCache = new Map<string, THREE.MeshStandardMaterial>();

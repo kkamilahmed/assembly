@@ -1,10 +1,9 @@
-// Palletised stock: pallets, taped Goldcrust cartons and flour sacks.
+// Palletised stock: pallets and taped TechDealz parcels.
 // Origins are at the footprint centre on the ground; the long side is on x.
 import { useMemo } from 'react';
 import type { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { matte, PALETTE } from '@/scene/style';
-import { studioWhite } from './kit';
 import { Instances, Part } from './Part';
 import {
   at,
@@ -14,9 +13,6 @@ import {
   type CartonStackOpts,
   PALLET,
   palletGeometry,
-  sackGeometries,
-  sackStackMatrices,
-  type SackStackOpts,
 } from './stockLayout';
 
 type GroupProps = Omit<ThreeElements['group'], 'children'>;
@@ -24,8 +20,6 @@ type GroupProps = Omit<ThreeElements['group'], 'children'>;
 const wood = () => matte(PALETTE.palletWood, 0.78);
 const cardboard = () => matte(PALETTE.cardboard, 0.82);
 const tape = () => matte(PALETTE.tape, 0.45);
-const SACK_PAPER = studioWhite(PALETTE.flourSack, 0.7);
-const sackPaper = () => matte(SACK_PAPER, 0.9);
 
 /** Wooden pallet, 1.2 x 0.144 x 1.0. */
 export function Pallet(props: GroupProps) {
@@ -69,17 +63,6 @@ export function CartonInstances({ matrices, size = CARTON_SIZE }: { matrices: TH
   );
 }
 
-/** Many flour sacks in two draw calls. */
-export function SackInstances({ matrices }: { matrices: THREE.Matrix4[] }) {
-  const geo = sackGeometries();
-  return (
-    <>
-      <Instances g={geo.body} m={sackPaper()} matrices={matrices} />
-      <Instances g={geo.print} m={geo.printMaterial} matrices={matrices} shadows={false} />
-    </>
-  );
-}
-
 /** Cartons stacked rows (z) x cols (x) x layers on a pallet. `count` shows
  *  only the first N cartons, so a pallet can fill up one box at a time. */
 export function CartonStack({
@@ -102,26 +85,6 @@ export function CartonStack({
     <group {...props}>
       {pallet && <Part g={palletGeometry()} m={wood()} />}
       <CartonInstances matrices={matrices} size={size} />
-    </group>
-  );
-}
-
-/** Pale paper flour sacks, five to a layer, on a pallet. */
-export function FlourSackStack({
-  layers = 4,
-  count,
-  seed = 1,
-  pallet = true,
-  ...props
-}: GroupProps & SackStackOpts & { pallet?: boolean }) {
-  const matrices = useMemo(
-    () => sackStackMatrices({ layers, count, seed }, at(0, pallet ? PALLET.h : 0, 0), []),
-    [layers, count, seed, pallet],
-  );
-  return (
-    <group {...props}>
-      {pallet && <Part g={palletGeometry()} m={wood()} />}
-      <SackInstances matrices={matrices} />
     </group>
   );
 }
