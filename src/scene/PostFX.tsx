@@ -6,7 +6,7 @@ import { WhitePointEffect } from './WhitePoint';
 /** Studio finish for the illustration look: ambient occlusion that pools in
  *  every corner and under every prop (the single biggest cue in the
  *  references), a tight bloom that only catches self-lit surfaces like the
- *  oven mouths, SMAA for crisp bevels, and Khronos PBR Neutral tone mapping, which is
+ *  indicator lamps and screens, SMAA for crisp bevels, and Khronos PBR Neutral tone mapping, which is
  *  made for product renders: the seamless white background stays white
  *  (AgX and ACES both pull it down to grey) and colours keep their hue. */
 export function PostFX() {

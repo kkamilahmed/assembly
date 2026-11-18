@@ -39,7 +39,7 @@ export function Stage({
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
-      shadows={{ type: THREE.PCFSoftShadowMap }}
+      shadows={{ type: THREE.PCFShadowMap }}
       // Capped at 1.5: on a retina laptop 2x quadruples the pixels every
       // post-processing pass has to touch, for a difference nobody can see
       // on a projector.
@@ -122,7 +122,7 @@ export function Stage({
 const DESIGN_HEIGHT = 990;
 
 /** Re-render the shadow map every other frame instead of every frame. Almost
- *  everything in the plant is static and what moves (loaves, workers) moves
+ *  everything in the plant is static and what moves (trays, workers) moves
  *  slowly, so the difference is invisible while the shadow pass, a full
  *  redraw of the scene, costs half as much. */
 function ThrottledShadows() {

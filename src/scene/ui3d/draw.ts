@@ -2,7 +2,7 @@
 import { PALETTE } from '@/scene/style';
 import type { Tone } from './kit';
 
-export type IconName = 'check' | 'alert' | 'thermo' | 'box' | 'eye' | 'loaf' | 'gauge' | 'bolt';
+export type IconName = 'check' | 'alert' | 'thermo' | 'box' | 'eye' | 'pill' | 'gauge' | 'bolt';
 
 export const TONE_COLOR: Record<Tone, string> = {
   healthy: PALETTE.healthy,
@@ -115,22 +115,23 @@ export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, cx: numb
       ctx.arc(12, 12, 3.2, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 'loaf':
-      ctx.moveTo(4, 19.5);
-      ctx.lineTo(4, 12);
-      ctx.bezierCurveTo(1, 5, 9, 4.5, 12, 4.5);
-      ctx.bezierCurveTo(15, 4.5, 23, 5, 20, 12);
-      ctx.lineTo(20, 19.5);
+    case 'pill':
+      // A capsule on the diagonal, with the seam across its middle.
+      ctx.save();
+      ctx.translate(12, 12);
+      ctx.rotate(-Math.PI / 4);
+      ctx.beginPath();
+      ctx.moveTo(-4.5, -5);
+      ctx.arc(-4.5, 0, 5, -Math.PI / 2, Math.PI / 2, true);
+      ctx.lineTo(4.5, 5);
+      ctx.arc(4.5, 0, 5, Math.PI / 2, -Math.PI / 2, true);
       ctx.closePath();
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(9, 9);
-      ctx.lineTo(9, 12.5);
-      ctx.moveTo(12, 9);
-      ctx.lineTo(12, 12.5);
-      ctx.moveTo(15, 9);
-      ctx.lineTo(15, 12.5);
+      ctx.moveTo(0, -5);
+      ctx.lineTo(0, 5);
       ctx.stroke();
+      ctx.restore();
       break;
     case 'gauge':
       ctx.arc(12, 14, 9, Math.PI, 0);

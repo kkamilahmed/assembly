@@ -1,27 +1,42 @@
-// The diorama shell: the raised factory slab, hazard edges and floor paint,
-// the L of back walls with their services, the tiled hygiene zone with its
-// glass partition, the yard steps and loading dock, and the brand sign.
+// The diorama shell: the raised slab with the clean room's pale floor and
+// its floor paint, the L of back walls with their services, glazing along
+// the two open sides with the airlock staff come in through, the glazed
+// compression suite around the blender and the press, the yard steps and
+// the loading dock, and the brand sign.
 //
 // Heights: the slab top is y=0 and the slab extends down to
 // y=-SLAB.thickness, where the white yard floor is.
-import { useEffect, useMemo } from 'react';
-import { useThree } from '@react-three/fiber';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useThree, type ThreeElements } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { SLAB, WALL } from './layout';
 import { glass, glow, matte, metal, PALETTE, plastic } from './style';
 import { BrandSign } from './ui3d/BrandSign';
-import { slabGeometry } from './ui3d/kit';
+import { font, slabGeometry } from './ui3d/kit';
+import { Panel } from './ui3d/Panel';
 import { Paint } from './ui3d/paint';
 import { WALL_FACE_X, WALL_FACE_Z, WALL_INSET, WALL_X_END_Z, WALL_Z_END_X } from './ui3d/wallFrame';
 
 const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0];
 
-/** Tiled hygiene zone around the mixer. */
-const CLEAN = { x0: -11.5, x1: -6.5, z0: 1.6, z1: 7.2 } as const;
 /** Yard steps and loading dock on the +x edge. */
 const STEPS = { z0: 1.0, z1: 3.8 } as const;
 const DOCK = { z0: 4.05, z1: 7.1 } as const;
+/** The clean room's glass skin along the two open sides. */
+const GLASS_X = SLAB.maxX - 0.22;
+const GLASS_Z = SLAB.maxZ - 0.22;
+const GLASS_H = 2.3;
+/** Glazed compression suite around the blender and the press. */
+const SUITE = { x0: -11.5, x1: -4.5, z0: 3.2, z1: GLASS_Z } as const;
+/** The suite's door, on its +x side. */
+const SUITE_DOOR = { z0: 4.85, z1: 6.25 } as const;
+/** Airlock just inside the steps: outer door onto the steps, inner door
+ *  into the room. */
+const AIRLOCK = { x0: 6.0, x1: GLASS_X, z0: 1.3, z1: 3.5 } as const;
+const AIRLOCK_DOOR = { z0: 2.0, z1: 2.8 } as const;
+/** Where the cartoner's outfeed passes out through the glass. */
+const HATCH = { z0: 4.55, z1: 5.45 } as const;
 
 // The studio's overhead light panel reflects off every upward face. On the
 // big floor planes that lifts charcoal to mid grey and pushes white paint
@@ -35,14 +50,16 @@ function dimmed(base: THREE.MeshStandardMaterial, env: number): THREE.MeshStanda
   DIMMED.push(m);
   return m;
 }
-// Sealed epoxy: low roughness so the oven glow and the key light leave a
-// soft sheen on it, with the environment kept low so it stays charcoal.
-const FLOOR = dimmed(matte(PALETTE.slabTop, 0.38), 0.5);
+// Sealed vinyl: low roughness so the key light leaves a soft sheen on it,
+// with the environment kept low so the pale floor keeps its tone instead of
+// washing out into the white background.
+const FLOOR = dimmed(matte(PALETTE.slabTop, 0.38), 0.32);
 const PAINT_WHITE = dimmed(matte(PALETTE.hazardLight, 0.6), 0.3);
 const PAINT_AMBER = dimmed(matte(PALETTE.amber, 0.6), 0.45);
 const PAINT_BLUE = dimmed(matte(PALETTE.blue, 0.6), 0.45);
-const TILE = dimmed(matte(PALETTE.floorWhite, 0.45), 0.35);
-const TILE_LINE = dimmed(matte(PALETTE.steel, 0.6), 0.35);
+const PAINT_GREY = dimmed(matte(PALETTE.steelDark, 0.6), 0.35);
+const TILE = dimmed(matte(PALETTE.floorWhite, 0.45), 0.3);
+const TILE_LINE = dimmed(matte(PALETTE.tileLine, 0.6), 0.35);
 
 function useStudioDimming() {
   const env = useThree((s) => s.scene.environment);
@@ -82,55 +99,43 @@ function Slab() {
 
 // ---------------------------------------------------------- floor paint
 
-const BAND = { near: 0.25, far: 0.75 } as const; // distance in from the slab edge
+/** Coved skirting strip under the glazing, in from the slab edge. */
+const SILL = 0.32;
 
 function buildPaint() {
-  const white = new Paint();
+  const blue = new Paint();
   const amber = new Paint();
-  const hazard = new Paint();
-  const xe = SLAB.maxX;
-  const ze = SLAB.maxZ;
-
-  // Hazard stripes along the two open edges, broken for the steps and dock.
-  const bands = [
-    { x0: WALL_FACE_X + 0.1, x1: xe - BAND.far - 0.1, z0: ze - BAND.far, z1: ze - BAND.near, along: 'x' as const },
-    { x0: xe - BAND.far, x1: xe - BAND.near, z0: WALL_FACE_Z + 0.1, z1: STEPS.z0 - 0.25, along: 'z' as const },
-  ];
-  // A 45 degree stripe would look vertical in the isometric view, so the
-  // stripes lean less than that and read as slanted on screen.
-  for (const b of bands) hazard.stripes(b, b.along, 0.3, 0.3, b.along === 'x' ? 0.4 : -0.4);
+  const grey = new Paint();
 
   // Walkway down the yard side of the inspection leg, from the electrical
-  // cabinet to a zebra at the steps. Packaging stock sits either side of it.
+  // cabinet to the airlock. Packaging stock sits either side of it.
   const C = 0.95; // keep paint this far from the conveyor centreline
-  white.line(5.12, -6.4, 5.12, 1.55, 0.06, { clear: C });
-  white.line(6.08, -6.4, 6.08, 1.55, 0.06, { clear: C });
-  white.arrow(5.6, -5.0, Math.PI / 2, 0.38).arrow(5.6, -1.9, Math.PI / 2, 0.38);
-  for (let x = 4.05; x < 7.1; x += 0.5) white.rect({ x0: x, x1: x + 0.27, z0: 1.75, z1: 3.05 });
-  amber.line(3.95, 1.6, 7.2, 1.6, 0.06, { clear: C });
-  amber.line(3.95, 3.2, 7.2, 3.2, 0.06, { clear: C });
-  white.line(xe - 0.14, STEPS.z0, xe - 0.14, STEPS.z1, 0.08);
+  blue.line(5.12, -6.4, 5.12, 1.1, 0.06, { clear: C });
+  blue.line(6.08, -6.4, 6.08, 1.1, 0.06, { clear: C });
+  blue.arrow(5.6, -5.0, Math.PI / 2, 0.38).arrow(5.6, -1.9, Math.PI / 2, 0.38);
+  // Step-over marks in front of the airlock's inner door.
+  for (let z = AIRLOCK_DOOR.z0; z < AIRLOCK_DOOR.z1 - 0.05; z += 0.2) grey.rect({ x0: AIRLOCK.x0 - 0.5, x1: AIRLOCK.x0 - 0.12, z0: z, z1: z + 0.1 });
 
   // Walkways inside the line's U: one across the floor in front of the
-  // oven, one from the hygiene zone's door, and a link between the two.
+  // coating drum, one from the suite's door, and a link between the two.
   const cross = { z0: -2.02, z1: -0.82, x0: -7.7, x1: 1.95 };
   const link = { x0: -3.0, x1: -1.98 };
-  const door = { z0: 4.92, z1: 6.08, x0: CLEAN.x1 + 0.1 };
-  white.line(cross.x0, cross.z0, cross.x1, cross.z0, 0.06, { clear: C });
-  white.line(cross.x0, cross.z1, link.x0, cross.z1, 0.06, { clear: C });
-  white.line(link.x1, cross.z1, cross.x1, cross.z1, 0.06, { clear: C });
-  white.line(link.x0, cross.z1, link.x0, door.z0, 0.06);
-  white.line(link.x1, cross.z1, link.x1, door.z1, 0.06);
-  white.line(door.x0, door.z0, link.x0, door.z0, 0.06);
-  white.line(door.x0, door.z1, link.x1, door.z1, 0.06);
-  white.arrow(-5.6, -1.42, 0, 0.38).arrow(0.9, -1.42, 0, 0.38);
-  white.arrow(-2.49, 2.4, -Math.PI / 2, 0.38).arrow(-4.4, 5.5, Math.PI, 0.38);
+  const door = { z0: SUITE_DOOR.z0 + 0.07, z1: SUITE_DOOR.z1 - 0.17, x0: SUITE.x1 + 0.1 };
+  blue.line(cross.x0, cross.z0, cross.x1, cross.z0, 0.06, { clear: C });
+  blue.line(cross.x0, cross.z1, link.x0, cross.z1, 0.06, { clear: C });
+  blue.line(link.x1, cross.z1, cross.x1, cross.z1, 0.06, { clear: C });
+  blue.line(link.x0, cross.z1, link.x0, door.z0, 0.06);
+  blue.line(link.x1, cross.z1, link.x1, door.z1, 0.06);
+  blue.line(door.x0, door.z0, link.x0, door.z0, 0.06);
+  blue.line(door.x0, door.z1, link.x1, door.z1, 0.06);
+  blue.arrow(-5.6, -1.42, 0, 0.38).arrow(0.9, -1.42, 0, 0.38);
+  blue.arrow(-2.49, 2.4, -Math.PI / 2, 0.38).arrow(-3.7, 5.5, Math.PI, 0.38);
 
-  // Cooling bay for the rack trolleys, and the goods-in bays by the door.
+  // In-process hold for the tray trolleys, and the goods-in bay.
   const dash = { dash: 0.3, gap: 0.2 };
   const bays = [
     { x0: -1.85, x1: 1.95, z0: -0.62, z1: 1.5 },
-    { x0: -6.38, x1: -3.66, z0: 6.14, z1: 7.2 },
+    { x0: -4.4, x1: -3.25, z0: 6.15, z1: 7.3 },
   ];
   for (const b of bays) {
     amber.line(b.x0, b.z0, b.x1, b.z0, 0.06, dash).line(b.x0, b.z1, b.x1, b.z1, 0.06, dash);
@@ -143,24 +148,27 @@ function buildPaint() {
   amber.line(kc.x0, kc.z0, kc.x1, kc.z0, 0.07).line(kc.x0, kc.z1, kc.x1, kc.z1, 0.07);
   amber.line(kc.x0, kc.z0 - 0.035, kc.x0, kc.z1 + 0.035, 0.07).line(kc.x1, kc.z0 - 0.035, kc.x1, kc.z1 + 0.035, 0.07);
 
-  // Dock edge.
-  amber.line(xe - 0.14, DOCK.z0, xe - 0.14, DOCK.z1, 0.1);
-
-  return { white: white.build(), amber: amber.build(), hazard: hazard.build(), bands };
+  return { blue: blue.build(), amber: amber.build(), grey: grey.build() };
 }
 
 function FloorPaint() {
-  const { white, amber, hazard, bands } = useMemo(() => buildPaint(), []);
-  const kerb = 0.028;
+  const { blue, amber, grey } = useMemo(() => buildPaint(), []);
+  const kerb = 0.03;
+  // Dark coved skirting along the two glazed sides, the references' dark
+  // edge band, so the pale floor has a crisp boundary.
+  const sills = [
+    { x0: WALL_FACE_X - 0.36, x1: SLAB.maxX - 0.06, z0: SLAB.maxZ - SILL - 0.06, z1: SLAB.maxZ - 0.06 },
+    { x0: SLAB.maxX - SILL - 0.06, x1: SLAB.maxX - 0.06, z0: WALL_FACE_Z - 0.36, z1: SLAB.maxZ - SILL - 0.06 },
+  ];
   return (
     <group>
-      <mesh geometry={white} position-y={0.004} material={PAINT_WHITE} receiveShadow />
+      <mesh geometry={blue} position-y={0.004} material={PAINT_BLUE} receiveShadow />
       <mesh geometry={amber} position-y={0.004} material={PAINT_AMBER} receiveShadow />
-      {/* Hazard bands sit on a low dark kerb strip, like a stuck-down mat. */}
-      {bands.map((b, i) => (
+      <mesh geometry={grey} position-y={0.004} material={PAINT_GREY} receiveShadow />
+      {sills.map((b, i) => (
         <RoundedBox
           key={i}
-          args={[b.x1 - b.x0 + 0.08, kerb, b.z1 - b.z0 + 0.08]}
+          args={[b.x1 - b.x0, kerb, b.z1 - b.z0]}
           radius={0.012}
           smoothness={2}
           position={[(b.x0 + b.x1) / 2, kerb / 2, (b.z0 + b.z1) / 2]}
@@ -168,62 +176,95 @@ function FloorPaint() {
           receiveShadow
         />
       ))}
-      <mesh geometry={hazard} position-y={kerb + 0.002} material={PAINT_WHITE} receiveShadow />
     </group>
   );
 }
 
-// ------------------------------------------------------- hygiene zone
+// ------------------------------------------------------ compression suite
 
 function buildTileLines() {
   const lines = new Paint();
   const border = new Paint();
   const w = 0.028;
-  for (let x = CLEAN.x0 + 1; x < CLEAN.x1 - 0.2; x += 1) lines.line(x, CLEAN.z0 + 0.05, x, CLEAN.z1 - 0.05, w);
-  const rows = 6;
-  const pitch = (CLEAN.z1 - CLEAN.z0) / rows;
-  for (let i = 1; i < rows; i++) lines.line(CLEAN.x0 + 0.05, CLEAN.z0 + pitch * i, CLEAN.x1 - 0.05, CLEAN.z0 + pitch * i, w);
-  // Blue hygiene line just inside the two open sides.
+  for (let x = SUITE.x0 + 1; x < SUITE.x1 - 0.2; x += 1) lines.line(x, SUITE.z0 + 0.05, x, SUITE.z1 - 0.05, w);
+  const rows = 4;
+  const pitch = (SUITE.z1 - SUITE.z0) / rows;
+  for (let i = 1; i < rows; i++) lines.line(SUITE.x0 + 0.05, SUITE.z0 + pitch * i, SUITE.x1 - 0.05, SUITE.z0 + pitch * i, w);
+  // Blue line just inside the suite's glass, broken at the door and where
+  // the conveyor leaves.
   const m = 0.2;
-  border.line(CLEAN.x0 + m, CLEAN.z1 - m, CLEAN.x1 - m + 0.04, CLEAN.z1 - m, 0.08);
-  border.line(CLEAN.x1 - m, CLEAN.z0 + m, CLEAN.x1 - m, CLEAN.z1 - m, 0.08);
+  border.line(SUITE.x0 + m, SUITE.z0 + m, SUITE.x1 - m, SUITE.z0 + m, 0.08, { clear: 0.95 });
+  border.line(SUITE.x1 - m, SUITE.z0 + m, SUITE.x1 - m, SUITE_DOOR.z0, 0.08);
+  border.line(SUITE.x1 - m, SUITE_DOOR.z1, SUITE.x1 - m, SUITE.z1 - m, 0.08);
   return { lines: lines.build(), border: border.build() };
 }
 
-/** A run of framed glass panels between two floor points. */
-function GlassRun({ from, to, height = 2.4, open = false }: { from: [number, number]; to: [number, number]; height?: number; open?: boolean }) {
+/** A run of framed glass panels between two floor points. `open` leaves
+ *  a doorway (header rail only); `door` fills it with a glazed door leaf;
+ *  `hatch` leaves a low opening for a conveyor under a glass transom. */
+function GlassRun({
+  from,
+  to,
+  height = 2.4,
+  open = false,
+  door = false,
+  hatch = false,
+}: {
+  from: [number, number];
+  to: [number, number];
+  height?: number;
+  open?: boolean;
+  door?: boolean;
+  hatch?: boolean;
+}) {
   const dx = to[0] - from[0];
   const dz = to[1] - from[1];
   const len = Math.hypot(dx, dz);
   const panes = Math.max(1, Math.round(len / 1.7));
   const frame = metal(PALETTE.steelDark, 0.35);
   const posts = Array.from({ length: panes + 1 }, (_, i) => -len / 2 + (len * i) / panes);
+  const solid = !open && !door && !hatch;
+  const sill = hatch ? 1.15 : 0;
   return (
     <group position={[(from[0] + to[0]) / 2, 0, (from[1] + to[1]) / 2]} rotation-y={-Math.atan2(dz, dx)}>
       <RoundedBox args={[len + 0.07, 0.07, 0.08]} radius={0.02} smoothness={2} position-y={height} material={frame} castShadow />
-      {!open && (
-        <mesh position-y={height / 2 + 0.05} material={glass()}>
-          <boxGeometry args={[len - 0.06, height - 0.14, 0.03]} />
+      {(solid || hatch) && (
+        <mesh position-y={(height + sill) / 2 + 0.05} material={glass()}>
+          <boxGeometry args={[len - 0.06, height - sill - 0.14, 0.03]} />
         </mesh>
       )}
-      {!open && <RoundedBox args={[len, 0.1, 0.09]} radius={0.02} smoothness={2} position-y={0.05} material={frame} castShadow receiveShadow />}
-      {(open ? [] : posts).map((x, i) => (
+      {hatch && <RoundedBox args={[len + 0.04, 0.08, 0.1]} radius={0.02} smoothness={2} position-y={sill} material={frame} castShadow />}
+      {solid && <RoundedBox args={[len, 0.1, 0.09]} radius={0.02} smoothness={2} position-y={0.05} material={frame} castShadow receiveShadow />}
+      {(solid ? posts : hatch ? [-len / 2, len / 2] : []).map((x, i) => (
         <RoundedBox key={i} args={[0.07, height, 0.08]} radius={0.02} smoothness={2} position={[x, height / 2, 0]} material={frame} castShadow />
       ))}
+      {door && (
+        // A glazed leaf swung half open, on its hinge post.
+        <group position={[-len / 2 + 0.04, 0, 0]} rotation-y={0.9}>
+          <RoundedBox args={[0.07, height - 0.04, 0.07]} radius={0.02} smoothness={2} position={[0, height / 2 - 0.02, 0]} material={frame} castShadow />
+          <RoundedBox args={[len - 0.1, 0.07, 0.06]} radius={0.02} smoothness={2} position={[(len - 0.1) / 2, height - 0.08, 0]} material={frame} castShadow />
+          <RoundedBox args={[len - 0.1, 0.09, 0.06]} radius={0.02} smoothness={2} position={[(len - 0.1) / 2, 0.08, 0]} material={frame} castShadow />
+          <RoundedBox args={[0.06, height - 0.04, 0.06]} radius={0.02} smoothness={2} position={[len - 0.12, height / 2 - 0.02, 0]} material={frame} castShadow />
+          <mesh position={[(len - 0.1) / 2, height / 2, 0]} material={glass()}>
+            <boxGeometry args={[len - 0.18, height - 0.2, 0.02]} />
+          </mesh>
+          <RoundedBox args={[0.03, 0.3, 0.05]} radius={0.012} smoothness={2} position={[len - 0.2, 1.05, 0.05]} material={matte(PALETTE.graphite, 0.5)} />
+        </group>
+      )}
     </group>
   );
 }
 
-function HygieneZone({ partition }: { partition: boolean }) {
+function CompressionSuite({ partition }: { partition: boolean }) {
   const { lines, border } = useMemo(() => buildTileLines(), []);
-  const w = CLEAN.x1 - CLEAN.x0;
-  const d = CLEAN.z1 - CLEAN.z0;
+  const w = SUITE.x1 - SUITE.x0;
+  const d = SUITE.z1 - SUITE.z0;
   const t = 0.03;
   return (
     <group>
       <mesh
         rotation={FLAT}
-        position={[(CLEAN.x0 + CLEAN.x1) / 2, 0, (CLEAN.z0 + CLEAN.z1) / 2]}
+        position={[(SUITE.x0 + SUITE.x1) / 2, 0, (SUITE.z0 + SUITE.z1) / 2]}
         geometry={slabGeometry(w, d, t, 0.1, 0.01)}
         material={TILE}
         receiveShadow
@@ -232,16 +273,95 @@ function HygieneZone({ partition }: { partition: boolean }) {
       <mesh geometry={border} position-y={t + 0.003} material={PAINT_BLUE} receiveShadow />
       {partition && (
         <>
-          {/* Back side, with a gap where the conveyor leaves the zone. */}
-          <GlassRun from={[CLEAN.x0 + 0.05, CLEAN.z0]} to={[-9.95, CLEAN.z0]} />
-          <GlassRun from={[-9.95, CLEAN.z0]} to={[-8.05, CLEAN.z0]} open />
-          <GlassRun from={[-8.05, CLEAN.z0]} to={[CLEAN.x1, CLEAN.z0]} />
-          {/* Room side, with a doorway onto the pedestrian lane. */}
-          <GlassRun from={[CLEAN.x1, CLEAN.z0]} to={[CLEAN.x1, 4.85]} />
-          <GlassRun from={[CLEAN.x1, 4.85]} to={[CLEAN.x1, 6.25]} open />
-          <GlassRun from={[CLEAN.x1, 6.25]} to={[CLEAN.x1, CLEAN.z1]} />
+          {/* Back side, with a gap where the conveyor leaves the suite. */}
+          <GlassRun from={[SUITE.x0 + 0.05, SUITE.z0]} to={[-9.95, SUITE.z0]} />
+          <GlassRun from={[-9.95, SUITE.z0]} to={[-8.05, SUITE.z0]} open />
+          <GlassRun from={[-8.05, SUITE.z0]} to={[SUITE.x1, SUITE.z0]} />
+          {/* Room side, with the door onto the walkway. */}
+          <GlassRun from={[SUITE.x1, SUITE.z0]} to={[SUITE.x1, SUITE_DOOR.z0]} />
+          <GlassRun from={[SUITE.x1, SUITE_DOOR.z0]} to={[SUITE.x1, SUITE_DOOR.z1]} open />
+          <GlassRun from={[SUITE.x1, SUITE_DOOR.z1]} to={[SUITE.x1, GLASS_Z]} />
+          <RoomSign position={[SUITE.x1 + 0.05, 2.66, (SUITE_DOOR.z0 + SUITE_DOOR.z1) / 2]} rotation-y={Math.PI / 2} text="COMPRESSION" />
         </>
       )}
+    </group>
+  );
+}
+
+/** A small sign over a door: brand blue with white lettering. */
+function RoomSign({ text, ...props }: { text: string } & Omit<ThreeElements['group'], 'children'>) {
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+      ctx.fillStyle = PALETTE.brand;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = font(700, h * 0.48);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${h * 0.06}px`;
+      ctx.fillText(text, w / 2, h * 0.54);
+    },
+    [text],
+  );
+  return (
+    <group {...props}>
+      <Panel width={1.5} height={0.34} depth={0.06} radius={0.08} standoff={0.02} color={PALETTE.brand} rimColor={PALETTE.brandDeep} lift={0.03} draw={draw} />
+    </group>
+  );
+}
+
+/** The clean room's glazing along the two open sides of the slab, with the
+ *  airlock in the +x side and a hatch for the cartoner's outfeed. */
+function PerimeterGlass() {
+  const wallX = WALL_FACE_X - WALL.thickness / 2;
+  const wallZ = WALL_FACE_Z - WALL.thickness / 2;
+  return (
+    <group>
+      {/* From the end of each back wall out to the corner of the glazing. */}
+      <GlassRun from={[wallX, WALL_X_END_Z]} to={[wallX, GLASS_Z]} height={GLASS_H} />
+      <GlassRun from={[WALL_Z_END_X, wallZ]} to={[GLASS_X, wallZ]} height={GLASS_H} />
+      <GlassRun from={[wallX, GLASS_Z]} to={[GLASS_X, GLASS_Z]} height={GLASS_H} />
+      <GlassRun from={[GLASS_X, wallZ]} to={[GLASS_X, AIRLOCK.z0]} height={GLASS_H} />
+      <GlassRun from={[GLASS_X, AIRLOCK.z1]} to={[GLASS_X, HATCH.z0]} height={GLASS_H} />
+      <GlassRun from={[GLASS_X, HATCH.z0]} to={[GLASS_X, HATCH.z1]} height={GLASS_H} hatch />
+      <GlassRun from={[GLASS_X, HATCH.z1]} to={[GLASS_X, GLASS_Z]} height={GLASS_H} />
+    </group>
+  );
+}
+
+/** Airlock: a glazed box with an outer door onto the yard steps and an
+ *  inner door into the room, a step-over bench and a rack of gowns. */
+function Airlock() {
+  const { x0, x1, z0, z1 } = AIRLOCK;
+  const steel = metal(PALETTE.steel, 0.3);
+  return (
+    <group>
+      <mesh rotation={FLAT} position={[(x0 + x1) / 2, 0, (z0 + z1) / 2]} geometry={slabGeometry(x1 - x0, z1 - z0, 0.025, 0.06, 0.008)} material={TILE} receiveShadow />
+      <GlassRun from={[x0, z0]} to={[x1, z0]} height={GLASS_H} />
+      <GlassRun from={[x0, z1]} to={[x1, z1]} height={GLASS_H} />
+      <GlassRun from={[x0, z0]} to={[x0, AIRLOCK_DOOR.z0]} height={GLASS_H} />
+      <GlassRun from={[x0, AIRLOCK_DOOR.z0]} to={[x0, AIRLOCK_DOOR.z1]} height={GLASS_H} door />
+      <GlassRun from={[x0, AIRLOCK_DOOR.z1]} to={[x0, z1]} height={GLASS_H} />
+      <GlassRun from={[x1, AIRLOCK_DOOR.z0]} to={[x1, AIRLOCK_DOOR.z1]} height={GLASS_H} door />
+      {/* Step-over bench across the middle, and gowns hung on a rail along
+          the back glass. */}
+      <RoundedBox args={[0.34, 0.06, 1.0]} radius={0.02} smoothness={2} position={[(x0 + x1) / 2, 0.46, z0 + 0.62]} material={plastic(PALETTE.white, 0.4)} castShadow receiveShadow />
+      {[-0.4, 0.4].map((dz) => (
+        <RoundedBox key={dz} args={[0.05, 0.44, 0.05]} radius={0.015} smoothness={2} position={[(x0 + x1) / 2, 0.22, z0 + 0.62 + dz]} material={steel} castShadow />
+      ))}
+      <Rod a={[x0 + 0.35, 1.72, z1 - 0.2]} b={[x1 - 0.35, 1.72, z1 - 0.2]} r={0.018} material={steel} />
+      {[0, 1, 2].map((i) => (
+        <RoundedBox
+          key={i}
+          args={[0.36, 0.92, 0.08]}
+          radius={0.035}
+          smoothness={2}
+          position={[x0 + 0.55 + i * 0.4, 1.22, z1 - 0.22]}
+          material={matte(PALETTE.coat, 0.75)}
+          castShadow
+        />
+      ))}
+      <RoomSign position={[x0 - 0.05, 2.66, (AIRLOCK_DOOR.z0 + AIRLOCK_DOOR.z1) / 2]} rotation-y={-Math.PI / 2} text="AIRLOCK" />
     </group>
   );
 }
@@ -375,10 +495,11 @@ function Walls() {
         </mesh>
       ))}
 
-      {/* Services on the -z wall: pipe runs, a cable tray, vents, a cabinet. */}
+      {/* Services on the -z wall: purified water and clean air runs, a cable
+          tray, return-air grilles, a cabinet. */}
       <group position={[0, 0, WALL_FACE_Z]}>
-        <Rod a={[-2.3, pipeY, 0.16]} b={[6.75, pipeY, 0.16]} r={0.07} material={plastic(PALETTE.orange, 0.3)} />
-        <Rod a={[-2.3, pipeY, 0.16]} b={[-2.3, 0.3, 0.16]} r={0.07} material={plastic(PALETTE.orange, 0.3)} />
+        <Rod a={[-2.3, pipeY, 0.16]} b={[6.75, pipeY, 0.16]} r={0.07} material={plastic(PALETTE.brand, 0.3)} />
+        <Rod a={[-2.3, pipeY, 0.16]} b={[-2.3, 0.3, 0.16]} r={0.07} material={plastic(PALETTE.brand, 0.3)} />
         <Rod a={[-1.9, pipeY + 0.26, 0.16]} b={[6.75, pipeY + 0.26, 0.16]} r={0.055} material={steel} />
         <Rod a={[-1.9, pipeY + 0.26, 0.16]} b={[-1.9, 0.3, 0.16]} r={0.055} material={steel} />
         {[-2.1, 0.2, 2.5, 4.8, 6.5].map((x) => (
@@ -401,7 +522,7 @@ function Walls() {
         <group position={[5.6, 0, 0]}>
           <RoundedBox args={[1.15, 1.7, 0.36]} radius={0.05} smoothness={3} position={[0, 1.75, 0.18]} material={metal(PALETTE.steel, 0.32)} castShadow receiveShadow />
           <RoundedBox args={[0.98, 1.5, 0.03]} radius={0.03} smoothness={2} position={[0, 1.75, 0.37]} material={metal(PALETTE.offWhite, 0.4)} />
-          <RoundedBox args={[0.05, 0.3, 0.05]} radius={0.02} smoothness={2} position={[0.36, 1.75, 0.41]} material={plastic(PALETTE.orange)} />
+          <RoundedBox args={[0.05, 0.3, 0.05]} radius={0.02} smoothness={2} position={[0.36, 1.75, 0.41]} material={plastic(PALETTE.brand)} />
           <mesh position={[-0.3, 2.3, 0.4]} material={glow(PALETTE.healthy, 2)}>
             <sphereGeometry args={[0.055, 16, 12]} />
           </mesh>
@@ -415,21 +536,25 @@ function Walls() {
 // ------------------------------------------------------------- diorama
 
 export interface DioramaProps {
-  /** White tiled hygiene zone around the mixer. */
-  hygieneZone?: boolean;
-  /** Glass partition around the hygiene zone. */
+  /** The glazed compression suite around the blender and the press. */
+  suite?: boolean;
+  /** The suite's glass partition. */
   partition?: boolean;
+  /** The perimeter glazing and the airlock. */
+  glazing?: boolean;
   /** The brand sign on the -z wall. */
   sign?: boolean;
 }
 
-export function Diorama({ hygieneZone = true, partition = true, sign = true }: DioramaProps) {
+export function Diorama({ suite = true, partition = true, glazing = true, sign = true }: DioramaProps) {
   useStudioDimming();
   return (
     <group>
       <Slab />
       <FloorPaint />
-      {hygieneZone && <HygieneZone partition={partition} />}
+      {suite && <CompressionSuite partition={partition} />}
+      {glazing && <PerimeterGlass />}
+      {glazing && <Airlock />}
       <YardSteps />
       <LoadingDock />
       <Walls />

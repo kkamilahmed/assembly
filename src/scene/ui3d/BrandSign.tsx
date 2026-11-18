@@ -1,36 +1,8 @@
 import { useCallback } from 'react';
 import { PALETTE } from '@/scene/style';
+import { drawCapsuleMark } from '@/scene/props/kit';
 import { font } from './kit';
 import { Panel } from './Panel';
-
-/** The bakery mark: a scored loaf, drawn white in a box of `s` at (x, y). */
-function drawLoafMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, bg: string) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s / 100, s / 100);
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.moveTo(14, 84);
-  ctx.lineTo(14, 52);
-  ctx.bezierCurveTo(-2, 22, 28, 14, 50, 14);
-  ctx.bezierCurveTo(72, 14, 102, 22, 86, 52);
-  ctx.lineTo(86, 84);
-  ctx.quadraticCurveTo(86, 90, 80, 90);
-  ctx.lineTo(20, 90);
-  ctx.quadraticCurveTo(14, 90, 14, 84);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = bg;
-  ctx.lineWidth = 7;
-  ctx.lineCap = 'round';
-  for (const cx of [34, 50, 66]) {
-    ctx.beginPath();
-    ctx.moveTo(cx + 5, 32);
-    ctx.lineTo(cx - 5, 50);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
 
 export interface BrandSignProps {
   position?: [number, number, number];
@@ -41,11 +13,11 @@ export interface BrandSignProps {
   tagline?: string;
 }
 
-/** The big orange brand sign: a thick rounded slab with a white wordmark. */
-export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 'Goldcrust', tagline = 'Bakery' }: BrandSignProps) {
+/** The big brand sign: a thick rounded blue slab with a white wordmark. */
+export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 'Meridian', tagline = 'Pharma' }: BrandSignProps) {
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-      ctx.fillStyle = PALETTE.orange;
+      ctx.fillStyle = PALETTE.brand;
       ctx.fillRect(0, 0, w, h);
       const mark = h * 0.62;
       const nameSize = h * 0.5;
@@ -54,7 +26,7 @@ export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 
       const nameW = ctx.measureText(name).width;
       const gap = h * 0.13;
       const x = (w - (mark + gap + nameW)) / 2;
-      drawLoafMark(ctx, x, (h - mark) / 2, mark, PALETTE.orange);
+      drawCapsuleMark(ctx, x + mark / 2, h / 2, mark * 1.1, '#ffffff', PALETTE.brand);
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
@@ -75,8 +47,8 @@ export function BrandSign({ position, rotation, width = 7, height = 2.1, name = 
       depth={0.34}
       radius={0.36}
       standoff={0.1}
-      color={PALETTE.orange}
-      rimColor={PALETTE.orangeDeep}
+      color={PALETTE.brand}
+      rimColor={PALETTE.brandDeep}
       lift={0.12}
       draw={draw}
     />
