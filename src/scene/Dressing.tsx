@@ -6,7 +6,8 @@
 // Clearances: nothing here comes within 0.9 of the conveyor centreline, and
 // everything on the yard side of the inspection leg stays low enough not to
 // hide the belt from the camera.
-import { CartonStack, Cone, FlourSackStack, HandTruck, PalletJack, PALLET_JACK_OPERATOR_X, Trolley, Worker, WORKER_PUSH_GRIP } from '@/scene/props';
+import { CartonStack, Cone, FlourSackStack, HandTruck, PalletJack, PALLET_JACK_OPERATOR_X, Trolley, Worker, WORKER_PUSH_GRIP, WORKER_WALK_SPEED } from '@/scene/props';
+import { Mover } from './Mover';
 import {
   BarrierRun,
   BenchScale,
@@ -49,10 +50,12 @@ function CoolingBay() {
           return <Trolley key={i} position={[x, 0, z]} rotation-y={((i * 37) % 7) * 0.012 - 0.04} fill={i % 3 === 1 ? 0.67 : 1} seed={20 + i} />;
         }),
       )}
-      <group position={[1.4, 0, 2.15]} rotation-y={FACE.nz}>
+      {/* Wheeling a full trolley up to the empty slot and back out for the
+          next one. */}
+      <Mover path={[[1.4, 3.55], [1.4, 1.95]]} speed={WORKER_WALK_SPEED * 0.75} offset={2}>
         <Trolley fill={1} seed={31} />
-        <Worker position={[-(WORKER_PUSH_GRIP.x + trolleyHalf + 0.02), 0, 0]} pose="push" seed={23} skin={3} />
-      </group>
+        <Worker position={[-(WORKER_PUSH_GRIP.x + trolleyHalf + 0.02), 0, 0]} pose="walkPush" seed={23} skin={3} />
+      </Mover>
       {/* Trolleys queued at the oven end, beside the owner's one. */}
       <Trolley position={[0.42, 0, -2.78]} rotation-y={0.1} fill={1} seed={41} />
       {/* Belt barrier between the walkway and the trolley traffic. */}
@@ -158,10 +161,10 @@ function GoodsIn() {
     <group>
       <FlourSackStack position={[-5.7, 0, 6.7]} layers={5} seed={3} />
       <FlourSackStack position={[-4.36, 0, 6.7]} layers={3} seed={6} />
-      <group position={[-2.1, 0, 6.68]} rotation-y={FACE.nx}>
+      <Mover path={[[-0.6, 6.68], [-2.6, 6.68]]} speed={WORKER_WALK_SPEED * 0.75} offset={5}>
         <PalletJack load="sacks" seed={8} />
-        <Worker position={[PALLET_JACK_OPERATOR_X, 0, 0]} pose="push" seed={39} skin={1} vest />
-      </group>
+        <Worker position={[PALLET_JACK_OPERATOR_X, 0, 0]} pose="walkPush" seed={39} skin={1} vest />
+      </Mover>
       <PalletStack position={[1.1, 0, 6.66]} count={6} seed={2} />
       <Cone position={[1.95, 0, 6.2]} />
       <FloorScale position={[0.3, 0, 5.5]} rotation-y={FACE.pz} />
@@ -190,7 +193,9 @@ function PackagingStore() {
       <FilmRollPallet position={[6.65, 0, -4.2]} rotation-y={FACE.nz} top={3} />
       <CartonStack position={[6.65, 0, -2.8]} rotation-y={FACE.nz} rows={2} cols={2} layers={2} count={7} seed={12} />
       <ToteStacks stacks={STORE_TOTES} seed={11} />
-      <Worker position={[5.6, 0, -3.9]} rotation-y={FACE.pz} pose="carry" carrying="box" seed={44} skin={0} vest />
+      <Mover path={[[5.6, -5.6], [5.6, -1.7]]} offset={2.5}>
+        <Worker pose="walkCarry" carrying="box" seed={44} skin={0} vest />
+      </Mover>
 
       {/* QA bench: sample loaves on the check-weigher. */}
       <group position={[6.72, 0, -0.75]} rotation-y={FACE.nz}>

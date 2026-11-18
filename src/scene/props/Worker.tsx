@@ -6,7 +6,7 @@
 // where the hands and feet are, and a two-bone solver bends the elbows and
 // knees to reach them. That keeps hands on the things they hold and boots
 // flat on the floor whatever the torso is doing.
-import { useMemo, useRef, type RefObject } from 'react';
+import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
 import { useFrame, type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, matte, PALETTE, plastic } from '@/scene/style';
@@ -14,9 +14,12 @@ import { capsule, cyl, dome, lathe, limb, rbox, rng, sphere, studioWhite, torus 
 import { crustMaterial, LOAF, loafGeometry, loafScoreGeometry, scoreMaterial } from './loaf';
 import { Instances, Part } from './Part';
 import { Carton } from './Stock';
-import { WALK_RATE, WALK_STRIDE } from './workerRig';
+import { mergeRigidChildren, unmerge } from '@/scene/mergeMeshes';
+import { WALK_RATE, WALK_STRIDE, WORKER_SCALE } from './workerRig';
 
-export type WorkerPose = 'stand' | 'tablet' | 'carry' | 'push' | 'inspect' | 'walk';
+/** 'walkCarry' and 'walkPush' walk with the hands where 'carry' and 'push'
+ *  put them; move the worker's group along at WORKER_WALK_SPEED. */
+export type WorkerPose = 'stand' | 'tablet' | 'carry' | 'push' | 'inspect' | 'walk' | 'walkCarry' | 'walkPush';
 
 type GroupProps = Omit<ThreeElements['group'], 'children'>;
 type Ref = RefObject<THREE.Group | null>;
@@ -59,7 +62,7 @@ interface Pose {
   feet: [[number, number, number], [number, number, number]];
 }
 
-const POSES: Record<Exclude<WorkerPose, 'carry'> | 'carryBox' | 'carryTray', Pose> = {
+const POSES: Record<Exclude<WorkerPose, 'carry' | 'walkCarry' | 'walkPush'> | 'carryBox' | 'carryTray', Pose> = {
   stand: {
     lean: 0.02,
     headPitch: 0.04,
@@ -198,6 +201,7 @@ function trayLoafMatrices(): THREE.Matrix4[] {
 }
 
 export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carrying = 'box', ...props }: WorkerProps) {
+  const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
@@ -219,7 +223,7 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
     return {
       // A touch larger than life, the way the references draw people:
       // at the overview zoom they are the storytellers, not ant-sized.
-      scale: (0.965 + r() * 0.06) * 1.28,
+      scale: (0.965 + r() * 0.06) * WORKER_SCALE,
       build: 0.96 + r() * 0.1,
       hair: HAIR[Math.floor(r() * HAIR.length)],
       visorCap: r() < 0.28,
@@ -227,7 +231,17 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
     };
   }, [seed, skin]);
 
-  const key = pose === 'carry' ? (carrying === 'tray' ? 'carryTray' : 'carryBox') : pose;
+  // Merge the meshes that ride on the same bone, once the figure is built:
+  // about 45 draws per worker becomes about 20, and every bone still moves.
+  useLayoutEffect(() => {
+    const r = root.current;
+    if (!r) return;
+    const made = mergeRigidChildren(r);
+    return () => unmerge(r, made);
+  }, [pose, vest, carrying, seed]);
+
+  const key =
+    pose === 'carry' || pose === 'walkCarry' ? (carrying === 'tray' ? 'carryTray' : 'carryBox') : pose === 'walkPush' ? 'push' : pose;
   const P = POSES[key];
 
   useFrame(({ clock }) => {
@@ -235,7 +249,13 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
     const t = clock.elapsedTime + look.phase;
     const breath = Math.sin(t * 1.7);
     const sway = Math.sin(t * 0.55);
-    const walking = pose === 'walk';
+    const walking = pose === 'walk' || pose === 'walkCarry' || pose === 'walkPush';
+    // Work cycles: a slow reach-and-return for line work, a glance up from
+    // the tablet every few seconds. Big enough to read at the plant's zoom.
+    const reachU = (t % 3.4) / 3.4;
+    const reach = Math.sin(Math.PI * Math.min(reachU / 0.85, 1)) ** 2;
+    const glanceU = (t % 5.5) / 5.5;
+    const glance = glanceU > 0.62 ? Math.sin(Math.PI * ((glanceU - 0.62) / 0.38)) ** 2 : 0;
     const ph = t * WALK_RATE;
     const sinR = Math.sin(ph);
 
@@ -250,12 +270,14 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
       swayZ = 0.012 * sinR;
       twist = -0.09 * sinR;
     } else if (pose === 'stand') {
-      headYaw += 0.22 * Math.sin(t * 0.31) + 0.08 * Math.sin(t * 0.83);
+      headYaw += 0.4 * Math.sin(t * 0.45) + 0.1 * Math.sin(t * 0.83);
     } else if (pose === 'inspect') {
-      headYaw += 0.1 * Math.sin(t * 0.5);
-      lean += 0.02 * Math.sin(t * 0.5);
+      headYaw += 0.12 * Math.sin(t * 0.5);
+      lean += 0.11 * reach;
+      headPitch += 0.18 * reach;
     } else if (pose === 'tablet') {
-      headPitch += 0.04 * Math.sin(t * 0.4);
+      headYaw += 0.55 * glance;
+      headPitch -= 0.3 * glance;
     }
 
     body.current.position.set(P.pelvis[0], pelvisY, swayZ);
@@ -270,17 +292,27 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
       vS.set(0, SHOULDER_Y, side * SHOULDER_Z * look.build);
       vT.set(h[0], h[1] + breath * 0.004, h[2]);
       vP.set(p[0], p[1], p[2]);
-      if (walking) {
+      if (pose === 'walk') {
         const s = Math.sin(ph + (i === 0 ? Math.PI : 0));
         vT.x += 0.2 * s;
         vT.y += 0.035 * s * s + (s > 0 ? 0.03 * s : 0);
+      } else if (walking) {
+        // Hands stay on the load; it bobs a little with the stride.
+        vT.y += 0.012 * Math.cos(2 * ph);
       } else if (pose === 'tablet' && i === 0) {
-        // The free hand taps and scrolls.
-        vT.x += 0.02 * Math.sin(t * 2.3);
-        vT.z += 0.02 * Math.sin(t * 1.3);
-      } else if (pose === 'inspect' && i === 0) {
-        vT.x += 0.04 * Math.sin(t * 0.9);
-        vT.z += 0.05 * Math.sin(t * 0.6);
+        // The free hand taps and scrolls, and rests while the eyes are up.
+        const busy = 1 - glance;
+        vT.y += 0.04 * Math.max(0, Math.sin(t * 6.5)) * busy;
+        vT.z += 0.04 * Math.sin(t * 1.3) * busy;
+      } else if (pose === 'inspect') {
+        // Reach over the work and back: the leading hand goes out and down,
+        // the other follows a little.
+        const k = i === 0 ? 1 : 0.4;
+        vT.x += 0.2 * reach * k;
+        vT.y -= 0.16 * reach * k;
+        vT.z += 0.04 * Math.sin(t * 0.6) * k;
+      } else if (pose === 'stand') {
+        vT.x += 0.03 * Math.sin(t * 0.7 + i);
       }
       const upper = (i === 0 ? armR : armL).current;
       const lower = (i === 0 ? foreR : foreL).current;
@@ -365,10 +397,9 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
   );
 
   return (
-    // Only walking workers are `dynamic` (kept out of the scene's static
-    // batcher). A standing worker's idle sway is invisible at the plant's
-    // zoom, and batching the crew saves hundreds of draw calls a frame.
-    <group {...props} userData={{ dynamic: pose === 'walk' }}>
+    // `dynamic` keeps the scene's static batcher from freezing the figure;
+    // its own rigid parts are merged per bone instead (see useLayoutEffect).
+    <group ref={root} {...props} userData={{ dynamic: true }}>
       <group scale={look.scale}>
         {leg(thighR, shinR, bootR)}
         {leg(thighL, shinL, bootL)}
