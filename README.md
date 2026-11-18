@@ -19,20 +19,21 @@ Drag to pan and scroll to zoom; the view never rotates off the isometric angle.
 
 ## The story
 
-The moral: because every reading is analysed as it streams, you can stop the line the moment something goes wrong and fix it, instead of finding out at the end-of-shift audit after thousands of bad loaves.
+Three screens, left to right: **Machines | Plant | Dashboard**. The arrow keys walk between them and the app opens on the plant.
+The plant shows the line, the dashboard shows what it is producing (the effect), and the machines screen shows which machine is doing it and why (the cause).
+
+The moral: because every reading is analysed as it streams, you can stop the line the moment something goes wrong and fix it, instead of finding out at the end-of-shift audit after thousands of burnt loaves.
 
 | Beat | Do | What the room sees |
 |---|---|---|
-| 1. The plant | Nothing. Talk. | Dough drops from the mixer, rises and browns through the glowing tunnel oven, passes the vision gantry and is packed into cartons on the outfeed pallet. The wall dashboards and the tags over the machines are live. |
-| 2. Deviate | `D` | The oven's zone 2 starts running hot. Its tag and stack light go amber within a second or two, the header reads **Running - oven running hot**. |
-| 3. Diagnose | `→` | The machines screen. The oven card is highlighted with zone temperature and burner output over their limits, and the diagnosis strip says what that combination means and what to do. |
-| 4. The cost | `←` | Back on the floor, loaves come out over-baked and the reject pusher kicks them into the red bin; the "Rejected" tag counts up and yield falls. |
-| 5. Stop | `S` | The line stops. The stop report shows how fast the drift was detected, how many loaves it cost, and how many more an end-of-shift audit would have cost at the measured reject rate. |
-| 6. Fix | `C` | The oven is recalibrated. Sensors settle, tags go green. |
-| 7. Autopilot | `A` | The line restarts on autopilot. Press `D` or `E` again: the stream flags the drift and the line puts the oven back on setpoint well under a second after detection, with no downtime. |
+| 1. The plant | Nothing. Talk. | Dough drops from the mixer, rises and browns through the glowing tunnel oven, passes the vision gantry and is packed into cartons. |
+| 2. Something drifts | `D` | The oven starts running hot. On the plant, loaves come out darker and the reject pusher starts kicking them into the red bin. |
+| 3. The effect | `→` Dashboard | "Burnt loaves rising: 15 of the last 31 came out burnt", the output bars turning red, browning over the limit, and "If nothing changes, by end of shift: ≈14,000 kg of dough wasted". |
+| 4. The cause | `←` `←` Machines | The oven card is highlighted: zone 2 temperature and burner output over their limits. "Running over setpoint, over-baking loaves. Recommended: stop line, recalibrate oven." |
+| 5. Stop and fix | `S`, then `C` | The line stops; the stop report shows how fast it was caught and what waiting would have cost. Recalibrating puts the oven back on setpoint. |
+| 6. Back to the line | `→` Plant, `A` | Autopilot restarts the line. Press `D` or `E` again: the stream flags the drift and the oven is put back on setpoint well under a second after detection. |
 
 `E` is the emergency version of `D`: a burner runaway, and every loaf burns.
-Pressing `E` during a slight deviation escalates the same incident.
 
 Nothing happens on its own; the line stays healthy until a key is pressed.
 Only operator actions (Stop, Recalibrate, Autopilot) are on screen, so the audience never sees a "break it" button.
@@ -46,8 +47,7 @@ Only operator actions (Stop, Recalibrate, Autopilot) are on screen, so the audie
 | `S` | Stop / start the line |
 | `C` | Recalibrate the oven |
 | `A` | Run on autopilot (press again to turn it off) |
-| `→` / `←` | Machines screen / plant |
-| `M` | Toggle plant / machines |
+| `←` / `→` | Move between Machines, Plant, Dashboard |
 | `F` | Manual sensor fault-injection panel (machines screen) |
 | `R` | Reset the demo (autopilot stays as it was) |
 | `Esc` | Close the topmost overlay |
@@ -88,9 +88,9 @@ src/
                streaming -> store), storyDirector.ts (presenter controls
                and the autopilot)
   scene/       Stage (iso camera, light, post FX), layout, Diorama (slab,
-               walls, floor paint), machines/, props/, ui3d/ (dashboard
-               cards, status tags), Loaves (instanced), Line, Yard, Dressing
-  ui/          Top bar, action bar, overlays, machines screen
+               walls, floor paint), machines/, props/, ui3d/ (status
+               tags, brand sign), Loaves (instanced), Line, Yard, Dressing
+  ui/          Top bar, action bar, overlays, machines and dashboard screens
   sandbox/     Dev-only page for building one scene part in isolation:
                /sandbox.html?part=<name>
 ```

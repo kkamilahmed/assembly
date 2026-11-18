@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { useStore } from '@/state/store';
 import { injectDeviation, recalibrate, resetDemo, toggleAutopilot, toggleLine } from '@/state/storyDirector';
+import { stepView, type View } from '@/ui/views';
 
-export type View = 'plant' | 'machines';
 
 /**
- * Every presenter key, in one place, live on both screens - the story moves
- * between the plant and the machines and the keys have to work from either.
+ * Every presenter key, in one place, live on every screen: the story moves
+ * between the plant, the dashboard and the machines, and the keys have to
+ * work from all three.
  */
 export function useKeyboardShortcuts(view: View, setView: (v: View) => void) {
   useEffect(() => {
@@ -39,16 +40,13 @@ export function useKeyboardShortcuts(view: View, setView: (v: View) => void) {
         case 'r':
           resetDemo();
           return;
-        case 'm':
-          setView(view === 'plant' ? 'machines' : 'plant');
-          return;
         case 'ArrowRight':
           e.preventDefault();
-          setView('machines');
+          setView(stepView(view, 1));
           return;
         case 'ArrowLeft':
           e.preventDefault();
-          setView('plant');
+          setView(stepView(view, -1));
           return;
         case 'f':
           if (view === 'machines') store.setFaultPanelOpen(!store.faultPanelOpen);

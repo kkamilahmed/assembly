@@ -13,12 +13,14 @@ import { STATUS_HEX } from './colors';
 import { FaultInjectionPanel } from './FaultInjectionPanel';
 import { MachinePreviewCard, TelemetryCard } from './FleetMachineCard';
 import { Kbd } from './Kbd';
+import { ViewNav } from './ViewNav';
+import type { View } from './views';
 
 /** The machines screen: every machine on the line with its live process sensors,
  *  and a diagnosis strip that says, in words, what the readings add up to.
- *  This is where the presenter comes after pressing D to show what is going
- *  wrong before going back to the plant to show what it is costing. */
-export function FleetOverview({ active, onBack }: { active: boolean; onBack: () => void }) {
+ *  This is where the story finds the cause: the dashboard has shown burnt
+ *  loaves rising, and this screen shows which machine is doing it and why. */
+export function FleetOverview({ active, view, onNavigate }: { active: boolean; view: View; onNavigate: (v: View) => void }) {
   const faultPanelOpen = useStore((s) => s.faultPanelOpen);
   const setFaultPanelOpen = useStore((s) => s.setFaultPanelOpen);
   const manualInjections = useStore((s) => s.injections.filter((i) => i.source === 'manual').length);
@@ -26,21 +28,17 @@ export function FleetOverview({ active, onBack }: { active: boolean; onBack: () 
   return (
     <div className="flex h-full w-full flex-col bg-[var(--bg)]">
       <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-black/5"
-        >
-          <Kbd>&larr;</Kbd>
-          Plant
-        </button>
         <div>
           <div className="text-sm font-semibold">Machines · Line 1</div>
           <div className="text-xs text-[var(--text-secondary)]">Live sensor stream from every machine</div>
         </div>
+        <div className="ml-auto">
+          <ViewNav view={view} onChange={onNavigate} />
+        </div>
         <button
           onClick={() => setFaultPanelOpen(!faultPanelOpen)}
           aria-pressed={faultPanelOpen}
-          className="ml-auto flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-black/5"
+          className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-black/5"
           style={{
             borderColor: faultPanelOpen || manualInjections > 0 ? 'var(--brand-orange)' : 'var(--border)',
             color: faultPanelOpen || manualInjections > 0 ? 'var(--brand-orange)' : undefined,

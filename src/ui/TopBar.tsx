@@ -1,19 +1,20 @@
 import { machineSeverity, useStore } from '@/state/store';
 import { PROBLEM_MACHINE_ID } from '@/streaming/lineConfig';
 import { STATUS_HEX } from './colors';
-import { Kbd } from './Kbd';
+import { ViewNav } from './ViewNav';
+import type { View } from './views';
 
 /** The line's state in one phrase, coloured by how worried to be. */
 function useLineState(): { label: string; color: string } {
   const paused = useStore((s) => s.paused);
   const severity = useStore((s) => machineSeverity(s, PROBLEM_MACHINE_ID));
   if (paused) return { label: 'Line stopped', color: STATUS_HEX.critical };
-  if (severity === 'critical') return { label: `Running · oven critical`, color: STATUS_HEX.critical };
-  if (severity === 'warning') return { label: `Running · oven running hot`, color: STATUS_HEX.warning };
+  if (severity === 'critical') return { label: `Running · loaves burning`, color: STATUS_HEX.critical };
+  if (severity === 'warning') return { label: `Running · quality alert`, color: STATUS_HEX.warning };
   return { label: 'Running', color: STATUS_HEX.healthy };
 }
 
-export function TopBar({ onSwitch }: { onSwitch: () => void }) {
+export function TopBar({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
   const packed = useStore((s) => s.loavesPacked);
   const rejected = useStore((s) => s.loavesRejected);
   const autopilot = useStore((s) => s.autopilot);
@@ -68,13 +69,7 @@ export function TopBar({ onSwitch }: { onSwitch: () => void }) {
             color={yieldPct < 95 ? STATUS_HEX.critical : STATUS_HEX.healthy}
           />
         </dl>
-        <button
-          onClick={onSwitch}
-          className="flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-black/5"
-        >
-          Machines
-          <Kbd>&rarr;</Kbd>
-        </button>
+        <ViewNav view={view} onChange={onNavigate} />
         <button
           onClick={() => setShortcutOverlayOpen(true)}
           aria-label="Keyboard shortcuts"

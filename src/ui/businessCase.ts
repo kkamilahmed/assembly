@@ -24,3 +24,6 @@ export function projectShift(inspected: number, rejects: number): ShiftProjectio
   const loaves = Math.round((rejects / inspected) * LINE_JOBS_PER_HOUR * SHIFT_HOURS);
   return { loaves, usd: Math.round(loaves * COST_PER_REJECT_USD) };
 }
+
+/** Dough that goes into one loaf, kg. */
+export const DOUGH_KG_PER_LOAF = 0.9;

@@ -3,7 +3,6 @@
 // slab thickness here: the yard is at y=0 and the slab top at y=0.6.
 import { Diorama } from '@/scene/Diorama';
 import { MACHINE_POS, SLAB } from '@/scene/layout';
-import { DashboardWall } from '@/scene/ui3d/DashboardWall';
 import { StatusTag } from '@/scene/ui3d/StatusTag';
 import PlaceholderLine from './shell-placeholder';
 
@@ -13,7 +12,6 @@ export default function ShellAll() {
   return (
     <group position-y={SLAB.thickness}>
       <Diorama />
-      <DashboardWall />
       <PlaceholderLine />
       <StatusTag position={[-2.8, 2.6, -4.4]} label="Oven zone 2" value="221 °C" tone="healthy" icon="thermo" />
       <StatusTag position={[MACHINE_POS.vision.x + 0.9, 2.7, MACHINE_POS.vision.z]} label="Vision check" value="Pass" tone="healthy" icon="eye" facing="x" />
