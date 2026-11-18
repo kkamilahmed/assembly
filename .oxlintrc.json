@@ -7,7 +7,7 @@
   },
   "overrides": [
     {
-      "files": ["src/sandbox/parts/*.tsx"],
+      "files": ["src/sandbox/**/*.tsx"],
       "rules": { "react/only-export-components": "off" }
     }
   ]
