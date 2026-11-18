@@ -5,7 +5,7 @@ import { CELLS_PER_MODULE, projectRate, SHIFT_HOURS } from './businessCase';
 import { STATUS_HEX } from './colors';
 import { fmtUsd } from './format';
 import { Kbd } from './Kbd';
-import { BUCKET_MS, BUCKETS, useProductionHistory, type Bucket } from './productionHistory';
+import { MODULES_PER_BUCKET, useProductionHistory, type Bucket } from './productionHistory';
 import { ViewNav } from './ViewNav';
 import type { View } from './views';
 
@@ -212,33 +212,46 @@ function Card({
 
 /** Passed and failed modules per interval, stacked: the moment the laser
  *  drifts the red climbs up through the bars, which is the whole story in
- *  one picture. */
+ *  one picture. The interval still in progress is drawn as what it is: a
+ *  dashed outline of a full interval, filling up. */
 function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }) {
-  const all = [...buckets, current];
-  while (all.length < BUCKETS + 1) all.unshift({ good: 0, rejected: 0 });
-  const perBucket = BUCKET_MS / 800;
-  const max = Math.max(perBucket, ...all.map((b) => b.good + b.rejected));
+  const max = Math.max(MODULES_PER_BUCKET * 1.15, ...buckets.map((b) => b.good + b.rejected));
   const W = 100;
   const H = 60;
-  const slot = W / all.length;
+  const slots = buckets.length + 1;
+  const slot = W / slots;
   const bw = slot * 0.66;
+  const bar = (b: Bucket, i: number, live: boolean) => {
+    const x = i * slot + (slot - bw) / 2;
+    const gh = (Math.min(b.good, max) / max) * H;
+    const rh = (Math.min(b.rejected, max - Math.min(b.good, max)) / max) * H;
+    return (
+      <g key={i} opacity={live ? 0.6 : 1}>
+        <rect x={x} y={H - gh} width={bw} height={gh} rx={0.6} fill={PASSED} />
+        <rect x={x} y={H - gh - rh} width={bw} height={rh} rx={0.6} fill={FAILED} />
+      </g>
+    );
+  };
+  const fullH = (MODULES_PER_BUCKET / max) * H;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full" aria-label="Modules per interval">
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={0} x2={W} y1={H * f} y2={H * f} stroke="#e5e8ec" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       ))}
-      {all.map((b, i) => {
-        const x = i * slot + (slot - bw) / 2;
-        const gh = (b.good / max) * H;
-        const rh = (b.rejected / max) * H;
-        const live = i === all.length - 1;
-        return (
-          <g key={i} opacity={live ? 0.55 : 1}>
-            <rect x={x} y={H - gh} width={bw} height={gh} rx={0.6} fill={PASSED} />
-            <rect x={x} y={H - gh - rh} width={bw} height={rh} rx={0.6} fill={FAILED} />
-          </g>
-        );
-      })}
+      {buckets.map((b, i) => bar(b, i, false))}
+      <rect
+        x={buckets.length * slot + (slot - bw) / 2}
+        y={H - fullH}
+        width={bw}
+        height={fullH}
+        rx={0.6}
+        fill="none"
+        stroke="#c5cad3"
+        strokeDasharray="3,3"
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+      {bar(current, buckets.length, true)}
     </svg>
   );
 }
