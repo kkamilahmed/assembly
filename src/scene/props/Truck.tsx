@@ -1,5 +1,7 @@
-// Goldcrust delivery truck: a cab-over box truck about 7.1 long. Origin at
-// the ground under its centre, length along x, cab at +x, roller door at -x.
+// Meridian refrigerated truck: a cab-over box truck about 7.1 long, with a
+// fridge unit on the front of the box so the tablets stay cold-chain from
+// the cold store to the wholesaler. Origin at the ground under its centre,
+// length along x, cab at +x, roller door at -x.
 import type { ThreeElements } from '@react-three/fiber';
 import { glow, matte, metal, PALETTE, plastic } from '@/scene/style';
 import { cyl, decal, mergedBoxes, quad, rbox, studioWhite, torus, wordmarkTexture, type BoxSpec } from './kit';
@@ -37,12 +39,12 @@ function grilleGeometry() {
 }
 
 export interface TruckProps extends GroupProps {
-  /** Cab paint. Defaults to the brand orange; PALETTE.white gives the
+  /** Cab paint. Defaults to the brand blue; PALETTE.white gives the
    *  second truck from the reference. */
   cabColor?: string;
 }
 
-export function Truck({ cabColor = PALETTE.orange, ...props }: TruckProps) {
+export function Truck({ cabColor = PALETTE.brand, ...props }: TruckProps) {
   const paint = plastic(studioWhite(cabColor, 0.5), 0.4);
   const white = plastic(PALETTE.offWhite, 0.36);
   const dark = plastic(PALETTE.graphite, 0.45);
@@ -61,6 +63,14 @@ export function Truck({ cabColor = PALETTE.orange, ...props }: TruckProps) {
 
   return (
     <group {...props}>
+      {/* ---- fridge unit, on the box front over the cab roof ---- */}
+      <Part g={rbox(0.3, 0.62, 1.86, 0.08, 3)} m={white} position={[BOX.x1 + 0.13, BOX.y0 + BOX.h - 0.42, 0]} />
+      <Part g={rbox(0.03, 0.4, 1.4, 0.015, 2)} m={dark} position={[BOX.x1 + 0.285, BOX.y0 + BOX.h - 0.44, 0]} />
+      {[-0.42, 0.42].map((z) => (
+        <Part key={z} g={cyl(0.15, 0.15, 0.02, 20)} m={black} position={[BOX.x1 + 0.3, BOX.y0 + BOX.h - 0.44, z]} rotation-z={HALF} />
+      ))}
+      <Part g={rbox(0.31, 0.06, 1.87, 0.02, 2)} m={paint} position={[BOX.x1 + 0.13, BOX.y0 + BOX.h - 0.12, 0]} />
+
       {/* ---- chassis ---- */}
       <Part g={rbox(6.5, 0.22, 0.86, 0.04, 2)} m={dark} position={[-0.1, 0.78, 0]} />
       {[FRONT_AXLE, ...REAR_AXLES].map((x) => (

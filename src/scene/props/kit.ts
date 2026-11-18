@@ -1,5 +1,5 @@
 // Shared building blocks for the yard props and the people: cached
-// geometries (so two hundred cartons share one box), the Goldcrust brand
+// geometries (so two hundred cartons share one box), the Meridian brand
 // textures drawn on canvases, and a small seeded random source.
 //
 // Everything here is created lazily and cached for the life of the page.
@@ -202,50 +202,53 @@ function roundText(c: CanvasRenderingContext2D, text: string, x: number, y: numb
   c.fillText(text, x, y);
 }
 
-/** The Goldcrust mark: a scored loaf rising over a baseline. */
-function drawLoafMark(c: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, cut: string) {
+/** The Meridian mark: a capsule on the diagonal, its two halves split by a
+ *  seam, centred on (x, y) in a box of `s`. */
+export function drawCapsuleMark(c: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, seam: string) {
   c.save();
   c.translate(x, y);
+  c.rotate(-Math.PI / 4);
+  const r = s * 0.2;
+  const half = s * 0.27;
   c.fillStyle = color;
   c.beginPath();
-  c.moveTo(-0.5 * s, 0.3 * s);
-  c.bezierCurveTo(-0.62 * s, -0.1 * s, -0.4 * s, -0.42 * s, 0, -0.42 * s);
-  c.bezierCurveTo(0.4 * s, -0.42 * s, 0.62 * s, -0.1 * s, 0.5 * s, 0.3 * s);
-  c.quadraticCurveTo(0.5 * s, 0.4 * s, 0.4 * s, 0.4 * s);
-  c.lineTo(-0.4 * s, 0.4 * s);
-  c.quadraticCurveTo(-0.5 * s, 0.4 * s, -0.5 * s, 0.3 * s);
+  c.moveTo(-half, -r);
+  c.lineTo(half, -r);
+  c.arc(half, 0, r, -Math.PI / 2, Math.PI / 2);
+  c.lineTo(-half, r);
+  c.arc(-half, 0, r, Math.PI / 2, -Math.PI / 2);
+  c.closePath();
   c.fill();
-  c.strokeStyle = cut;
-  c.lineWidth = 0.075 * s;
-  c.lineCap = 'round';
-  for (const dx of [-0.24, 0, 0.24]) {
-    c.beginPath();
-    c.moveTo((dx - 0.07) * s, 0.02 * s);
-    c.lineTo((dx + 0.07) * s, -0.22 * s);
-    c.stroke();
-  }
+  c.fillStyle = seam;
+  c.fillRect(-s * 0.025, -r * 1.05, s * 0.05, r * 2.1);
+  // A highlight along the upper half, so it reads as a glossy capsule.
+  c.globalAlpha = 0.35;
+  c.beginPath();
+  c.roundRect(half * 0.1, -r * 0.62, half * 0.95, r * 0.34, r * 0.17);
+  c.fill();
   c.restore();
 }
 
 let wordmarkTex: THREE.CanvasTexture | undefined;
-/** Truck-side wordmark: orange on transparent, 4:1. */
+/** Truck-side wordmark: brand blue on transparent, 4:1. */
 export function wordmarkTexture(): THREE.CanvasTexture {
   wordmarkTex ??= canvasTexture(2048, 512, (c) => {
-    drawLoafMark(c, 250, 250, 330, PALETTE.orange, '#ffffff');
-    roundText(c, 'Goldcrust', 480, 300, 290, PALETTE.orange, 4);
-    roundText(c, 'BAKERY', 492, 430, 92, PALETTE.orangeDeep, 34);
+    drawCapsuleMark(c, 250, 250, 380, PALETTE.brand, '#ffffff');
+    roundText(c, 'Meridian', 480, 300, 270, PALETTE.brand, 4);
+    roundText(c, 'PHARMA', 492, 430, 92, PALETTE.brandDeep, 34);
     // Thin rule that ties the two lines together.
-    c.fillStyle = PALETTE.orange;
+    c.fillStyle = PALETTE.brand;
     c.beginPath();
-    c.roundRect(1130, 390, 800, 14, 7);
+    c.roundRect(1140, 390, 760, 14, 7);
     c.fill();
   });
   return wordmarkTex;
 }
 
 let cartonTex: THREE.CanvasTexture | undefined;
-/** One carton face: printed handling marks in brown ink and a white
- *  shipping label with the logo and a barcode. Cut out with alphaTest. */
+/** One shipper carton face: printed handling marks, a cold-chain
+ *  thermometer mark and a white shipping label with the logo and a
+ *  barcode. Cut out with alphaTest. */
 export function cartonFaceTexture(): THREE.CanvasTexture {
   cartonTex ??= canvasTexture(512, 400, (c) => {
     const ink = '#7d552c';
@@ -264,15 +267,22 @@ export function cartonFaceTexture(): THREE.CanvasTexture {
       c.fill();
     }
     c.fillRect(30, 152, 160, 12);
+    // Keep-cool mark: a thermometer.
+    c.beginPath();
+    c.roundRect(98, 190, 24, 90, 12);
+    c.fill();
+    c.beginPath();
+    c.arc(110, 292, 22, 0, Math.PI * 2);
+    c.fill();
     // Printed brand line.
-    roundText(c, 'GOLDCRUST', 30, 350, 54, ink, 2);
+    roundText(c, 'MERIDIAN', 30, 360, 50, ink, 2);
     // Shipping label.
     c.fillStyle = '#fbfbfc';
     c.beginPath();
     c.roundRect(262, 150, 226, 226, 14);
     c.fill();
-    drawLoafMark(c, 312, 204, 74, PALETTE.orange, '#ffffff');
-    roundText(c, 'Goldcrust', 356, 218, 27, PALETTE.orange, 0);
+    drawCapsuleMark(c, 306, 200, 64, PALETTE.brand, '#ffffff');
+    roundText(c, 'Meridian', 342, 214, 27, PALETTE.brand, 0);
     c.fillStyle = '#c9ced6';
     c.fillRect(282, 250, 186, 10);
     c.fillRect(282, 270, 120, 10);
@@ -285,26 +295,6 @@ export function cartonFaceTexture(): THREE.CanvasTexture {
     });
   });
   return cartonTex;
-}
-
-let sackTex: THREE.CanvasTexture | undefined;
-/** Print on the top of a flour sack. */
-export function sackTexture(): THREE.CanvasTexture {
-  sackTex ??= canvasTexture(512, 320, (c) => {
-    c.fillStyle = PALETTE.blue;
-    c.beginPath();
-    c.roundRect(96, 60, 320, 200, 26);
-    c.fill();
-    c.fillStyle = '#fbfbfc';
-    c.beginPath();
-    c.roundRect(112, 76, 288, 168, 16);
-    c.fill();
-    drawLoafMark(c, 256, 130, 86, PALETTE.orange, '#ffffff');
-    c.textAlign = 'center';
-    roundText(c, 'FLOUR', 256, 222, 58, PALETTE.blueDeep, 6);
-    c.textAlign = 'left';
-  });
-  return sackTex;
 }
 
 const decalCache = new Map<string, THREE.MeshStandardMaterial>();

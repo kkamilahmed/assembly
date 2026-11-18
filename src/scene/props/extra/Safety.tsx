@@ -48,7 +48,7 @@ function stanchionGeometry() {
   ]);
 }
 
-/** Retractable belt barrier: posts at each point, an orange belt between
+/** Retractable belt barrier: posts at each point, a blue belt between
  *  neighbours. */
 export function BarrierRun({ points, ...props }: GroupProps & { points: Array<[number, number]> }) {
   const { posts, heads, belts } = useMemo(() => {
@@ -65,9 +65,9 @@ export function BarrierRun({ points, ...props }: GroupProps & { points: Array<[n
   return (
     <group {...props}>
       <Instances g={stanchionGeometry()} m={plastic(PALETTE.graphite, 0.4)} matrices={posts} />
-      <Instances g={cyl(0.045, 0.045, 0.1, 16)} m={plastic(PALETTE.orange, 0.4)} matrices={heads} />
+      <Instances g={cyl(0.045, 0.045, 0.1, 16)} m={plastic(PALETTE.brand, 0.4)} matrices={heads} />
       {belts.map((b, i) => (
-        <Part key={i} g={rbox(b.len, 0.055, 0.008, 0.003, 1)} m={matte(PALETTE.orange, 0.6)} position={b.pos} rotation-y={b.yaw} />
+        <Part key={i} g={rbox(b.len, 0.055, 0.008, 0.003, 1)} m={matte(PALETTE.brand, 0.6)} position={b.pos} rotation-y={b.yaw} />
       ))}
     </group>
   );

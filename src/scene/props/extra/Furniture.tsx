@@ -1,4 +1,4 @@
-// Stainless furniture for the bakery floor: work tables, a utility cart, a
+// Stainless furniture for the clean room: work tables, a utility cart, a
 // handwash station and the weighing scales. Origins are at the footprint
 // centre on the ground.
 import type { ThreeElements } from '@react-three/fiber';
@@ -85,7 +85,7 @@ export function HandwashStation(props: GroupProps) {
       {/* Knee paddle, soap, sanitiser and a towel dispenser. */}
       <Part g={rbox(0.03, 0.22, 0.3, 0.012, 2)} m={blue} position={[0.262, 0.5, -0.08]} />
       <Part g={rbox(0.09, 0.2, 0.11, 0.03, 3)} m={blue} position={[-0.19, 1.2, 0.3]} />
-      <Part g={rbox(0.09, 0.2, 0.11, 0.03, 3)} m={plastic(PALETTE.orange, 0.36)} position={[-0.19, 1.2, 0.14]} />
+      <Part g={rbox(0.09, 0.2, 0.11, 0.03, 3)} m={plastic(PALETTE.brand, 0.36)} position={[-0.19, 1.2, 0.14]} />
       <Part g={rbox(0.12, 0.26, 0.3, 0.035, 3)} m={plastic(WHITE, 0.4)} position={[-0.18, 1.36, -0.2]} />
       {/* "Wash your hands" sign above. */}
       <Part g={rbox(0.03, 0.2, 0.5, 0.012, 2)} m={blue} position={[-0.25, 1.72, 0]} />

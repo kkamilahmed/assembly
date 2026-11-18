@@ -1,6 +1,8 @@
-// A bakery worker in food-plant whites: white jacket, hairnet, blue nitrile
-// gloves, dark trousers, white safety boots. About 1.75 m tall, origin on the
-// ground between the feet, facing +x.
+// A worker on the tablet line. Inside the clean room: a white gown over
+// white trousers, a bouffant hood, a face mask, blue nitrile gloves and
+// overshoes. Out in the yard (`vest`): dark trousers, white boots, a cap and
+// a hi-vis vest. About 1.75 m tall, origin on the ground between the feet,
+// facing +x.
 //
 // The figure is posed by targets rather than joint angles: each pose says
 // where the hands and feet are, and a two-bone solver bends the elbows and
@@ -9,10 +11,10 @@
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
 import { useFrame, type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
-import { glow, matte, PALETTE, plastic } from '@/scene/style';
+import { glow, matte, metal, PALETTE, plastic } from '@/scene/style';
 import { capsule, cyl, dome, lathe, limb, rbox, rng, sphere, studioWhite, torus } from './kit';
-import { crustMaterial, LOAF, loafGeometry, loafScoreGeometry, scoreMaterial } from './loaf';
-import { Instances, Part } from './Part';
+import { Part } from './Part';
+import { trayParts } from './tablet';
 import { Carton } from './Stock';
 import { mergeRigidChildren, unmerge } from '@/scene/mergeMeshes';
 import { useGait } from './gait';
@@ -29,8 +31,10 @@ export interface WorkerProps extends GroupProps {
   pose?: WorkerPose;
   /** Index into PALETTE.skinTones. */
   skin?: number;
-  /** Orange hi-vis vest over the whites (yard and forklift staff). */
+  /** Yard staff: orange hi-vis vest, dark trousers and boots, no gown. */
   vest?: boolean;
+  /** A 'tablet' worker holds a clipboard instead of a tablet computer. */
+  clipboard?: boolean;
   /** Varies height, hair, headwear and animation phase. */
   seed?: number;
   /** What a 'carry' worker holds. */
@@ -186,22 +190,7 @@ const band = (y0: number, y1: number): Array<[number, number]> => [
   [jacketR(y0) + 0.02, y0], [jacketR((y0 + y1) / 2) + 0.02, (y0 + y1) / 2], [jacketR(y1) + 0.02, y1],
 ];
 
-let trayLoaves: THREE.Matrix4[] | undefined;
-function trayLoafMatrices(): THREE.Matrix4[] {
-  if (!trayLoaves) {
-    trayLoaves = [];
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
-    const s = new THREE.Vector3(1, 1, 1);
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 2; j++) {
-        trayLoaves.push(new THREE.Matrix4().compose(new THREE.Vector3((i - 1) * 0.13, 0.012, (j - 0.5) * (LOAF.l + 0.02)), q, s));
-      }
-    }
-  }
-  return trayLoaves;
-}
-
-export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carrying = 'box', ...props }: WorkerProps) {
+export function Worker({ pose = 'stand', skin = 0, vest = false, clipboard = false, seed = 1, carrying = 'box', ...props }: WorkerProps) {
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Group>(null);
@@ -239,7 +228,7 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
     if (!r) return;
     const made = mergeRigidChildren(r);
     return () => unmerge(r, made);
-  }, [pose, vest, carrying, seed]);
+  }, [pose, vest, clipboard, carrying, seed]);
 
   const key =
     pose === 'carry' || pose === 'walkCarry' ? (carrying === 'tray' ? 'carryTray' : 'carryBox') : pose === 'walkPush' ? 'push' : pose;
@@ -361,12 +350,14 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
 
   const skinMat = matte(PALETTE.skinTones[skin % PALETTE.skinTones.length], 0.62);
   const coat = matte(WHITES, 0.72);
-  const trousers = matte(PALETTE.trousers, 0.8);
+  const gowned = !vest;
+  const trousers = gowned ? matte(WHITES, 0.75) : matte(PALETTE.trousers, 0.8);
   const glove = plastic(PALETTE.glove, 0.45);
-  const boot = matte(WHITES, 0.5);
+  const boot = gowned ? matte(PALETTE.overshoe, 0.7) : matte(WHITES, 0.5);
+  const mask = matte(PALETTE.mask, 0.7);
   const sole = matte(PALETTE.steelDark, 0.8);
   const hair = matte(look.hair, 0.85);
-  const net = look.visorCap ? matte(WHITES, 0.7) : matte(PALETTE.hairnet, 0.6);
+  const net = gowned ? matte(studioWhite(PALETTE.hood, 0.86), 0.8) : look.visorCap ? matte(WHITES, 0.7) : matte(PALETTE.hairnet, 0.6);
   const dark = matte('#1c1d21', 0.5);
   const hiVis = matte(PALETTE.orange, 0.7);
   const reflective = matte('#e9edf0', 0.35);
@@ -453,14 +444,32 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
                       <Part g={rbox(0.008, 0.005, 0.03, 0.002, 1)} m={hair} position={[0.097, 0.05, s * 0.039]} castShadow={false} />
                     </group>
                   ))}
-                  {/* Hair shows at the forehead, temples and nape under the net. */}
-                  <Part g={dome(0.112, Math.PI * 0.5)} m={hair} position={[-0.004, 0.006, 0]} rotation-z={0.42} scale={[1, 1.12, 0.93]} />
-                  <group position={[-0.016, 0.012, 0]} rotation-z={0.4}>
-                    <Part g={dome(0.121, Math.PI * 0.46)} m={net} scale={[1.06, 0.97, 0.98]} />
-                    <Part g={torus(0.12, 0.0055, 24)} m={net} position-y={0.015} rotation-x={Math.PI / 2} scale={[1.06, 0.98, 1]} />
-                  </group>
-                  {look.visorCap && (
-                    <Part g={cyl(0.085, 0.085, 0.012, 20)} m={net} position={[0.088, 0.062, 0]} rotation-z={-0.12} scale={[1, 1, 1.05]} />
+                  {gowned ? (
+                    <>
+                      {/* Bouffant hood: covers the hair, ears and nape, with
+                          its elastic edge across the forehead. */}
+                      <group position={[-0.02, 0.0, 0]} rotation-z={0.5}>
+                        <Part g={dome(0.13, Math.PI * 0.58)} m={net} scale={[1.08, 1.02, 1.04]} />
+                        <Part g={torus(0.126, 0.008, 24)} m={net} position-y={-0.032} rotation-x={Math.PI / 2} scale={[1.08, 1.04, 1]} />
+                      </group>
+                      {/* Face mask over the nose and mouth. */}
+                      <Part g={sphere(0.1, 18, 10)} m={mask} position={[0.03, -0.05, 0]} scale={[0.86, 0.62, 0.92]} castShadow={false} />
+                      {[1, -1].map((s) => (
+                        <Part key={s} g={torus(0.05, 0.004, 12)} m={mask} position={[-0.01, -0.02, s * 0.095]} scale={[1, 0.7, 1]} castShadow={false} />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {/* Hair shows at the forehead, temples and nape under the net. */}
+                      <Part g={dome(0.112, Math.PI * 0.5)} m={hair} position={[-0.004, 0.006, 0]} rotation-z={0.42} scale={[1, 1.12, 0.93]} />
+                      <group position={[-0.016, 0.012, 0]} rotation-z={0.4}>
+                        <Part g={dome(0.121, Math.PI * 0.46)} m={net} scale={[1.06, 0.97, 0.98]} />
+                        <Part g={torus(0.12, 0.0055, 24)} m={net} position-y={0.015} rotation-x={Math.PI / 2} scale={[1.06, 0.98, 1]} />
+                      </group>
+                      {look.visorCap && (
+                        <Part g={cyl(0.085, 0.085, 0.012, 20)} m={net} position={[0.088, 0.062, 0]} rotation-z={-0.12} scale={[1, 1, 1.05]} />
+                      )}
+                    </>
                   )}
                 </group>
               </group>
@@ -468,18 +477,25 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, seed = 1, carry
               {arm(armR, foreR, handR)}
               {arm(armL, foreL, handL)}
 
-              {pose === 'tablet' && (
+              {pose === 'tablet' && !clipboard && (
                 <group position={[0.275, 1.118, -0.025]} rotation={[0, 0.12, 0.6]}>
                   <Part g={rbox(0.25, 0.014, 0.18, 0.007, 2)} m={plastic(PALETTE.graphite, 0.35)} />
                   <mesh geometry={rbox(0.226, 0.004, 0.156, 0.002, 1)} material={glow('#cfe1ff', 0.55)} position-y={0.008} />
                 </group>
               )}
+              {pose === 'tablet' && clipboard && (
+                <group position={[0.275, 1.118, -0.025]} rotation={[0, 0.12, 0.6]}>
+                  <Part g={rbox(0.3, 0.01, 0.22, 0.005, 2)} m={plastic(PALETTE.brand, 0.4)} />
+                  <Part g={rbox(0.26, 0.004, 0.19, 0.002, 1)} m={matte(WHITES, 0.8)} position-y={0.007} castShadow={false} />
+                  <Part g={rbox(0.04, 0.012, 0.08, 0.004, 1)} m={metal(PALETTE.steel, 0.3)} position={[0.13, 0.01, 0]} castShadow={false} />
+                </group>
+              )}
               {key === 'carryBox' && <Carton size={[0.36, 0.3, 0.44]} position={[0.31, 0.955, 0]} />}
               {key === 'carryTray' && (
-                <group position={[0.37, 1.045, 0]}>
-                  <Part g={rbox(0.42, 0.022, 0.62, 0.01, 2)} m={plastic(PALETTE.steelDark, 0.45)} />
-                  <Instances g={loafGeometry()} m={crustMaterial()} matrices={trayLoafMatrices()} />
-                  <Instances g={loafScoreGeometry()} m={scoreMaterial()} matrices={trayLoafMatrices()} shadows={false} />
+                <group position={[0.37, 1.03, 0]} rotation-y={Math.PI / 2} scale={1.3}>
+                  {trayParts().map((p, i) => (
+                    <Part key={i} g={p.g} m={p.m} castShadow={i === 0} />
+                  ))}
                 </group>
               )}
             </group>

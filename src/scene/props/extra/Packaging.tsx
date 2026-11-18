@@ -1,10 +1,11 @@
-// Packaging materials on pallets: rolls of bag film, bundles of flat-packed
+// Packaging materials on pallets: rolls of PVC and lidding foil for the
+// blister packer, bundles of flat-packed
 // cartons and a stack of empty pallets. Origins are at the footprint centre
 // on the ground; the pallet's long side is on x.
 import { useMemo } from 'react';
 import type { ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
-import { matte, PALETTE, plastic } from '@/scene/style';
+import { matte, metal, PALETTE, plastic } from '@/scene/style';
 import { cyl, lathe, mergedBoxes, rbox, rng, studioWhite, type BoxSpec } from '@/scene/props/kit';
 import { Instances, Part } from '@/scene/props/Part';
 import { PalletInstances } from '@/scene/props/Stock';
@@ -19,8 +20,8 @@ function rollGeometry() {
   return lathe('filmRoll', [[0.062, 0], [r - 0.02, 0], [r, 0.02], [r, h - 0.02], [r - 0.02, h], [0.062, h]], 28);
 }
 
-/** Rolls of bag film standing on a pallet: a layer of six clear rolls, a
- *  slip sheet, then `top` printed rolls on the second layer. */
+/** Blister materials standing on a pallet: a layer of six white PVC rolls,
+ *  a slip sheet, then `top` rolls of aluminium lidding foil. */
 export function FilmRollPallet({ top = 3, ...props }: GroupProps & { top?: number }) {
   const { lower, upper } = useMemo(() => {
     const lower: THREE.Matrix4[] = [];
@@ -38,7 +39,7 @@ export function FilmRollPallet({ top = 3, ...props }: GroupProps & { top?: numbe
     <group {...props}>
       <PalletInstances matrices={pallet} />
       <Instances g={rollGeometry()} m={plastic(studioWhite(PALETTE.offWhite, 0.72), 0.16)} matrices={lower} />
-      <Instances g={rollGeometry()} m={plastic(PALETTE.orange, 0.2)} matrices={upper} />
+      <Instances g={rollGeometry()} m={metal(PALETTE.foil, 0.3)} matrices={upper} />
       {/* Cardboard cores, with a dark cap that reads as the hollow. */}
       <Instances g={cyl(0.066, 0.066, ROLL.h + 0.006, 18)} m={matte(PALETTE.cardboard, 0.8)} matrices={cores} shadows={false} />
       <Instances g={cyl(0.05, 0.05, ROLL.h + 0.01, 16)} m={matte(PALETTE.rubber, 0.9)} matrices={cores} shadows={false} />
