@@ -1,10 +1,11 @@
-# Goldcrust Bakery - Real-Time Line Monitor
+# Meridian Pharma - Real-Time Tablet Line Monitor
 
-A React Three Fiber demo of a bakery production line, driven by a **simulated** Kafka + Flink streaming pipeline and drawn as an isometric 3D illustration.
-Dough is mixed, baked in a tunnel oven, scored by vision inspection, and packed into cartons that leave on trucks.
-The presenter knocks the oven off its setpoint from the keyboard, shows on the machines screen what the stream says is wrong, shows on the plant floor what it is costing, stops the line, fixes it, and then lets the line fix itself.
+A React Three Fiber demo of a pharmaceutical tablet line, driven by a **simulated** Kafka + Flink streaming pipeline and drawn as an isometric 3D illustration.
+Tablet Line 2 makes blood pressure tablets, 120,000 an hour.
+Powder is blended, compressed into tablets on press P-2, film-coated in a coating drum, weighed and photographed at inspection, sealed into blister cards and cartoned, and the cartons go to the cold store and out on refrigerated trucks.
+The presenter knocks the press out of calibration from the keyboard, shows on the dashboard what it is doing to the batch, shows on the machines screen which machine is doing it and why, stops the line, fixes it, and then lets the line fix itself.
 
-This branch (`food-processing`) is the food-industry version of the car body-shop demo on `main`.
+This branch (`healthcare`) is the pharmaceutical version of the bakery demo on `food-processing`.
 The story and controls are the same.
 
 ## Quick start
@@ -22,18 +23,18 @@ Drag to pan and scroll to zoom; the view never rotates off the isometric angle.
 Three screens, left to right: **Machines | Plant | Dashboard**. The arrow keys walk between them and the app opens on the plant.
 The plant shows the line, the dashboard shows what it is producing (the effect), and the machines screen shows which machine is doing it and why (the cause).
 
-The moral: because every reading is analysed as it streams, you can stop the line the moment something goes wrong and fix it, instead of finding out at the end-of-shift audit after thousands of burnt loaves.
+The moral: because every tray is weighed and every sensor analysed as it streams, you can stop the press the moment it starts underdosing and quarantine a few minutes of output, instead of finding out at batch release and recalling two million tablets.
 
 | Beat | Do | What the room sees |
 |---|---|---|
-| 1. The plant | Nothing. Talk. | Dough drops from the mixer, rises and browns through the glowing tunnel oven, passes the vision gantry and is packed into cartons. |
-| 2. Something drifts | `D` | The oven starts running hot. On the plant, loaves come out darker and the reject pusher starts kicking them into the red bin. |
-| 3. The effect | `→` Dashboard | "Burnt loaves rising: 15 of the last 31 came out burnt", the output bars turning red, browning over the limit, and "If nothing changes, by end of shift: ≈14,000 kg of dough wasted". |
-| 4. The cause | `←` `←` Machines | The oven card is highlighted: zone 2 temperature and burner output over their limits. "Running over setpoint, over-baking loaves. Recommended: stop line, recalibrate oven." |
-| 5. Stop and fix | `S`, then `C` | The line stops; the stop report shows how fast it was caught and what waiting would have cost. Recalibrating puts the oven back on setpoint. |
-| 6. Back to the line | `→` Plant, `A` | Autopilot restarts the line. Press `D` or `E` again: the stream flags the drift and the oven is put back on setpoint well under a second after detection. |
+| 1. The plant | Nothing. Talk. | Staff in gowns, hoods and masks run the clean room. The press turns, trays of white tablets ride through the coating drum, past the inspection camera, into the blister packer, and come out as foil cards on their way to the cartoner. |
+| 2. Something drifts | `D` | Press P-2's fill depth starts to drift. On the plant the tablets come out thinner, inspection turns underweight trays red and the gate diverts them into the reject bin. |
+| 3. The effect | `→` Dashboard | "Tablets underdosed", the out-of-spec share of the batch rising, 2.0M tablets at risk, a $420k recall, "patients would get up to 8% less medicine than prescribed", tablet weight sliding through the 245 mg lower limit, the output bars turning red. |
+| 4. The cause | `←` `←` Machines | The press card is flagged: fill depth drifting, compression force down 11%, punch 14 worn. "Recommended: stop line, recalibrate fill depth." |
+| 5. Stop and fix | `S`, then `C` | The line stops and the last 10 minutes of output are quarantined; the stop report shows how fast it was caught and what it avoided. Recalibrating puts the fill depth, and the tablet weight, back on target. |
+| 6. Back to the line | `→` Plant, `A` | Autopilot restarts the line. Press `D` or `E` again: the stream flags the press and the autopilot holds tablet weight on target well under a second after detection. |
 
-`E` is the emergency version of `D`: a burner runaway, and every loaf burns.
+`E` is the emergency version of `D`: a pressure spike, the press starts jamming, and every tray is badly underweight.
 
 Nothing happens on its own; the line stays healthy until a key is pressed.
 Only operator actions (Stop, Recalibrate, Autopilot) are on screen, so the audience never sees a "break it" button.
@@ -42,10 +43,10 @@ Only operator actions (Stop, Recalibrate, Autopilot) are on screen, so the audie
 
 | Key | Action |
 |---|---|
-| `D` | Slight deviation: oven zone 2 running hot |
-| `E` | Emergency: oven burner runaway |
-| `S` | Stop / start the line |
-| `C` | Recalibrate the oven |
+| `D` | Slight deviation: press P-2 fill depth drifting |
+| `E` | Emergency: pressure spike, press jamming |
+| `S` | Stop / start the line (stopping quarantines the last 10 minutes) |
+| `C` | Recalibrate the press fill depth |
 | `A` | Run on autopilot (press again to turn it off) |
 | `←` / `→` | Move between Machines, Plant, Dashboard |
 | `F` | Manual sensor fault-injection panel (machines screen) |
@@ -55,41 +56,45 @@ Only operator actions (Stop, Recalibrate, Autopilot) are on screen, so the audie
 
 ## How the fault is modelled
 
-**The bake.**
-Each loaf is baked at whatever the oven is doing as it leaves the tunnel, and vision inspection scores its crust browning against a target of 50 with a tolerance of 8 (`streaming/lineConfig.ts`).
-A slight drift sits just past the tolerance, so about one loaf in three still passes; an emergency burns everything.
-Loaf colour on the belt is drawn from the same number, so what the camera sees is what the inspection measured.
+**The weight.**
+Each tray of 24 tablets is pressed at whatever weight the press is making as it fills, and inspection weighs a sample from it against a label claim of 250 mg with a tolerance of 5 mg (`streaming/lineConfig.ts`).
+A slight drift slides the weight through the 245 mg lower limit and keeps going, to 8% under the label claim if nobody acts; an emergency drops it further, fast.
+The tablets on the belt are drawn thinner from the same number, so what you see on the belt is what inspection measured.
 
-**The oven's own sensors.**
-A drift also moves the oven's zone temperature and burner output (`SENSOR_SIGNATURE` in `state/storyDirector.ts`).
-Those stream every 0.9 s, which is why the machines screen reacts before the first over-baked loaf reaches the camera.
+**The press's own sensors.**
+A drift also moves the press's fill depth and compression force down (and, in an emergency, spikes its ejection force) (`SENSOR_SIGNATURE` in `state/storyDirector.ts`).
+Those stream every 0.9 s, which is why the machines screen reacts before the first underweight tray reaches inspection.
+Channels can fail upward or downward (`low` in `streaming/sensorStream.ts`).
 
 **Detection and autopilot act on the data, not on the script.**
-"Detected" is stamped the first time the oven's combined condition (worst of its browning trend and its sensors, `machineSeverity` in `state/store.ts`) leaves healthy, and the autopilot waits for that same condition.
+"Detected" is stamped the first time the press's combined condition (worst of its weight trend and its sensors, `machineSeverity` in `state/store.ts`) leaves healthy, and the autopilot waits for that same condition.
 
-**Every number on screen is measured.**
+**Every timing on screen is measured.**
 The stop report and the autopilot summary come from timestamps taken as things happened.
-The end-of-shift projection converts the measured reject rate using the illustrative figures in `ui/businessCase.ts` (4,000 loaves an hour, an 8-hour shift, $1.20 per rejected loaf); set them to a customer's numbers before a talk.
+The out-of-spec share and the "up to X% less medicine" figure come from the trays weighed.
+Batch size, recall cost and the quarantine window are illustrative figures in `ui/businessCase.ts` (120,000 tablets an hour, a 2.0M tablet batch, a $420k recall, 10 minutes quarantined); set them to a customer's numbers before a talk.
 
 ## Presenter settings
 
 - `?speed=2` runs the line and the fault at 2x, clamped to 0.5-3x.
-- Bake noise is seeded (`presenter/rng.ts`) and reseeded on reset, so a rehearsal reproduces on stage. `?seed=1234` picks another seed, `?seed=random` opts out.
-- `?still=1&shot=S01` (or `S02`) renders the scene alone, full window, with no UI. Used for screenshots.
+- Weight noise is seeded (`presenter/rng.ts`) and reseeded on reset, so a rehearsal reproduces on stage. `?seed=1234` picks another seed, `?seed=random` opts out.
+- `?still=1&shot=S01` (or `S02`) renders the scene alone, full window, with no UI. Used for screenshots. `&target=x,y,z&zoom=n` frames a close-up.
 
 ## Architecture
 
 ```
 src/
-  streaming/   LineProducer (loaves on the belt), DriftAnalyzer (Flink-style
-               inspection + windowed browning trend), SensorStream
+  streaming/   LineProducer (trays on the belt), DriftAnalyzer (Flink-style
+               inspection + windowed weight trend), SensorStream
                (per-machine sensors) - pure logic, no React/Three
   state/       store.ts (Zustand), engine.ts (the one file that wires
                streaming -> store), storyDirector.ts (presenter controls
                and the autopilot)
   scene/       Stage (iso camera, light, post FX), layout, Diorama (slab,
-               walls, floor paint), machines/, props/, ui3d/ (status
-               tags, brand sign), Loaves (instanced), Line, Yard, Dressing
+               walls, glazing, airlock, compression suite, floor paint),
+               machines/, props/, ui3d/ (status tags, brand sign),
+               Tablets (instanced trays and blister cards), Line, Yard,
+               Dressing
   ui/          Top bar, action bar, overlays, machines and dashboard screens
   sandbox/     Dev-only page for building one scene part in isolation:
                /sandbox.html?part=<name>
@@ -106,5 +111,6 @@ Replacing the simulators means replacing the `LineProducer` / `DriftAnalyzer` / 
 ## Known limitations
 
 - Visual quality was tuned in headless software rendering; check frame rate on the presenting machine before a talk.
-- Workers are about 45 meshes each without instancing; fine for the ~20 on screen.
+- Workers are about 45 meshes each without instancing; fine for the ~25 on screen.
+- The machines screen runs six small WebGL canvases at once; under headless software rendering screenshots of it are slow.
 - Under headless software rendering, resizing any WebGL canvas stalls the main thread for seconds. The machines screen keeps a fixed layout for this reason.
