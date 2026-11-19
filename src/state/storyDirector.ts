@@ -18,6 +18,7 @@ import type { AttackConfig } from '@/streaming/PaymentProducer';
 import {
   ATTACK,
   ATTACK_FADE_MS,
+  ATTACK_HOLD_MS,
   ATTACK_RAMP_MS,
   PROBLEM_SOURCE_ID,
   SOURCE_LABELS,
@@ -112,8 +113,13 @@ export function recalibrate(by: 'analyst' | 'autopilot' = 'analyst') {
   const store = useStore.getState();
   store.clearInjections('scenario');
   recalibrateNetwork();
-  if (current.perSec > 0) current = { ...current, perSec: Math.max(current.perSec, target.perSec) };
-  rampAttack({ ...current, takeoverShare: 0, perSec: 0 }, ATTACK_FADE_MS);
+  clearRamp();
+  if (current.perSec > 0) {
+    // Full strength for a few seconds, then tapering off as they notice.
+    current = { ...current, takeoverShare: 0, perSec: Math.max(current.perSec, target.perSec) };
+    setAttack(current);
+    rampTimers.push(window.setTimeout(() => rampAttack({ ...current, perSec: 0 }, ATTACK_FADE_MS), ATTACK_HOLD_MS));
+  }
   store.markRecalibrated(PROBLEM_SOURCE_ID, Date.now(), by);
 }
 

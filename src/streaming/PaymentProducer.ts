@@ -113,9 +113,13 @@ export class PaymentProducer {
   }
 
   setAttack(attack: AttackConfig) {
+    const now = Date.now();
     const starting = this.attack.perSec <= 0 && attack.perSec > 0;
     this.attack = attack;
-    if (starting) this.nextAttackAt = Date.now();
+    if (starting) this.nextAttackAt = now;
+    // A rate that just went up must not wait out the slow interval it
+    // replaced.
+    else if (attack.perSec > 0.05) this.nextAttackAt = Math.min(this.nextAttackAt, now + scaleMs(1000 / attack.perSec));
   }
 
   setRulesHold(hold: boolean) {

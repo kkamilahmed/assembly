@@ -44,16 +44,18 @@ export const CARDHOLDER_CITIES: ReadonlyArray<readonly [number, number]> = [
   [51.51, -0.13], [19.43, -99.13], [-23.55, -46.63], [43.65, -79.38], [34.05, -118.24], [25.76, -80.19],
   [48.86, 2.35], [52.52, 13.4], [40.42, -3.7], [29.76, -95.37], [47.61, -122.33], [-34.6, -58.38],
   [4.71, -74.07], [45.5, -73.57], [41.88, -87.63], [39.95, -75.17], [42.36, -71.06], [33.75, -84.39],
-  [32.78, -96.8], [37.77, -122.42], [18.47, -66.11], [53.35, -6.26], [38.72, -9.14], [35.68, 139.69],
+  [32.78, -96.8], [37.77, -122.42], [18.47, -66.11], [53.35, -6.26], [38.72, -9.14], [-33.45, -70.67],
 ];
 
 /** Where card testers and stolen logins send from. The first eight carry a
- *  slight attack; an emergency comes from all of them. */
+ *  slight attack; an emergency comes from all of them. Kept to places whose
+ *  flights to New York and Chicago arc where the resting view can see
+ *  them, not flat across the far side of the globe. */
 export const ATTACKER_CITIES: ReadonlyArray<readonly [number, number]> = [
-  [55.76, 37.62], [6.52, 3.38], [19.08, 72.88], [1.35, 103.82], [14.6, 120.98], [44.43, 26.1],
-  [50.45, 30.52], [-6.21, 106.85], [30.04, 31.24], [10.82, 106.63], [-33.92, 18.42], [39.93, 32.86],
-  [52.23, 21.01], [13.76, 100.5], [24.86, 67.0], [-1.29, 36.82], [22.32, 114.17], [41.01, 28.98],
-  [-12.05, -77.04], [9.93, -84.08], [33.57, -7.59], [23.81, 90.41], [59.44, 24.75], [-37.81, 144.96],
+  [55.76, 37.62], [6.52, 3.38], [50.45, 30.52], [44.43, 26.1], [30.04, 31.24], [41.01, 28.98],
+  [52.23, 21.01], [10.48, -66.9], [53.9, 27.57], [5.6, -0.19], [36.8, 10.18], [44.79, 20.45],
+  [56.95, 24.1], [59.44, 24.75], [39.93, 32.86], [33.57, -7.59], [-0.18, -78.47], [18.49, -69.93],
+  [-12.05, -77.04], [9.93, -84.08], [8.98, -79.52], [41.72, 44.79], [14.69, -17.45], [55.75, 49.12],
 ];
 
 /** The production rule the attack slips under, and what recalibrating fits
@@ -140,8 +142,10 @@ export const TAKEOVER_RISK = 62;
 /** How long an attack takes to build. Card testing creeps in, a takeover
  *  wave arrives all at once. */
 export const ATTACK_RAMP_MS = { slight: scaleMs(12000), emergency: scaleMs(1500) } as const;
-/** Once every test charge is declined the testers give up, over this long. */
-export const ATTACK_FADE_MS = scaleMs(8000);
+/** Once the rule is refit the testers keep firing at full strength for a
+ *  while (they cannot see the declines yet), then give up over FADE. */
+export const ATTACK_HOLD_MS = scaleMs(5000);
+export const ATTACK_FADE_MS = scaleMs(5000);
 
 /** Control limits on the windowed mean risk (over baseline) of the charges
  *  a source gets approved. Slight lands in warning, emergency in critical. */
