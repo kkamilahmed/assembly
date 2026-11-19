@@ -13,8 +13,9 @@ export function latLon(lat: number, lon: number, r = 1, out = new THREE.Vector3(
 
 /**
  * A great-circle flight from `a` to `b` (unit vectors) that rises off the
- * surface in the middle: higher the further it goes, so long hauls arc well
- * clear of the globe and short hops stay low.
+ * surface in the middle: higher the further it goes, and disproportionately
+ * so, so long hauls arc well clear of the globe and read as arcs rather
+ * than flat lines, while short hops stay low.
  */
 export class Flight {
   readonly a: THREE.Vector3;
@@ -28,7 +29,7 @@ export class Flight {
     this.b = b.clone().normalize();
     this.omega = Math.acos(THREE.MathUtils.clamp(this.a.dot(this.b), -1, 1));
     this.sinOmega = Math.sin(this.omega);
-    this.lift = 0.05 + 0.42 * (this.omega / Math.PI);
+    this.lift = 0.05 + 0.75 * Math.pow(this.omega / Math.PI, 1.5);
   }
 
   /** The point `t` (0-1) of the way along, written into `out`. */
