@@ -5,6 +5,7 @@ import { OUTCOME_HEX, STATUS_HEX } from './colors';
 import { fmtUsd } from './format';
 import { Kbd } from './Kbd';
 import { useTrafficHistory, type Bucket } from './trafficHistory';
+import { AnalystOnShift, IncidentTimeline } from './Shift';
 import { ViewNav } from './ViewNav';
 import type { View } from './views';
 
@@ -37,6 +38,9 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
           <div className="text-sm font-semibold">Dashboard · Northgate Payments</div>
           <div className="text-xs text-[var(--text-secondary)]">What the network is approving, live</div>
         </div>
+        <div className="ml-6">
+          <AnalystOnShift />
+        </div>
         <div className="ml-auto">
           <ViewNav view={view} onChange={onNavigate} />
         </div>
@@ -61,7 +65,7 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
           />
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-3 gap-4">
+        <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
           <Card
             className="col-span-2"
             title="Payments through the hub"
@@ -76,6 +80,7 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
           <Card title="Fraud getting through" legend={[['Limit', FRAUD]]}>
             <RateChart rates={rates} />
           </Card>
+          <IncidentTimeline />
         </div>
       </div>
     </div>

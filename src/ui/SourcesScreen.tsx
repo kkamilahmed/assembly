@@ -14,7 +14,8 @@ import { packetsToCharges } from './businessCase';
 import { STATUS_HEX } from './colors';
 import { FaultInjectionPanel } from './FaultInjectionPanel';
 import { Kbd } from './Kbd';
-import { SignalCard, SourcePreviewCard } from './SourceCard';
+import { AnalystOnShift, IncidentTimeline } from './Shift';
+import { SignalCard, SourceIdentityCard } from './SourceCard';
 import { ViewNav } from './ViewNav';
 import type { View } from './views';
 
@@ -23,7 +24,7 @@ import type { View } from './views';
  *  what the readings add up to. This is where the story finds the cause:
  *  the dashboard has shown fraud losses climbing, and this screen shows
  *  which merchant it is coming from and which rule is letting it through. */
-export function SourcesScreen({ active, view, onNavigate }: { active: boolean; view: View; onNavigate: (v: View) => void }) {
+export function SourcesScreen({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
   const faultPanelOpen = useStore((s) => s.faultPanelOpen);
   const setFaultPanelOpen = useStore((s) => s.setFaultPanelOpen);
   const manualInjections = useStore((s) => s.injections.filter((i) => i.source === 'manual').length);
@@ -34,6 +35,9 @@ export function SourcesScreen({ active, view, onNavigate }: { active: boolean; v
         <div>
           <div className="text-sm font-semibold">Sources &amp; rules · Northgate Payments</div>
           <div className="text-xs text-[var(--text-secondary)]">Live signals from every source, and the rules that judge them</div>
+        </div>
+        <div className="ml-6">
+          <AnalystOnShift />
         </div>
         <div className="ml-auto">
           <ViewNav view={view} onChange={onNavigate} />
@@ -66,20 +70,18 @@ export function SourcesScreen({ active, view, onNavigate }: { active: boolean; v
           className="scroll-thin flex h-full flex-col gap-4 overflow-y-auto p-4 transition-[padding] duration-300 ease-out"
           style={{ paddingLeft: faultPanelOpen ? '21.5rem' : undefined }}
         >
-          {/* Fixed height in every state. The strip growing from one line to
-              a full diagnosis used to shrink the preview cards below it,
-              which resized all four WebGL canvases at once: a visible jump
-              mid-presentation, and a multi-second main-thread stall on a
-              slow GPU that delayed everything else on the network. */}
+          {/* Fixed height in every state, so the cards below never jump as
+              the diagnosis grows from one line to a full paragraph. */}
           <div className="h-40 shrink-0">
             <Diagnosis />
           </div>
-          <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
+          <div className="grid min-h-0 flex-1 grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.15fr)] grid-rows-[minmax(0,1fr)_auto] gap-4">
             {SOURCE_IDS.map((id) => (
-              <SourcePreviewCard key={id} sourceId={id} active={active} />
+              <SourceIdentityCard key={id} sourceId={id} />
             ))}
-          </div>
-          <div className="grid shrink-0 grid-cols-4 gap-4">
+            <div className="row-span-2 min-h-0">
+              <IncidentTimeline limit={8} />
+            </div>
             {SOURCE_IDS.map((id) => (
               <SignalCard key={id} sourceId={id} />
             ))}

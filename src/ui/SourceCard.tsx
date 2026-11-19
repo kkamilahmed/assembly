@@ -1,7 +1,3 @@
-import { Canvas } from '@react-three/fiber';
-import { ContactShadows, Environment, Lightformer, OrthographicCamera } from '@react-three/drei';
-import * as THREE from 'three';
-import { SourceModel } from '@/scene/SourceModel';
 import { useStore } from '@/state/store';
 import { PROBLEM_SOURCE_ID, RISK_BASELINE, RISK_FLAG, SOURCE_KINDS, SOURCE_LABELS, type SourceId } from '@/streaming/networkConfig';
 import {
@@ -16,62 +12,96 @@ import { METRIC_HEX, STATUS_HEX } from './colors';
 import { useChannelInjection, useSignalReading, useSourceSeverity } from './sourceTelemetry';
 import { SegmentedMeter } from './SegmentedMeter';
 
-/** One source rendered alone, from the same isometric angle as the network,
- *  so a card and the network view show the same building. Lighter than the
- *  network's stage (no post-processing): four of these run at once. */
-function SourcePreview({ sourceId, active }: { sourceId: SourceId; active: boolean }) {
+const PLACES: Record<SourceId, string> = {
+  'CAFE-01': 'Brooklyn, NY',
+  'ATM-07': 'Queens, NY',
+  'MALL-03': 'Jersey City, NJ',
+  'TDZ-WEB': 'Chicago, IL',
+};
+
+/** A plain line icon for each kind of source. */
+function SourceIcon({ sourceId, color }: { sourceId: SourceId; color: string }) {
+  const common = { fill: 'none', stroke: color, strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   return (
-    <Canvas
-      frameloop={active ? 'always' : 'never'}
-      dpr={[1, 1.5]}
-      shadows
-      gl={{ antialias: true, alpha: true, toneMapping: THREE.NeutralToneMapping }}
-    >
-      <OrthographicCamera makeDefault position={[20, 20 + 1.2, 20]} zoom={44} near={1} far={100} onUpdate={(c) => c.lookAt(0, 1.2, 0)} />
-      <hemisphereLight args={['#ffffff', '#c9ccd2', 0.9]} />
-      <directionalLight position={[-8, 18, 6]} intensity={2} castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[10, 6, -8]} intensity={0.4} color="#dfe8ff" />
-      <Environment resolution={128} background={false} environmentIntensity={0.9}>
-        <color attach="background" args={['#c9ced6']} />
-        <Lightformer form="rect" intensity={3} position={[0, 10, 0]} rotation-x={Math.PI / 2} scale={[20, 20, 1]} />
-        <Lightformer form="rect" intensity={1.4} position={[-10, 4, 6]} rotation-y={Math.PI / 2} scale={[14, 6, 1]} />
-      </Environment>
-      <SourceModel sourceId={sourceId} />
-      <ContactShadows position={[0, 0.005, 0]} scale={9} blur={2.4} far={4} resolution={512} opacity={0.4} color="#1a1d24" />
-    </Canvas>
+    <svg viewBox="0 0 24 24" className="h-7 w-7">
+      {sourceId === 'CAFE-01' && (
+        <>
+          <path {...common} d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Z" />
+          <path {...common} d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16" />
+          <path {...common} d="M8 3.5c0 1 1 1 1 2s-1 1-1 2M12 3.5c0 1 1 1 1 2s-1 1-1 2" />
+        </>
+      )}
+      {sourceId === 'ATM-07' && (
+        <>
+          <rect {...common} x="4" y="3" width="16" height="18" rx="2" />
+          <rect {...common} x="7" y="6" width="10" height="6" rx="1" />
+          <path {...common} d="M8 16h8M8 18.5h5" />
+        </>
+      )}
+      {sourceId === 'MALL-03' && (
+        <>
+          <path {...common} d="M5 8h14l-1 12H6L5 8Z" />
+          <path {...common} d="M9 8V6a3 3 0 0 1 6 0v2" />
+        </>
+      )}
+      {sourceId === 'TDZ-WEB' && (
+        <>
+          <rect {...common} x="3" y="4" width="18" height="13" rx="2" />
+          <path {...common} d="M8 21h8M12 17v4" />
+          <path {...common} d="M13 7l-3 4h3l-1 3 3-4h-3l1-3Z" />
+        </>
+      )}
+    </svg>
   );
 }
 
-export function SourcePreviewCard({ sourceId, active }: { sourceId: SourceId; active: boolean }) {
+/** The source's own sparkline: the risk of what it is getting approved,
+ *  over the last minute or so. */
+function RiskSparkline({ sourceId, color }: { sourceId: SourceId; color: string }) {
+  const history = useStore((s) => s.sources[sourceId].history);
+  const values = history.slice(-80).map((h) => RISK_BASELINE + h.v);
+  const W = 100;
+  const H = 30;
+  const y = (v: number) => H - (Math.min(Math.max(v, 0), 100) / 100) * H;
+  const pts = values.map((v, i) => `${((i / Math.max(values.length - 1, 1)) * W).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="min-h-10 w-full flex-1" aria-label="Risk of approved charges">
+      <line x1={0} x2={W} y1={y(RISK_BASELINE + RISK_FLAG)} y2={y(RISK_BASELINE + RISK_FLAG)} stroke="#e2c4c2" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
+      {values.length > 1 && <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+    </svg>
+  );
+}
+
+/** Who the source is, where it is, and how risky its approvals look. The
+ *  globe on the network screen shows where its payments come from. */
+export function SourceIdentityCard({ sourceId }: { sourceId: SourceId }) {
   // Same reading as the signal card below it - the two cards describe the
   // same source, so they must never disagree about whether it is healthy.
   const severity = useSourceSeverity(sourceId);
   const color = STATUS_HEX[severity];
   const alarmed = severity !== 'healthy';
-
   return (
     <div
-      className="flex h-full flex-col overflow-hidden rounded-lg border bg-[var(--surface)] transition-colors"
-      style={{ borderColor: alarmed ? color : 'var(--border)', boxShadow: alarmed ? `0 0 0 3px ${color}26` : undefined }}
+      className="flex h-full flex-col justify-between gap-2 overflow-hidden rounded-lg border bg-[var(--surface)] p-3 transition-colors"
+      style={{
+        borderColor: alarmed ? color : 'var(--border)',
+        boxShadow: alarmed ? `0 0 0 3px ${color}26` : undefined,
+        background: alarmed ? `linear-gradient(180deg, ${color}1f 0%, #ffffff 70%)` : undefined,
+      }}
     >
-      <div
-        className="relative min-h-0 flex-1"
-        style={{
-          background: alarmed
-            ? `linear-gradient(180deg, ${color}33 0%, #eef3f8 100%)`
-            : 'linear-gradient(180deg, #dbe8f4 0%, #eef3f8 100%)',
-        }}
-      >
-        <span
-          className="absolute left-2.5 top-2.5 z-10 h-2 w-2 rounded-full"
-          style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}33` }}
-        />
-        <SourcePreview sourceId={sourceId} active={active} />
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: alarmed ? `${color}22` : '#eef3f8' }}>
+          <SourceIcon sourceId={sourceId} color={alarmed ? color : '#3d5a80'} />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">{SOURCE_LABELS[sourceId]}</div>
+          <div className="truncate text-[11px] text-[var(--text-secondary)]">{SOURCE_KINDS[sourceId]}</div>
+          <div className="truncate text-[11px] text-[var(--text-secondary)]">{PLACES[sourceId]}</div>
+        </div>
+        <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}33` }} />
       </div>
-      <div className="flex shrink-0 items-center justify-between border-t border-[var(--border)] px-3 py-2 text-xs">
-        <span className="font-mono-ui text-[var(--text-secondary)]">{sourceId}</span>
-        <span className="text-[var(--text-secondary)]">{SOURCE_LABELS[sourceId]}</span>
-      </div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">Risk of what it gets approved</div>
+      <RiskSparkline sourceId={sourceId} color={alarmed ? color : METRIC_HEX.offset} />
     </div>
   );
 }
