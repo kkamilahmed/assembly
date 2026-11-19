@@ -31,7 +31,7 @@ The moral: because every tray is weighed and every sensor analysed as it streams
 | 2. Something drifts | `D` | Press P-2's fill depth starts to drift. On the plant the tablets come out thinner, inspection turns underweight trays red and the gate diverts them into the reject bin. |
 | 3. The effect | `→` Dashboard | "Tablets underdosed", the out-of-spec share of the batch rising, 2.0M tablets at risk, a $420k recall, "patients would get up to 8% less medicine than prescribed", tablet weight sliding through the 245 mg lower limit, the output bars turning red. |
 | 4. The cause | `←` `←` Machines | The press card is flagged: fill depth drifting, compression force down 11%, punch 14 worn. "Recommended: stop line, recalibrate fill depth." |
-| 5. Stop and fix | `S`, then `C` | The line stops and the last 10 minutes of output are quarantined; the stop report shows how fast it was caught and what it avoided. Recalibrating puts the fill depth, and the tablet weight, back on target. |
+| 5. Stop and fix | `S`, then `C` | The line stops and the last 10 minutes of output are quarantined: the trays still on the belt are pulled off with it. The stop report shows how fast it was caught and what it avoided. Recalibrating puts the fill depth, and the tablet weight, back on target. |
 | 6. Back to the line | `→` Plant, `A` | Autopilot restarts the line. Press `D` or `E` again: the stream flags the press and the autopilot holds tablet weight on target well under a second after detection. |
 
 `E` is the emergency version of `D`: a pressure spike, the press starts jamming, and every tray is badly underweight.
@@ -68,6 +68,9 @@ Channels can fail upward or downward (`low` in `streaming/sensorStream.ts`).
 
 **Detection and autopilot act on the data, not on the script.**
 "Detected" is stamped the first time the press's combined condition (worst of its weight trend and its sensors, `machineSeverity` in `state/store.ts`) leaves healthy, and the autopilot waits for that same condition.
+
+**The output bars are bucketed by inspection time.**
+Every station event carries the moment the tray reached the station, and the dashboard's bars count each tray in the 5 s interval it was judged in, on the line's own clock. A busy tab cannot pile intervals into one bar, and a stopped line adds nothing.
 
 **Every timing on screen is measured.**
 The stop report and the autopilot summary come from timestamps taken as things happened.
