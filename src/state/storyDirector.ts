@@ -21,7 +21,7 @@ import {
   type DeviationLevel,
 } from '@/streaming/lineConfig';
 import type { SensorChannel } from '@/streaming/sensorStream';
-import { recalibrateMachine, resetLine, setPressOffset } from './engine';
+import { quarantineBelt, recalibrateMachine, resetLine, setPressOffset } from './engine';
 import { machineSeverity, useStore } from './store';
 
 /**
@@ -97,7 +97,13 @@ export function recalibrate(by: 'operator' | 'autopilot' = 'operator') {
 /** S. Stops the line, or restarts it in whatever mode it was in. */
 export function toggleLine() {
   const store = useStore.getState();
-  store.setPaused(!store.paused);
+  const stopping = !store.paused;
+  store.setPaused(stopping);
+  // Stopping on an open incident quarantines what the press made: the
+  // trays still on the belt are pulled off with it, so nothing pressed
+  // before the fix is packed, or weighed against the fixed press, after it.
+  const incident = useStore.getState().incident;
+  if (stopping && incident && incident.resolvedAt === null && incident.rejected > 0) quarantineBelt();
 }
 
 /** A. Turns autopilot on and makes sure the line is running. Pressed while

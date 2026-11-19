@@ -89,6 +89,11 @@ export class LineProducer {
     this.nextSpawnAt = Date.now() + 300;
   }
 
+  /** Takes every tray off the belt without touching the schedule. */
+  clearBelt() {
+    this.trays = [];
+  }
+
   setPressOffset(offset: number) {
     this.config.pressOffset = offset;
   }

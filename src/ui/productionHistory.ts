@@ -1,6 +1,6 @@
 // Short rolling history of the line's output, for the dashboard screen:
 // passed and rejected trays per interval. Derived from the store's outcome
-// log, which stamps every tray with the moment it came off the line on the
+// log, which stamps every tray with the moment inspection judged it, on the
 // line's own clock. Bucketing by those stamps, not by when an update
 // happened to arrive, means a tab that stalls for a few seconds cannot pile
 // several intervals into one fat bar, and a stopped line adds nothing.

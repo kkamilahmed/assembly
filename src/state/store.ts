@@ -71,9 +71,9 @@ export interface Tray {
   rejectedAt: number | null;
 }
 
-/** One tray's fate, stamped on the line's own clock (wall time minus every
- *  stop so far), so the output chart buckets by when trays came off the
- *  line and a stopped line simply adds nothing. */
+/** One tray's inspection verdict, stamped on the line's own clock (wall
+ *  time minus every stop so far), so the output chart buckets by when trays
+ *  were judged and a stopped line simply adds nothing. */
 export interface Outcome {
   t: number;
   ok: boolean;
@@ -240,7 +240,9 @@ export interface StoreState {
   // ---- ingestion actions, called only from state/engine.ts ----
   ingestTraySpawn: (id: string, spawnedAt: number, offset: number) => void;
   ingestTrayReject: (id: string, timestamp: number) => void;
-  ingestTrayPacked: (id: string, timestamp: number) => void;
+  ingestTrayPacked: (id: string) => void;
+  /** Pulls every tray still on the belt off the line (quarantine). */
+  quarantineBelt: () => void;
   shiftTrayTimestamps: (deltaMs: number) => void;
   ingestQCCheck: (event: QCCheckPayload) => void;
   ingestWindowStats: (event: WindowStatsPayload) => void;
@@ -313,16 +315,16 @@ export const useStore = create<StoreState>((set) => ({
     set((state) => ({
       trays: state.trays.map((l) => (l.id === id ? { ...l, rejectedAt: timestamp } : l)),
       traysRejected: state.traysRejected + 1,
-      outcomes: [...state.outcomes, { t: timestamp - state.stoppedMs, ok: false }].slice(-OUTCOMES_MAX),
       lastKickAt: timestamp,
     })),
 
-  ingestTrayPacked: (id, timestamp) =>
+  ingestTrayPacked: (id) =>
     set((state) => ({
       trays: state.trays.filter((l) => l.id !== id),
       traysPacked: state.traysPacked + 1,
-      outcomes: [...state.outcomes, { t: timestamp - state.stoppedMs, ok: true }].slice(-OUTCOMES_MAX),
     })),
+
+  quarantineBelt: () => set((state) => ({ trays: state.trays.filter((t) => t.rejectedAt !== null) })),
 
   shiftTrayTimestamps: (deltaMs) =>
     set((state) => ({
@@ -350,11 +352,16 @@ export const useStore = create<StoreState>((set) => ({
             }
           : state.incident;
       const machines = { ...state.machines, [event.machine_id]: { ...machine, lastOffset: event.offset } };
-      if (!event.suspect) return { trays, incident, machines };
+      // Bucketed by when the tray was judged: a failed tray leaves the line
+      // at the gate long before a passed one reaches the cartoner, and
+      // counting either at the exit would bunch them into the same bars.
+      const outcomes = [...state.outcomes, { t: event.timestamp - state.stoppedMs, ok: !event.suspect }].slice(-OUTCOMES_MAX);
+      if (!event.suspect) return { trays, incident, machines, outcomes };
       return {
         trays,
         incident,
         machines,
+        outcomes,
         feed: feed(state, {
           id: `${event.item_id}-qc`,
           timestamp: event.timestamp,

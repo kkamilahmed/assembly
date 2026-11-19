@@ -221,10 +221,11 @@ function Card({
  *  drifts the red climbs up through the bars, which is the whole story in
  *  one picture. */
 function OutputBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }) {
-  // A fixed scale: a full interval at line speed sits at about 80%, so the
-  // bars never rescale under the audience's eyes.
+  // A fixed scale: a full interval at line speed sits at about two thirds,
+  // leaving room for the odd extra tray, so the bars never rescale under
+  // the audience's eyes.
   const perBucket = BUCKET_MS / TRAY_INTERVAL_MS;
-  const max = perBucket * 1.25;
+  const max = Math.ceil(perBucket) * 1.5;
   const W = 100;
   const H = 60;
   const slot = W / (BUCKETS + 1);
