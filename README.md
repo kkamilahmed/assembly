@@ -4,6 +4,26 @@ A React Three Fiber demo of a car assembly line, driven by a **simulated** Kafka
 Four stations (panel fitting, body weld, paint, wheel mount) build cars on a walking-beam conveyor.
 The presenter knocks the weld robot off its seam from the keyboard, shows on the machines screen what the stream says is wrong, shows on the plant floor what it is costing, stops the line, fixes it, and then lets the line fix itself.
 
+## Pick a demo
+
+The same live fault-detection story is built for five industries, each on its own branch.
+From this branch, run:
+
+```bash
+npm run demo
+```
+
+It asks which demo you want, checks out that branch (reusing an existing worktree, or creating one under `.demos/`), installs its dependencies on first run, and opens it in the browser.
+To skip the menu, name it: `npm run demo -- fraud`.
+
+| Name | Branch | Port | Demo |
+|---|---|---|---|
+| `car` | `main` | 5180 | Car assembly plant, the weld robot drifts off its seam |
+| `bakery` | `food-processing` | 5181 | Golden Crust bakery, the oven runs hot and burns loaves |
+| `battery` | `battery` | 5182 | Voltline EV battery plant, the laser welder drifts and welds go weak |
+| `pharma` | `healthcare` | 5183 | Meridian Pharma tablet line, the press drifts and tablets come out underdosed |
+| `fraud` | `fraud` | 5184 | Northgate Payments globe, card testing through TechDealz Online |
+
 ## Quick start
 
 ```bash
