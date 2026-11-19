@@ -27,7 +27,7 @@ export function TopBar({ view, onNavigate }: { view: View; onNavigate: (v: View)
     <div className="flex items-center justify-between gap-6 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-3">
       <div className="flex items-center gap-5">
         <div>
-          <div className="text-sm font-semibold">Northgate Payments · City network</div>
+          <div className="text-sm font-semibold">Northgate Payments · Global network</div>
           <div className="text-xs text-[var(--text-secondary)]">Pay, score, approve, settle</div>
         </div>
 

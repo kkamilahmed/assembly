@@ -1,15 +1,13 @@
-// Dev-only sandbox for building one part of the plant in isolation, under
-// the same studio stage as the real scene. Open /sandbox.html?part=<name>,
-// where <name> is a file in ./parts. Each part file default-exports a
-// component and may export `view = { target, zoom }` to frame it.
+// Dev-only sandbox for building one part of the globe in isolation, under
+// the same studio as the real scene. Open /sandbox.html?part=<name>, where
+// <name> is a file in ./parts. Each part file default-exports a component.
 import { createRoot } from 'react-dom/client';
 import type { ComponentType } from 'react';
 import '../index.css';
-import { ShadowFloor, Stage } from '@/scene/Stage';
+import { GlobeStage } from '@/scene/globe/GlobeStage';
 
 interface PartModule {
   default: ComponentType;
-  view?: { target?: [number, number, number]; zoom?: number };
 }
 
 const parts = import.meta.glob<PartModule>('./parts/*.tsx', { eager: true });
@@ -27,10 +25,9 @@ function App() {
   const Part = mod.default;
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <Stage target={mod.view?.target} zoom={mod.view?.zoom ?? 60} shadowSize={14}>
-        <ShadowFloor />
+      <GlobeStage>
         <Part />
-      </Stage>
+      </GlobeStage>
     </div>
   );
 }

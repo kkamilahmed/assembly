@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useKeyboardShortcuts } from '@/interactions/useKeyboardShortcuts';
-import { SHOTS, type ShotId } from '@/scene/layout';
 import { Scene } from '@/scene/Scene';
 import { initEngine } from '@/state/engine';
 import { ActionBar } from '@/ui/ActionBar';
 import { DashboardScreen } from '@/ui/DashboardScreen';
+import { GlobeHud } from '@/ui/GlobeHud';
 import { NetworkOverlay } from '@/ui/NetworkOverlay';
 import { ShortcutOverlay } from '@/ui/ShortcutOverlay';
 import { SourcesScreen } from '@/ui/SourcesScreen';
@@ -15,13 +15,8 @@ import type { View } from '@/ui/views';
 const TRANSITION_MS = 550;
 
 const params = new URLSearchParams(window.location.search);
-/** `?still=1&shot=S02`: the scene alone, full window, no chrome. Used by the
- *  cook harness to render comparison stills. */
+/** `?still=1`: the globe alone, full window, no chrome. Used for stills. */
 const STILL = params.get('still') === '1';
-const STILL_SHOT = (params.get('shot') as ShotId | null) ?? 'S01';
-/** `&target=x,y,z&zoom=n`: frame a still anywhere, for close-up review. */
-const STILL_TARGET = params.get('target')?.split(',').map(Number) as [number, number, number] | undefined;
-const STILL_ZOOM = params.get('zoom') ? Number(params.get('zoom')) : undefined;
 
 export default function App() {
   if (STILL) return <StillView />;
@@ -36,7 +31,7 @@ function StillView() {
   useKeyboardShortcuts('network', () => {});
   return (
     <div className="h-full w-full">
-      <Scene active shot={STILL_SHOT in SHOTS ? STILL_SHOT : 'S01'} target={STILL_TARGET} zoom={STILL_ZOOM} interactive={false} />
+      <Scene active interactive={false} />
     </div>
   );
 }
@@ -74,7 +69,7 @@ function Demo() {
   return (
     <div className="relative h-full w-full overflow-hidden bg-[var(--bg)]">
       <div className={layer('sources')} aria-hidden={view !== 'sources'}>
-        <SourcesScreen active={rendering.sources} view={view} onNavigate={setView} />
+        <SourcesScreen view={view} onNavigate={setView} />
       </div>
 
       <div className={layer('network')} aria-hidden={view !== 'network'}>
@@ -82,6 +77,7 @@ function Demo() {
           <TopBar view={view} onNavigate={setView} />
           <div className="relative min-h-0 flex-1">
             <Scene active={rendering.network} />
+            <GlobeHud />
             <NetworkOverlay />
             <ActionBar />
           </div>
