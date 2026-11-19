@@ -4,7 +4,6 @@
 // SignalStream construction below with something exposing the same listener
 // surface (a WebSocket bridge, most likely); nothing in state/store.ts,
 // scene/ or ui/ needs to know the difference.
-import { LANE_STATIONS } from '@/scene/layout';
 import { FraudAnalyzer } from '@/streaming/FraudAnalyzer';
 import { PaymentProducer, type AttackConfig } from '@/streaming/PaymentProducer';
 import { SOURCE_IDS } from '@/streaming/networkConfig';
@@ -24,8 +23,9 @@ export function initEngine() {
   if (initialized) return;
   initialized = true;
 
-  producer.init(LANE_STATIONS, scoring);
-  producer.onSpawn((id, source, kind, spawnedAt) => useStore.getState().ingestSpawn(id, source, kind, spawnedAt));
+  producer.init(scoring);
+  producer.onSpawn((id, source, kind, spawnedAt, from) => useStore.getState().ingestSpawn(id, source, kind, spawnedAt, from));
+  producer.onHold((id, timestamp) => useStore.getState().ingestHold(id, timestamp));
   producer.onBlock((id, timestamp) => useStore.getState().ingestBlock(id, timestamp));
   producer.onSettle((id) => useStore.getState().ingestSettle(id));
 

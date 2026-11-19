@@ -8,7 +8,7 @@ import {
   WARN_TREND,
   type SourceId,
 } from '@/streaming/networkConfig';
-import type { PacketKind } from '@/streaming/PaymentProducer';
+import type { Origin, PacketKind } from '@/streaming/PaymentProducer';
 import {
   channelSeverity,
   initialSignalFrame,
@@ -54,17 +54,32 @@ export interface Payment {
   id: string;
   source: SourceId;
   kind: PacketKind;
-  /** When it left its source; its distance along its lane is always
+  /** When it was sent; its distance along its flight is always
    *  (now - spawnedAt) * PACKET_SPEED. */
   spawnedAt: number;
+  /** Where it was sent from, [lat, lon]. */
+  from: Origin;
   /** Risk over baseline, known once the hub has scored it. */
   offset: number | null;
   /** Scored as fraud. Null until scored. */
   suspect: boolean | null;
   /** What the rules decided. Null until scored. */
   approved: boolean | null;
-  /** Set when quarantine pulls it off its lane. */
+  /** Set when the network drops it short of landing. */
   blockedAt: number | null;
+  /** Set when its merchant was frozen while it was in flight: it stops
+   *  where it is and never lands. */
+  heldAt: number | null;
+}
+
+/** One line of the analyst's incident timeline. */
+export interface TimelineEntry {
+  id: string;
+  at: number;
+  kind: 'attack' | 'alert' | 'frozen' | 'unfrozen' | 'refit' | 'caught' | 'autopilot';
+  text: string;
+  /** A measured span to show beside it, e.g. "0.6s after the alert". */
+  measure?: string;
 }
 
 export interface FeedItem {
@@ -108,6 +123,15 @@ export interface AutopilotCatch {
 
 const HISTORY_MAX = 120;
 const FEED_MAX = 40;
+const TIMELINE_MAX = 12;
+
+function secs(ms: number): string {
+  return ms < 100 ? '<0.1s' : ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`;
+}
+
+function log(state: StoreState, entry: Omit<TimelineEntry, 'id'>): TimelineEntry[] {
+  return [{ ...entry, id: `${entry.kind}-${entry.at}` }, ...state.timeline].slice(0, TIMELINE_MAX);
+}
 
 export function deriveStatus(trend: number): Severity {
   const m = Math.abs(trend);
@@ -167,6 +191,12 @@ function withDetection(state: StoreState, next: Partial<StoreState>, now: number
     ...next,
     incident: { ...incident, detectedAt: now },
     feed: [item, ...(next.feed ?? state.feed)].slice(0, FEED_MAX),
+    timeline: log(state, {
+      at: now,
+      kind: 'alert',
+      text: `Alert fired on ${PROBLEM_SOURCE_ID}`,
+      measure: `${secs(now - incident.faultStartedAt)} after onset`,
+    }),
   };
 }
 
@@ -215,12 +245,14 @@ export interface StoreState {
   fraudSettled: number;
   /** Payments pulled into quarantine at the hub. */
   blocked: number;
-  /** Wall clock of the last quarantine pull, for the gate animation. */
+  /** Wall clock of the last blocked payment, for the TechDealz marker. */
   lastKickAt: number | null;
   incident: Incident | null;
   autopilotCatch: AutopilotCatch | null;
 
   shortcutOverlayOpen: boolean;
+  /** What happened and when, newest first, for the analyst's timeline. */
+  timeline: TimelineEntry[];
 
   signals: SignalFrame;
   signalsAt: number;
@@ -229,7 +261,8 @@ export interface StoreState {
   faultPanelOpen: boolean;
 
   // ---- ingestion actions, called only from state/engine.ts ----
-  ingestSpawn: (id: string, source: SourceId, kind: PacketKind, spawnedAt: number) => void;
+  ingestSpawn: (id: string, source: SourceId, kind: PacketKind, spawnedAt: number, from: Origin) => void;
+  ingestHold: (id: string, timestamp: number) => void;
   ingestScore: (event: ScorePayload) => void;
   ingestBlock: (id: string, timestamp: number) => void;
   ingestSettle: (id: string) => void;
@@ -262,9 +295,9 @@ function feed(state: StoreState, item: FeedItem): FeedItem[] {
   return [item, ...state.feed].slice(0, FEED_MAX);
 }
 
-/** Blocked packets linger long enough to fly into quarantine, then leave the
- *  list; the tray draws its pile from the count. */
-const BLOCK_LINGER_MS = 1500;
+/** Blocked and held packets linger long enough to fade out on the globe,
+ *  then leave the list. */
+const LINGER_MS = 1800;
 
 export const useStore = create<StoreState>((set) => ({
   sources: makeInitialSources(),
@@ -283,6 +316,7 @@ export const useStore = create<StoreState>((set) => ({
   autopilotCatch: null,
 
   shortcutOverlayOpen: false,
+  timeline: [],
 
   signals: initialSignalFrame(),
   signalsAt: Date.now(),
@@ -290,13 +324,20 @@ export const useStore = create<StoreState>((set) => ({
   signalPipeline: { readings: 0, anomalies: 0 },
   faultPanelOpen: false,
 
-  ingestSpawn: (id, source, kind, spawnedAt) =>
-    set((state) => ({
-      payments: [
-        ...state.payments.filter((p) => p.blockedAt === null || spawnedAt - p.blockedAt < BLOCK_LINGER_MS),
-        { id, source, kind, spawnedAt, offset: null, suspect: null, approved: null, blockedAt: null },
-      ],
-    })),
+  ingestSpawn: (id, source, kind, spawnedAt, from) =>
+    set((state) => {
+      const now = Date.now();
+      const gone = (at: number | null) => at !== null && now - at > LINGER_MS;
+      return {
+        payments: [
+          ...state.payments.filter((p) => !gone(p.blockedAt) && !gone(p.heldAt)),
+          { id, source, kind, spawnedAt, from, offset: null, suspect: null, approved: null, blockedAt: null, heldAt: null },
+        ],
+      };
+    }),
+
+  ingestHold: (id, timestamp) =>
+    set((state) => ({ payments: state.payments.map((p) => (p.id === id ? { ...p, heldAt: timestamp } : p)) })),
 
   ingestScore: (event) =>
     set((state) => {
@@ -407,6 +448,7 @@ export const useStore = create<StoreState>((set) => ({
             },
         autopilotCatch: null,
         feed: feed(state, { id: `fault-${timestamp}`, timestamp, text, tone: 'info' }),
+        timeline: open ? state.timeline : log(state, { at: timestamp, kind: 'attack', text }),
       };
     }),
 
@@ -433,9 +475,25 @@ export const useStore = create<StoreState>((set) => ({
           { ...makeSource(id), history: state.sources[id].history, lastRecalibratedAt: id === sourceId ? timestamp : state.sources[id].lastRecalibratedAt },
         ]),
       ) as Record<SourceId, SourceState>;
+      const measured = state.incident && state.incident.resolvedAt === null ? state.incident : null;
+      const timeline =
+        by === 'autopilot' && measured && measured.detectedAt !== null
+          ? log(state, {
+              at: timestamp,
+              kind: 'caught',
+              text: 'Autopilot refit the rule and blocked the wave',
+              measure: `${secs(timestamp - measured.detectedAt)} after the alert`,
+            })
+          : log(state, {
+              at: timestamp,
+              kind: 'refit',
+              text: 'Velocity rule refit to live traffic',
+              measure: measured?.detectedAt != null ? `${secs(timestamp - measured.detectedAt)} after the alert` : undefined,
+            });
       return {
         incident,
         autopilotCatch,
+        timeline,
         sources,
         feed: feed(state, {
           id: `${sourceId}-recal-${timestamp}`,
@@ -457,10 +515,17 @@ export const useStore = create<StoreState>((set) => ({
         frozen && state.incident && state.incident.resolvedAt === null && state.incident.stoppedAt === null
           ? { ...state.incident, stoppedAt: now }
           : state.incident;
+      const alertAt = state.incident?.detectedAt ?? null;
       return {
         frozen,
         frozenAt: frozen ? now : null,
         incident,
+        timeline: log(state, {
+          at: now,
+          kind: frozen ? 'frozen' : 'unfrozen',
+          text: frozen ? 'TechDealz Online frozen' : 'TechDealz Online unfrozen',
+          measure: frozen && alertAt !== null && state.incident?.resolvedAt === null ? `${secs(now - alertAt)} after the alert` : undefined,
+        }),
         feed: feed(state, {
           id: `merchant-${frozen ? 'freeze' : 'unfreeze'}-${now}`,
           timestamp: now,
@@ -473,7 +538,11 @@ export const useStore = create<StoreState>((set) => ({
         }),
       };
     }),
-  setAutopilot: (on) => set({ autopilot: on }),
+  setAutopilot: (on) =>
+    set((state) => ({
+      autopilot: on,
+      timeline: log(state, { at: Date.now(), kind: 'autopilot', text: on ? 'Autopilot switched on' : 'Autopilot switched off' }),
+    })),
   dismissAutopilotCatch: () => set({ autopilotCatch: null }),
   setShortcutOverlayOpen: (open) => set({ shortcutOverlayOpen: open }),
 
@@ -510,6 +579,7 @@ export const useStore = create<StoreState>((set) => ({
       lastKickAt: null,
       incident: null,
       autopilotCatch: null,
+      timeline: [],
       signals: initialSignalFrame(),
       signalsAt: Date.now(),
       injections: [],

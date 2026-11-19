@@ -28,6 +28,34 @@ export const SOURCE_KINDS: Record<SourceId, string> = {
  *  store whose checkout card testers have found. */
 export const PROBLEM_SOURCE_ID: SourceId = 'TDZ-WEB';
 
+/** Where the network's ends are: the scoring hub, and the problem
+ *  merchant's checkout. [lat, lon] in degrees. */
+export const HUB_AT: readonly [number, number] = [40.71, -74.01]; // New York
+export const MERCHANT_AT: Record<SourceId, readonly [number, number]> = {
+  'CAFE-01': HUB_AT,
+  'ATM-07': HUB_AT,
+  'MALL-03': HUB_AT,
+  'TDZ-WEB': [41.88, -87.63], // Chicago
+};
+
+/** Where everyday card holders pay from: the network's own region and the
+ *  cities its customers travel to and shop online from. */
+export const CARDHOLDER_CITIES: ReadonlyArray<readonly [number, number]> = [
+  [51.51, -0.13], [19.43, -99.13], [-23.55, -46.63], [43.65, -79.38], [34.05, -118.24], [25.76, -80.19],
+  [48.86, 2.35], [52.52, 13.4], [40.42, -3.7], [29.76, -95.37], [47.61, -122.33], [-34.6, -58.38],
+  [4.71, -74.07], [45.5, -73.57], [41.88, -87.63], [39.95, -75.17], [42.36, -71.06], [33.75, -84.39],
+  [32.78, -96.8], [37.77, -122.42], [18.47, -66.11], [53.35, -6.26], [38.72, -9.14], [35.68, 139.69],
+];
+
+/** Where card testers and stolen logins send from. The first eight carry a
+ *  slight attack; an emergency comes from all of them. */
+export const ATTACKER_CITIES: ReadonlyArray<readonly [number, number]> = [
+  [55.76, 37.62], [6.52, 3.38], [19.08, 72.88], [1.35, 103.82], [14.6, 120.98], [44.43, 26.1],
+  [50.45, 30.52], [-6.21, 106.85], [30.04, 31.24], [10.82, 106.63], [-33.92, 18.42], [39.93, 32.86],
+  [52.23, 21.01], [13.76, 100.5], [24.86, 67.0], [-1.29, 36.82], [22.32, 114.17], [41.01, 28.98],
+  [-12.05, -77.04], [9.93, -84.08], [33.57, -7.59], [23.81, 90.41], [59.44, 24.75], [-37.81, 144.96],
+];
+
 /** The production rule the attack slips under, and what recalibrating fits
  *  back to live traffic. */
 export const VELOCITY_RULE = {
@@ -57,15 +85,15 @@ export const TRAFFIC_PATTERN: readonly SourceId[] = [
   'MALL-03',
 ];
 
-/** Packet speed along the rails, world units per second. Scaled with the
+/** Every payment's journey, in units along its flight: scored and
+ *  authorized early (the network sees it as soon as it is sent), a blocked
+ *  one dropped just short of landing, an approved one settled on landing. */
+export const FLIGHT = { scan: 1.3, kick: 9.0, settle: 10 } as const;
+
+/** Packet speed along its flight, units per second. Scaled with the
  *  presenter speed so the network runs faster without the layout changing. */
 export const PACKET_SPEED = 2.0 * (1000 / scaleMs(1000));
 
-/** Length of a packet along the rail, by kind. Card-testing charges are
- *  drawn as small cards, so a storm of them reads as a storm. */
-export const PACKET_LENGTH = { normal: 0.68, attack: 0.3 } as const;
-/** Clear rail kept between two packets on the same lane. */
-export const PACKET_GAP = 0.06;
 
 /** How often the producer advances the network and fires station events. */
 export const NETWORK_TICK_MS = 50;
@@ -96,11 +124,12 @@ export const RISK_SIGMA = 3;
  *
  * `perSec` is attack packets a second, `risk` their score over baseline,
  * `takeoverShare` the share of every other source's payments that come from
- * a taken-over account.
+ * a taken-over account, and `spread` how many of the attacker cities it
+ * sends from.
  */
 export const ATTACK = {
-  slight: { perSec: 4, risk: 56, takeoverShare: 0 },
-  emergency: { perSec: 4.6, risk: 76, takeoverShare: 0.4 },
+  slight: { perSec: 4, risk: 56, takeoverShare: 0, spread: 8 },
+  emergency: { perSec: 4.6, risk: 76, takeoverShare: 0.4, spread: ATTACKER_CITIES.length },
 } as const;
 export type DeviationLevel = keyof typeof ATTACK;
 /** Spread of an attack charge's risk score. */
@@ -112,7 +141,7 @@ export const TAKEOVER_RISK = 62;
  *  wave arrives all at once. */
 export const ATTACK_RAMP_MS = { slight: scaleMs(12000), emergency: scaleMs(1500) } as const;
 /** Once every test charge is declined the testers give up, over this long. */
-export const ATTACK_FADE_MS = scaleMs(5000);
+export const ATTACK_FADE_MS = scaleMs(8000);
 
 /** Control limits on the windowed mean risk (over baseline) of the charges
  *  a source gets approved. Slight lands in warning, emergency in critical. */
@@ -125,5 +154,3 @@ export const TREND_WINDOW_MS = scaleMs(6500);
 /** Below this many samples a windowed average is too noisy to act on. */
 export const MIN_TREND_SAMPLES = 4;
 
-/** Blocked packets drawn in the hub's quarantine tray; the count keeps going. */
-export const QUARANTINE_VISIBLE = 24;

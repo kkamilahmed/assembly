@@ -10,9 +10,8 @@
 // spiked the fraud rate. By event time every interval holds the same slice
 // of the stream, and late events land in the interval they belong to.
 import { useSyncExternalStore } from 'react';
-import { LANE_STATIONS } from '@/scene/layout';
 import { useStore, type Payment, type StoreState } from '@/state/store';
-import { PACKET_SPEED } from '@/streaming/networkConfig';
+import { FLIGHT, PACKET_SPEED } from '@/streaming/networkConfig';
 import { fraudRate, type FraudRate } from './businessCase';
 
 export const BUCKET_MS = 5_000;
@@ -51,9 +50,9 @@ let fraudPerSecond = new Map<number, number>();
 let rates: number[] = [];
 let latest = fraudRate(0, RATE_WINDOW_S);
 
-/** When a payment reached the hub's scanner, ms since the epoch. */
+/** When a payment was scored at the hub, ms since the epoch. */
 function hubTime(p: Payment): number {
-  return p.spawnedAt + (LANE_STATIONS[p.source].scan / PACKET_SPEED) * 1000 - epoch;
+  return p.spawnedAt + (FLIGHT.scan / PACKET_SPEED) * 1000 - epoch;
 }
 
 function count(p: Payment) {

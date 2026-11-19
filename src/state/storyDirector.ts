@@ -55,11 +55,13 @@ const FAULT_TEXT: Record<DeviationLevel, string> = {
   emergency: 'Account-takeover wave across the network',
 };
 
-const NO_ATTACK: AttackConfig = { perSec: 0, risk: 0, takeoverShare: 0 };
+const NO_ATTACK: AttackConfig = { perSec: 0, risk: 0, takeoverShare: 0, spread: 0 };
 
 let rampTimers: number[] = [];
 let autopilotTimer: number | undefined;
 let current: AttackConfig = NO_ATTACK;
+/** The attack the presenter last started, at full strength. */
+let target: AttackConfig = NO_ATTACK;
 
 function clearRamp() {
   rampTimers.forEach((id) => window.clearTimeout(id));
@@ -97,16 +99,20 @@ export function injectDeviation(level: DeviationLevel) {
   }
   // Paced under the rules: they approve it until somebody refits them.
   setRulesHold(false);
-  rampAttack({ ...ATTACK[level] }, ATTACK_RAMP_MS[level]);
+  target = { ...ATTACK[level] };
+  rampAttack(target, ATTACK_RAMP_MS[level]);
 }
 
 /** C. Fits the rules to the live attack: from here every fraudulent charge
- *  is blocked at the hub, the testers give up over a few seconds, the
- *  sources' signals settle and the incident is closed. */
+ *  is blocked. The testers do not know that yet, so they keep firing at
+ *  full strength and give up over a few seconds (the wave the room sees
+ *  die short of landing); the sources' signals settle and the incident is
+ *  closed. */
 export function recalibrate(by: 'analyst' | 'autopilot' = 'analyst') {
   const store = useStore.getState();
   store.clearInjections('scenario');
   recalibrateNetwork();
+  if (current.perSec > 0) current = { ...current, perSec: Math.max(current.perSec, target.perSec) };
   rampAttack({ ...current, takeoverShare: 0, perSec: 0 }, ATTACK_FADE_MS);
   store.markRecalibrated(PROBLEM_SOURCE_ID, Date.now(), by);
 }
@@ -139,6 +145,7 @@ export function resetDemo() {
   window.clearTimeout(autopilotTimer);
   autopilotTimer = undefined;
   current = NO_ATTACK;
+  target = NO_ATTACK;
   resetNetwork();
 }
 
