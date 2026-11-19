@@ -4,7 +4,7 @@ import { FRAUD_RATE_LIMIT, HOURS_UNTIL_BATCH, packetsToCharges } from './busines
 import { OUTCOME_HEX, STATUS_HEX } from './colors';
 import { fmtUsd } from './format';
 import { Kbd } from './Kbd';
-import { BUCKET_MS, BUCKETS, useTrafficHistory, type Bucket } from './trafficHistory';
+import { useTrafficHistory, type Bucket } from './trafficHistory';
 import { ViewNav } from './ViewNav';
 import type { View } from './views';
 
@@ -182,35 +182,52 @@ function Card({
 
 /** Approved, fraud approved and blocked per interval, stacked: the moment
  *  the attack starts the red climbs up through the bars, and the moment the
- *  rules are fixed it turns grey. The whole story in one picture. */
+ *  rule is fixed it turns grey. The interval still in progress is drawn as
+ *  what it is: a dashed outline of a typical interval, filling up. */
 function OutcomeBars({ buckets, current }: { buckets: Bucket[]; current: Bucket }) {
-  const all = [...buckets, current];
-  while (all.length < BUCKETS + 1) all.unshift({ settled: 0, fraud: 0, blocked: 0 });
   const total = (b: Bucket) => b.settled + b.fraud + b.blocked;
-  const max = Math.max(BUCKET_MS / 300, ...all.map(total));
+  const recent = buckets.slice(-3).map(total);
+  const typical = recent.reduce((a, b) => a + b, 0) / Math.max(recent.length, 1);
+  const max = Math.max(14, typical * 1.15, ...buckets.map(total), total(current));
   const W = 100;
   const H = 60;
-  const slot = W / all.length;
+  const slot = W / (buckets.length + 1);
   const bw = slot * 0.66;
+  const bar = (b: Bucket, i: number, live: boolean) => {
+    const x = i * slot + (slot - bw) / 2;
+    const sh = (b.settled / max) * H;
+    const fh = (b.fraud / max) * H;
+    const bh = (b.blocked / max) * H;
+    return (
+      <g key={i} opacity={live ? 0.6 : 1}>
+        <rect x={x} y={H - sh} width={bw} height={sh} rx={0.6} fill={OUTCOME_HEX.settled} />
+        <rect x={x} y={H - sh - fh} width={bw} height={fh} rx={0.6} fill={FRAUD} />
+        <rect x={x} y={H - sh - fh - bh} width={bw} height={bh} rx={0.6} fill={OUTCOME_HEX.blocked} />
+      </g>
+    );
+  };
+  const outline = (typical / max) * H;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full" aria-label="Payments per interval">
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={0} x2={W} y1={H * f} y2={H * f} stroke="#e5e8ec" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       ))}
-      {all.map((b, i) => {
-        const x = i * slot + (slot - bw) / 2;
-        const sh = (b.settled / max) * H;
-        const fh = (b.fraud / max) * H;
-        const bh = (b.blocked / max) * H;
-        const live = i === all.length - 1;
-        return (
-          <g key={i} opacity={live ? 0.55 : 1}>
-            <rect x={x} y={H - sh} width={bw} height={sh} rx={0.6} fill={OUTCOME_HEX.settled} />
-            <rect x={x} y={H - sh - fh} width={bw} height={fh} rx={0.6} fill={FRAUD} />
-            <rect x={x} y={H - sh - fh - bh} width={bw} height={bh} rx={0.6} fill={OUTCOME_HEX.blocked} />
-          </g>
-        );
-      })}
+      {buckets.map((b, i) => bar(b, i, false))}
+      {outline > 0 && (
+        <rect
+          x={buckets.length * slot + (slot - bw) / 2}
+          y={H - outline}
+          width={bw}
+          height={outline}
+          rx={0.6}
+          fill="none"
+          stroke="#c5cad3"
+          strokeDasharray="3,3"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {bar(current, buckets.length, true)}
     </svg>
   );
 }
@@ -223,7 +240,7 @@ function RateChart({ rates }: { rates: number[] }) {
   const W = 100;
   const H = 60;
   const y = (v: number) => H - (Math.min(Math.max(v, 0), hi) / hi) * H;
-  const pts = series.map((v, i) => `${((i / Math.max(series.length - 1, 1)) * W).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
+  const x = (i: number) => (i / Math.max(series.length - 1, 1)) * W;
   const last = series.at(-1) ?? 0;
   const over = last > FRAUD_RATE_LIMIT;
   return (
@@ -244,17 +261,22 @@ function RateChart({ rates }: { rates: number[] }) {
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
         />
-        {series.length > 1 && (
-          <polyline
-            points={pts}
-            fill="none"
-            stroke={over ? FRAUD : OUTCOME_HEX.settled}
+        {/* Each segment in its own colour: red where fraud was over the
+            limit, neutral where it was not, so the history stays honest
+            after the line comes back down. */}
+        {series.slice(1).map((v, i) => (
+          <line
+            key={i}
+            x1={x(i)}
+            y1={y(series[i])}
+            x2={x(i + 1)}
+            y2={y(v)}
+            stroke={Math.max(v, series[i]) > FRAUD_RATE_LIMIT ? FRAUD : '#7b8494'}
             strokeWidth={3}
-            strokeLinejoin="round"
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
           />
-        )}
+        ))}
       </svg>
     </div>
   );
