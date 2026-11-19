@@ -3,6 +3,7 @@ import { FLIGHT_HEX } from '@/scene/globe/palette';
 import { FRAUD_RATE_LIMIT, packetsToCharges } from './businessCase';
 import { STATUS_HEX } from './colors';
 import { fmtUsd } from './format';
+import { useResolved } from './incidentState';
 import { useTrafficHistory } from './trafficHistory';
 
 function Tile({ label, value, color }: { label: string; value: string; color?: string }) {
@@ -21,7 +22,10 @@ function Tile({ label, value, color }: { label: string; value: string; color?: s
 export function GlobeHud() {
   const { latest, rates } = useTrafficHistory();
   const blocked = useStore((s) => s.blocked);
-  const leaking = latest.rate > 0;
+  const resolved = useResolved();
+  // After a fix, what is left in the trailing window got through before
+  // the block: shown plainly, not as an alarm.
+  const leaking = latest.rate > 0 && !resolved;
   const rising = rates.length > 4 && latest.rate > (rates.at(-5) ?? 0) + 0.0002;
   const pct = `${(latest.rate * 100).toFixed(2)}%`;
   return (
@@ -30,9 +34,9 @@ export function GlobeHud() {
         <Tile
           label="Fraud getting through"
           value={leaking && rising ? `${pct} rising` : pct}
-          color={latest.rate > FRAUD_RATE_LIMIT ? STATUS_HEX.critical : leaking ? STATUS_HEX.warning : STATUS_HEX.healthy}
+          color={!leaking ? (latest.rate > 0 ? undefined : STATUS_HEX.healthy) : latest.rate > FRAUD_RATE_LIMIT ? STATUS_HEX.critical : STATUS_HEX.warning}
         />
-        {leaking || blocked === 0 ? (
+        {leaking || (blocked === 0 && !resolved) ? (
           <Tile label="Lost in the last 10 min" value={fmtUsd(latest.per10MinUsd)} color={leaking ? STATUS_HEX.critical : undefined} />
         ) : (
           <Tile label="Fraudulent charges blocked" value={packetsToCharges(blocked).toLocaleString()} color={STATUS_HEX.healthy} />

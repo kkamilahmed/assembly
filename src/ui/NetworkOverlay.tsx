@@ -9,12 +9,12 @@ import { Kbd } from './Kbd';
  *  enough to say it out loud. */
 const AUTOPILOT_TOAST_MS = 15_000;
 
-/** Cards that float over the top of the 3D network: the freeze report while
- *  the merchant is frozen, and the autopilot's own summary when it stops an
- *  attack. */
+/** Cards docked in the right-hand column beside the globe, never over it:
+ *  the freeze report while the merchant is frozen, and the autopilot's own
+ *  summary when it stops an attack. */
 export function NetworkOverlay() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-4">
+    <div className="pointer-events-none absolute right-5 top-12 z-20 flex w-[23rem] max-w-[calc(100%-2.5rem)] flex-col gap-3">
       <FreezeReport />
       <AutopilotToast />
     </div>
@@ -24,7 +24,7 @@ export function NetworkOverlay() {
 function Card({ children, accent }: { children: ReactNode; accent: string }) {
   return (
     <div
-      className="animate-fade-in pointer-events-auto w-[34rem] max-w-full overflow-hidden rounded-xl border bg-[var(--surface)] shadow-xl"
+      className="animate-fade-in pointer-events-auto w-full overflow-hidden rounded-xl border bg-[var(--surface)] shadow-xl"
       style={{ borderColor: `${accent}66` }}
     >
       <div className="h-1" style={{ backgroundColor: accent }} />

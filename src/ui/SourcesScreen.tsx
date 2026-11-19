@@ -75,7 +75,7 @@ export function SourcesScreen({ view, onNavigate }: { view: View; onNavigate: (v
           <div className="h-40 shrink-0">
             <Diagnosis />
           </div>
-          <div className="grid min-h-0 flex-1 grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.15fr)] grid-rows-[minmax(0,1fr)_auto] gap-4">
+          <div className="grid min-h-0 flex-1 grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.15fr)] grid-rows-[auto_minmax(0,1fr)] gap-4">
             {SOURCE_IDS.map((id) => (
               <SourceIdentityCard key={id} sourceId={id} />
             ))}

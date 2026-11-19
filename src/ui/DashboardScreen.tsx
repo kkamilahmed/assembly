@@ -5,6 +5,7 @@ import { OUTCOME_HEX, STATUS_HEX } from './colors';
 import { fmtUsd } from './format';
 import { Kbd } from './Kbd';
 import { useTrafficHistory, type Bucket } from './trafficHistory';
+import { resolvedLine, useResolved, type Resolved } from './incidentState';
 import { AnalystOnShift, IncidentTimeline } from './Shift';
 import { ViewNav } from './ViewNav';
 import type { View } from './views';
@@ -29,7 +30,10 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
   const history = useTrafficHistory();
   const { latest, rates, buckets, current } = history;
   const rising = rates.length > 4 && latest.rate > (rates.at(-5) ?? 0) + 0.0002;
-  const leaking = latest.rate > 0;
+  const resolved = useResolved();
+  // Once the incident is closed, what is still in the trailing window is
+  // what got through before the block, not a live leak.
+  const leaking = latest.rate > 0 && !resolved;
 
   return (
     <div className="flex h-full w-full flex-col bg-[var(--bg)]">
@@ -47,17 +51,17 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
       </div>
 
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        <Outcome leaking={leaking} frozen={frozen} byBatchUsd={latest.byBatchUsd} byBatchCharges={latest.byBatchCharges} />
+        <Outcome leaking={leaking} frozen={frozen} resolved={resolved} byBatchUsd={latest.byBatchUsd} byBatchCharges={latest.byBatchCharges} />
 
         <div className="grid shrink-0 grid-cols-4 gap-4">
           <Kpi
             label="Fraud rate, online payments"
             value={fmtRate(latest.rate)}
-            note={leaking ? (rising ? 'rising' : 'holding') : 'nothing getting through'}
-            color={latest.rate > FRAUD_RATE_LIMIT ? FRAUD : leaking ? STATUS_HEX.warning : STATUS_HEX.healthy}
+            note={leaking ? (rising ? 'rising' : 'holding') : resolved && latest.rate > 0 ? 'before the block' : 'nothing getting through'}
+            color={!leaking ? (latest.rate > 0 ? undefined : STATUS_HEX.healthy) : latest.rate > FRAUD_RATE_LIMIT ? FRAUD : STATUS_HEX.warning}
           />
-          <Kpi label="Lost in the last 10 min, at this rate" value={fmtUsd(latest.per10MinUsd)} color={leaking ? FRAUD : undefined} />
-          <Kpi label="On track to lose today" value={fmtUsd(latest.byBatchUsd)} color={leaking ? FRAUD : undefined} />
+          <Kpi label="Lost in the last 10 min, at this rate" value={fmtUsd(leaking ? latest.per10MinUsd : 0)} color={leaking ? FRAUD : undefined} />
+          <Kpi label="On track to lose today" value={fmtUsd(leaking ? latest.byBatchUsd : 0)} color={leaking ? FRAUD : undefined} />
           <Kpi
             label="Fraudulent charges blocked"
             value={packetsToCharges(blocked).toLocaleString()}
@@ -90,11 +94,13 @@ export function DashboardScreen({ view, onNavigate }: { view: View; onNavigate: 
 function Outcome({
   leaking,
   frozen,
+  resolved,
   byBatchUsd,
   byBatchCharges,
 }: {
   leaking: boolean;
   frozen: boolean;
+  resolved: Resolved | null;
   byBatchUsd: number;
   byBatchCharges: number;
 }) {
@@ -107,14 +113,16 @@ function Outcome({
       <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 0 4px ${color}26` }} />
       <div className="min-w-0 flex-1">
         <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>
-          {leaking ? 'Fraud losses climbing' : frozen ? 'Merchant frozen' : 'Under control'}
+          {leaking ? 'Fraud losses climbing' : frozen ? 'Merchant frozen' : resolved ? (resolved.by === 'autopilot' ? 'Caught by autopilot' : 'Fixed') : 'Under control'}
         </div>
         <div className="mt-0.5 text-xl font-semibold">
           {leaking
             ? 'Fraudulent charges are being approved right now'
             : frozen
               ? 'TechDealz Online is frozen while its rules are fixed'
-              : 'Every payment is scored before it is approved'}
+              : resolved
+                ? resolvedLine(resolved)
+                : 'Every payment is scored before it is approved'}
         </div>
         <div className="mt-1 text-sm text-[var(--text-secondary)]">
           {leaking ? (
@@ -124,6 +132,8 @@ function Outcome({
             </>
           ) : frozen ? (
             'Nothing new is leaving the merchant, so nothing more is being lost.'
+          ) : resolved ? (
+            'Every test charge since is blocked as it is scored; the testers are giving up.'
           ) : (
             'About 3,000 card payments a second, scored as they stream.'
           )}

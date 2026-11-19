@@ -65,7 +65,7 @@ function RiskSparkline({ sourceId, color }: { sourceId: SourceId; color: string 
   const y = (v: number) => H - (Math.min(Math.max(v, 0), 100) / 100) * H;
   const pts = values.map((v, i) => `${((i / Math.max(values.length - 1, 1)) * W).toFixed(2)},${y(v).toFixed(2)}`).join(' ');
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="min-h-10 w-full flex-1" aria-label="Risk of approved charges">
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-11 w-full" aria-label="Risk of approved charges">
       <line x1={0} x2={W} y1={y(RISK_BASELINE + RISK_FLAG)} y2={y(RISK_BASELINE + RISK_FLAG)} stroke="#e2c4c2" strokeDasharray="3,3" vectorEffect="non-scaling-stroke" />
       {values.length > 1 && <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
     </svg>
@@ -82,7 +82,7 @@ export function SourceIdentityCard({ sourceId }: { sourceId: SourceId }) {
   const alarmed = severity !== 'healthy';
   return (
     <div
-      className="flex h-full flex-col justify-between gap-2 overflow-hidden rounded-lg border bg-[var(--surface)] p-3 transition-colors"
+      className="flex flex-col gap-2 overflow-hidden rounded-lg border bg-[var(--surface)] p-3 transition-colors"
       style={{
         borderColor: alarmed ? color : 'var(--border)',
         boxShadow: alarmed ? `0 0 0 3px ${color}26` : undefined,
@@ -114,7 +114,7 @@ export function SignalCard({ sourceId }: { sourceId: SourceId }) {
 
   return (
     <div
-      className="flex flex-col gap-2.5 rounded-lg border bg-[var(--surface)] p-3 transition-colors"
+      className="flex h-full flex-col justify-evenly gap-2.5 rounded-lg border bg-[var(--surface)] p-3 transition-colors"
       style={{
         // An out-of-limits source is findable across the grid at a glance,
         // rather than only from the one small pill in its corner.
