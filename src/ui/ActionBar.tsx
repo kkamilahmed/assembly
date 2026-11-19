@@ -63,7 +63,7 @@ function Action({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-[background-color] ${
+      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium ${
         filled ? 'text-white shadow-sm' : 'hover:bg-black/5'
       } ${primary ? 'animate-card-pulse' : ''}`}
       style={{
