@@ -145,7 +145,7 @@ export function Live() {
       {/* Live tags pinned over the action, the way the references pin
           status cards over shelves. */}
       <StatusTag
-        position={[TDZ_BILLBOARD.x + 1.9, TDZ_BILLBOARD.y + TDZ_BILLBOARD.h + 0.1, TDZ_BILLBOARD.z]}
+        position={[8.7, 1.5, 3.1]}
         label="Approved"
         value={formatReading(PROBLEM_SOURCE_ID, 'velocity', velocity)}
         tone={tdz}
@@ -153,12 +153,12 @@ export function Live() {
         scale={1.2}
       />
       <StatusTag
-        position={[QUARANTINE.x - 0.3, 0.6, QUARANTINE.z]}
+        position={[QUARANTINE.x - 1.8, 2.3, -1.45]}
         label="Blocked"
         value={packetsToCharges(blocked).toLocaleString()}
         tone={blocked > 0 ? 'healthy' : 'neutral'}
         icon="shield"
-        facing="x"
+        facing="z"
         scale={1.4}
       />
       <StatusTag

@@ -63,7 +63,7 @@ export const PACKET_SPEED = 2.0 * (1000 / scaleMs(1000));
 
 /** Length of a packet along the rail, by kind. Card-testing charges are
  *  drawn as small cards, so a storm of them reads as a storm. */
-export const PACKET_LENGTH = { normal: 0.6, attack: 0.28 } as const;
+export const PACKET_LENGTH = { normal: 0.68, attack: 0.3 } as const;
 /** Clear rail kept between two packets on the same lane. */
 export const PACKET_GAP = 0.06;
 
