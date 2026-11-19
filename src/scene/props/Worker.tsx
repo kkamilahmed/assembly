@@ -369,7 +369,9 @@ export function Worker({ pose = 'stand', skin = 0, vest = false, clipboard = fal
         <Part g={limb(0.057, 0.046, UPPER_ARM)} m={coat} />
       </group>
       <group ref={lower}>
-        <Part g={limb(0.046, 0.04, FOREARM - 0.045)} m={coat} />
+        {/* Forearms cast no shadow: at the plant's zoom it merges into the
+            body's, and it is a shadow draw per arm per worker. */}
+        <Part g={limb(0.046, 0.04, FOREARM - 0.045)} m={coat} castShadow={false} />
       </group>
       <group ref={hand}>
         <Part g={cyl(0.03, 0.033, 0.06, 14)} m={glove} position-y={-0.012} />

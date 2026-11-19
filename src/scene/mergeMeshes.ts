@@ -29,7 +29,10 @@ function bakeable(src: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.Buffe
 function collect(buckets: Map<string, Bucket>, mesh: THREE.Mesh, matrix: THREE.Matrix4) {
   if (!mesh.isMesh || (mesh as THREE.InstancedMesh).isInstancedMesh || Array.isArray(mesh.material)) return;
   const g = bakeable(mesh.geometry, matrix);
-  if (!g) return;
+  if (g) add(buckets, mesh, g);
+}
+
+function add(buckets: Map<string, Bucket>, mesh: THREE.Mesh, g: THREE.BufferGeometry) {
   const material = mesh.material as THREE.Material;
   const key = `${material.uuid}|${!!g.attributes.uv}|${mesh.castShadow}|${mesh.receiveShadow}`;
   let b = buckets.get(key);
@@ -38,7 +41,29 @@ function collect(buckets: Map<string, Bucket>, mesh: THREE.Mesh, matrix: THREE.M
     buckets.set(key, b);
   }
   b.geos.push(g);
-  b.sources.push(mesh);
+  if (!b.sources.includes(mesh)) b.sources.push(mesh);
+}
+
+/** Vertices an instanced mesh may expand to before it is left instanced:
+ *  a few hundred stacked cartons bake in fine, a thousand trees would not. */
+const MAX_BAKED_INSTANCE_VERTICES = 250_000;
+
+/** Bakes every instance of a static, uncoloured instanced mesh into the
+ *  buckets, so stock stacks join the batch instead of costing a draw (and
+ *  a shadow draw) each. */
+function collectInstances(buckets: Map<string, Bucket>, mesh: THREE.InstancedMesh, toRoot: THREE.Matrix4) {
+  if (mesh.instanceColor || Array.isArray(mesh.material) || mesh.count === 0) return false;
+  if (mesh.count * mesh.geometry.attributes.position.count > MAX_BAKED_INSTANCE_VERTICES) return false;
+  const base = new THREE.Matrix4().multiplyMatrices(toRoot, mesh.matrixWorld);
+  const inst = new THREE.Matrix4();
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < mesh.count; i++) {
+    mesh.getMatrixAt(i, inst);
+    const g = bakeable(mesh.geometry, m.multiplyMatrices(base, inst));
+    if (!g) return false;
+    add(buckets, mesh, g);
+  }
+  return true;
 }
 
 /** One material for every plain, untextured part of a rigged figure: the
@@ -99,7 +124,7 @@ function collectTinted(buckets: Map<string, Bucket>, mesh: THREE.Mesh, matrix: T
 function flush(buckets: Map<string, Bucket>, target: THREE.Object3D): THREE.Mesh[] {
   const made: THREE.Mesh[] = [];
   for (const b of buckets.values()) {
-    if (b.sources.length < 2) {
+    if (b.geos.length < 2) {
       b.geos.forEach((g) => g.dispose());
       continue;
     }
@@ -154,8 +179,9 @@ function hiddenOrDynamic(o: THREE.Object3D, stop: THREE.Object3D): boolean {
 }
 
 /** Merges every static mesh under `root` into `out`, one mesh per
- *  material, in `root`'s space. Skips anything under a `userData.dynamic`
- *  node and anything hidden. */
+ *  material, in `root`'s space, baking small uncoloured instanced meshes in
+ *  too. Skips anything under a `userData.dynamic` node and anything
+ *  hidden. */
 export function mergeStatic(root: THREE.Object3D, out: THREE.Object3D): THREE.Mesh[] {
   root.updateMatrixWorld(true);
   const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
@@ -164,6 +190,10 @@ export function mergeStatic(root: THREE.Object3D, out: THREE.Object3D): THREE.Me
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh || hiddenOrDynamic(mesh, root)) return;
+    if ((mesh as THREE.InstancedMesh).isInstancedMesh) {
+      collectInstances(buckets, mesh as THREE.InstancedMesh, toRoot);
+      return;
+    }
     m.multiplyMatrices(toRoot, mesh.matrixWorld);
     collect(buckets, mesh, m);
   });

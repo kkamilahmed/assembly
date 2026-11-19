@@ -35,7 +35,13 @@ function OutfeedPallet() {
   const packed = useStore((s) => s.traysPacked);
   const cartons = Math.floor(packed / TRAYS_PER_SHIPPER);
   const count = cartons === 0 ? 0 : ((cartons - 1) % OUTFEED_CAPACITY) + 1;
-  return <CartonStack position={[OUTFEED_PALLET.x, 0, OUTFEED_PALLET.z]} {...OUTFEED} count={count} seed={3} />;
+  // `dynamic`: it grows as tablets pass, so the static batch must not bake
+  // a frozen copy of it.
+  return (
+    <group userData={{ dynamic: true }}>
+      <CartonStack position={[OUTFEED_PALLET.x, 0, OUTFEED_PALLET.z]} {...OUTFEED} count={count} seed={3} />
+    </group>
+  );
 }
 
 type GroupProps = Omit<ThreeElements['group'], 'children'>;
